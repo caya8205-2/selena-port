@@ -1,337 +1,130 @@
-﻿<!DOCTYPE html>
-<html lang="zh-CN">
+<!doctype html>
+<html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>InfiniteLoop · GM Console</title>
-<link rel="stylesheet" href="/gm/gm.css?v=202610262232" />
-
-<style id="free-banner-style">
-:root{--fbh:38px;}
-#free-banner{position:fixed;top:0;left:0;right:0;z-index:9999;box-sizing:border-box;
-display:block;min-height:38px;padding:9px 14px;text-align:center;
-background:linear-gradient(90deg,#5d120d 0%,#c41c1a 50%,#5d120d 100%);
-color:#fff;font:700 13px/1.45 var(--sans,system-ui,"Microsoft YaHei",sans-serif);
-letter-spacing:.4px;border-bottom:1px solid rgba(255,255,255,.18);
-box-shadow:0 4px 14px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.16) inset;}
-#free-banner em{font-style:normal;font-size:15px;line-height:1;margin-right:6px;
-vertical-align:-2px;filter:drop-shadow(0 0 6px rgba(255,255,255,.4));}
-#free-banner span{white-space:normal;word-break:break-word;}
-body{padding-top:var(--fbh);}
-@media (max-width:600px){#free-banner{font-size:12px;padding:8px 10px;}}
-</style>
-
-<style id="gm-split-style">
-/* The banner pushes the whole page down a little and the sidebar follows; the topbar is not sticky and sits right beneath the banner */
-.topbar{position:static;}
-@media (min-width:641px){
-.sidebar{position:static;height:auto;min-height:calc(100vh - var(--fbh));}
-}
-@media (min-width:901px){
-.col-side{top:calc(var(--fbh) + 46px);}
-}
-
-/* Selector: search on the left, dropdown on the right (custom-drawn, no native select) */
-.split{display:flex;gap:10px;align-items:stretch;position:relative;}
-.split__input{flex:1 1 50%;min-width:0;}
-.split__box{position:relative;flex:1 1 50%;min-width:0;display:flex;align-items:center;
-justify-content:space-between;padding:9px 13px;background:var(--bg-input);
-border:1px solid var(--line);border-radius:var(--radius);cursor:pointer;
-font-size:13px;color:var(--text);user-select:none;-webkit-user-select:none;}
-.split__box.is-open{border-color:var(--accent-line);}
-.split__value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.split__value.is-empty{color:var(--text-dim);}
-.split__caret{width:0;height:0;flex:none;margin-left:10px;
-border-left:5px solid transparent;border-right:5px solid transparent;
-border-top:6px solid var(--text-dim);}
-.split__dropdown{position:absolute;left:0;right:0;top:calc(100% + 6px);max-height:280px;
-overflow:auto;display:none;background:#121317;border:1px solid var(--line);
-border-radius:var(--radius);box-shadow:0 12px 28px rgba(0,0,0,.6);z-index:80;}
-.split__box.is-open .split__dropdown{display:block;}
-.split__dropdown .ss-option{padding:9px 12px;}
-
-/* Fixed design width: neutralises the responsive branches so every screen uses the same layout */
-.layout{min-height:0 !important;}
-.sidebar{height:auto !important;min-height:0 !important;}
-.col-side{top:calc(var(--fbh) + 46px) !important;}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GM Console · Selena-port</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230a0c11'/%3E%3Cpath d='M4 11V5h3a2 2 0 010 4H4' stroke='%23d83e3e' stroke-width='1.6' fill='none'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="console.css">
 </head>
 <body>
-<div id="free-banner" role="note"><em>⚠</em><span>Free software. If you paid for this, you were scammed - ask for a refund.</span></div>
-<script>(function(){function m(){var b=document.getElementById("free-banner");if(b){document.documentElement.style.setProperty("--fbh",b.offsetHeight+"px");}}m();window.addEventListener("load",m);window.addEventListener("resize",m);})();</script>
+<div class="app">
 
-<div class="scanline"></div>
-<div class="layout">
-<aside class="sidebar">
-<div class="brand">
-<span class="brand__mark">// PGR</span>
-<div class="brand__text">
-<span class="brand__title">Command Terminal</span>
-<span class="brand__sub">GM CONSOLE</span>
+  <aside class="rail">
+    <div class="rail__mark">
+      <div class="rail__glyph">SP</div>
+      <div class="rail__name">
+        <strong>Selena-port</strong>
+        <span>GM Console</span>
+      </div>
+    </div>
+
+    <nav class="rail__nav" aria-label="Sections">
+      <div class="rail__group">
+        <div class="rail__label">Grants</div>
+        <button class="rail__item" data-section="items" aria-current="page">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 3v10M3 8h10"/></svg></span>
+          Items
+        </button>
+        <button class="rail__item" data-section="characters">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="5.6" r="2.6"/><path d="M3.2 13c.6-2.4 2.5-3.6 4.8-3.6s4.2 1.2 4.8 3.6"/></svg></span>
+          Characters
+        </button>
+        <button class="rail__item" data-section="equipment">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2l5 2v4.2c0 2.6-2 4.6-5 5.8-3-1.2-5-3.2-5-5.8V4l5-2z"/></svg></span>
+          Equipment
+        </button>
+      </div>
+
+      <div class="rail__group">
+        <div class="rail__label">Appearance</div>
+        <button class="rail__item" data-section="coatings">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2.6a5.4 5.4 0 100 10.8c1 0 1.4-.6 1.4-1.3 0-.9-.8-1.1-.8-1.9 0-.7.6-1.2 1.4-1.2h1a2 2 0 001.9-2.2A5.4 5.4 0 008 2.6z"/><circle cx="6" cy="6.6" r=".9" fill="currentColor" stroke="none"/></svg></span>
+          Coatings
+        </button>
+        <button class="rail__item" data-section="scenes">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.4" y="3.4" width="11.2" height="9.2" rx="1.4"/><path d="M2.6 10.4l3-3 2.4 2.4 2-1.8 3.4 3.2"/></svg></span>
+          Scenes
+        </button>
+      </div>
+
+      <div class="rail__group">
+        <div class="rail__label">Account</div>
+        <button class="rail__item" data-section="commandant">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 12.4L8 3l4 9.4"/><path d="M5.6 9.6h4.8"/></svg></span>
+          Commandant
+        </button>
+        <button class="rail__item" data-section="stages">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 13V4l5 2 5-2v9l-5 2-5-2z"/><path d="M8 6v9"/></svg></span>
+          Stages
+        </button>
+      </div>
+    </nav>
+
+    <div class="rail__foot">
+      <div class="status" id="connStatus" aria-live="polite">
+        <span class="status__dot"></span>
+        <span id="connText">Signed out</span>
+      </div>
+      <div class="rail__account">
+        <span id="accountLabel">No account</span>
+        <button id="accountBtn" type="button">Sign in</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="banner">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 2.6l6 10.8H2L8 2.6z"/><path d="M8 6.4v3.4M8 11.6v.6"/></svg>
+      <span>Free software. If you paid for this, you were scammed - ask for a refund.</span>
+    </div>
+
+    <header class="topbar">
+      <div class="topbar__title" id="sectionTitle">Items</div>
+      <div class="topbar__crumb" id="sectionCrumb">Grant</div>
+      <div class="topbar__spacer"></div>
+      <div class="topbar__hint">Run with <kbd>Ctrl</kbd> + <kbd>Enter</kbd></div>
+    </header>
+
+    <div class="workspace">
+      <section class="panel" aria-labelledby="formTitle">
+        <div class="panel__head">
+          <div class="panel__title" id="formTitle">Action</div>
+          <div class="panel__meta" id="catalogMeta">catalog: loading…</div>
+        </div>
+        <div class="panel__body">
+          <form id="actionForm" autocomplete="off">
+            <div id="formFields" style="display:flex;flex-direction:column;gap:14px"></div>
+            <div class="field" style="margin-top:14px">
+              <span class="field__label">Command preview</span>
+              <div class="preview" id="preview" data-ready="false"><span class="preview__prompt">&gt;</span><span id="previewText">pick a target</span></div>
+            </div>
+            <div class="actions" style="margin-top:16px">
+              <button class="btn btn--primary" type="submit" id="runBtn" disabled>Execute</button>
+              <button class="btn btn--quiet" type="button" id="clearBtn">Clear console</button>
+              <span class="field__hint" id="runHint"></span>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel console" aria-labelledby="consoleTitle">
+        <div class="panel__head">
+          <div class="panel__title" id="consoleTitle">Console</div>
+          <div class="panel__meta" id="consoleMeta">0 commands</div>
+        </div>
+        <div class="console__list" id="consoleList">
+          <div class="console__empty">
+            <strong>Nothing executed yet</strong>
+            Choose a target, run the action, and the server response appears here.
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
 </div>
-</div>
-<nav class="nav" id="nav">
-<div class="nav__group">
-<div class="nav__label">Resource Grant</div>
-<a class="nav__item" href="#/item" data-page="item"><span class="nav__icon">✚</span><span>Items</span></a>
-<a class="nav__item" href="#/character" data-page="character"><span class="nav__icon">◈</span><span>Characters</span></a>
-<a class="nav__item" href="#/equip" data-page="equip"><span class="nav__icon">◆</span><span>Equipment</span></a>
-</div>
-<div class="nav__group">
-<div class="nav__label">Appearance</div>
-<a class="nav__item" href="#/coating" data-page="coating"><span class="nav__icon">✦</span><span>Coatings</span></a>
-<a class="nav__item" href="#/scene" data-page="scene"><span class="nav__icon">❖</span><span>Scenes</span></a>
-</div>
-<div class="nav__group">
-<div class="nav__label">Account · Progress</div>
-<a class="nav__item" href="#/level" data-page="level"><span class="nav__icon">▲</span><span>Commandant</span></a>
-<a class="nav__item" href="#/stage" data-page="stage"><span class="nav__icon">◧</span><span>Stages</span></a>
-</div>
-</nav>
-<div class="sidebar__foot">
-<div class="status" id="connStatus"><span class="status__dot"></span><span id="connText">Connecting…</span></div>
-</div>
-</aside>
-<div class="main">
-<header class="topbar">
-<div class="topbar__title" id="pageTitle">Items</div>
-<div class="target">
-<span class="target__label">Target</span>
-<div id="playerSelect" class="ss-host"></div>
-<button id="refreshPlayers" class="btn btn--ghost" title="Refresh Online Players">↻</button>
-</div>
-</header>
-<div class="workspace">
-<div class="col-main">
-<section class="page" id="page-item">
-<section class="panel">
-<div class="panel__head"><span class="panel__tag"></span>Select Item</div>
-<div class="panel__body">
-<div class="field">
-<span class="field__label">Item</span>
-<div class="split">
-<input id="itemSearch" class="split__input" type="text" placeholder="Search item name or ID…" autocomplete="off" />
-<div id="itemSelect" class="split__box">
-<span class="split__value is-empty">0 entries</span>
-<i class="split__caret"></i>
-<div class="split__dropdown"></div>
-</div>
-</div>
-</div>
-<div class="field-grid">
-<label class="field">
-<span class="field__label">Amount</span>
-<input id="itemQty" type="number" min="1" value="1" />
-</label>
-<button id="itemMaxBtn" class="btn btn--chip" title="Fill this item's max">Fill Max</button>
-</div>
-</div>
-</section>
-<section class="panel panel--danger">
-<div class="panel__head"><span class="panel__tag panel__tag--danger"></span>Batch / Cleanup</div>
-<div class="panel__body actions">
-<button id="itemAddAll" class="btn">Grant All Items</button>
-<button id="itemReset" class="btn btn--danger">Reset Inventory</button>
-</div>
-</section>
-</section>
-<section class="page" id="page-character">
-<section class="panel">
-<div class="panel__head"><span class="panel__tag"></span>Select Construct</div>
-<div class="panel__body">
-<div class="field">
-<span class="field__label">Construct</span>
-<div class="split">
-<input id="charSearch" class="split__input" type="text" placeholder="Search character name or ID…" autocomplete="off" />
-<div id="charSelect" class="split__box">
-<span class="split__value is-empty">0 entries</span>
-<i class="split__caret"></i>
-<div class="split__dropdown"></div>
-</div>
-</div>
-</div>
-</div>
-</section>
-<section class="panel">
-<div class="panel__head"><span class="panel__tag"></span>Batch</div>
-<div class="panel__body actions">
-<button id="charAddAll" class="btn">Grant All Characters</button>
-</div>
-</section>
-</section>
-<section class="page" id="page-equip">
-<section class="panel">
-<div class="panel__head"><span class="panel__tag"></span>Select Equipment</div>
-<div class="panel__body">
-<div class="field">
-<span class="field__label">Equipment</span>
-<div class="split">
-<input id="equipSearch" class="split__input" type="text" placeholder="Search equipment name or ID…" autocomplete="off" />
-<div id="equipSelect" class="split__box">
-<span class="split__value is-empty">0 entries</span>
-<i class="split__caret"></i>
-<div class="split__dropdown"></div>
-</div>
-</div>
-</div>
-</div>
-</section>
-<section class="panel panel--danger">
-<div class="panel__head"><span class="panel__tag panel__tag--danger"></span>Batch / Maintenance</div>
-<div class="panel__body actions">
-<button id="equipAddAll" class="btn">Grant All Equipment</button>
-<button id="equipPrune" class="btn btn--danger">Clean Invalid</button>
-<button id="equipSync" class="btn btn--ghost">Sync</button>
-</div>
-</section>
-</section>
-<section class="page" id="page-coating">
-<section class="panel">
-<div class="panel__head"><span class="panel__tag"></span>Select Character</div>
-<div class="panel__body">
-<div class="field">
-<span class="field__label">Character (unlocks all its coatings)</span>
-<div id="coatingSelect" class="ss-host"></div>
-</div>
-</div>
-</section>
-<section class="panel">
-<div class="panel__head"><span class="panel__tag"></span>Batch</div>
-<div class="panel__body actions">
-<button id="coatingUnlockAll" class="btn">Unlock All Characters</button>
-</div>
-</section>
-</section>
-<section class="page" id="page-scene">
-<section class="panel">
-<div class="panel__head"><span class="panel__tag"></span>Main Screen Scene Background</div>
-<div class="panel__body">
-<div class="actions">
-<button id="sceneUnlockAll" class="btn">Unlock All Scene Backgrounds</button>
-</div>
-</div>
-</section>
-</section>
-<section class="page" id="page-level">
-<section class="panel">
-<div class="panel__head"><span class="panel__tag"></span>Commandant Level</div>
-<div class="panel__body">
-<div class="field-grid">
-<label class="field">
-<span class="field__label">Target Level</span>
-<input id="levelValue" type="number" min="1" value="1" />
-</label>
-<button id="levelMaxBtn" class="btn btn--chip" title="Grant at max level">Max</button>
-</div>
-</div>
-</section>
-</section>
-<section class="page" id="page-stage">
-<section class="panel">
-<div class="panel__head"><span class="panel__tag"></span>Select Stage</div>
-<div class="panel__body">
-<div class="field">
-<span class="field__label">Stage (clearable main-story range)</span>
-<div class="split">
-<input id="stageSearch" class="split__input" type="text" placeholder="Search stage name or ID…" autocomplete="off" />
-<div id="stageSelect" class="split__box">
-<span class="split__value is-empty">0 entries</span>
-<i class="split__caret"></i>
-<div class="split__dropdown"></div>
-</div>
-</div>
-</div>
-<p class="hint">Pick one, then click Execute on the right to mark it cleared.</p>
-</div>
-</section>
-<section class="panel">
-<div class="panel__head"><span class="panel__tag"></span>Batch</div>
-<div class="panel__body actions">
-<button id="stageAll" class="btn">Clear All Stages</button>
-</div>
-</section>
-</section>
-</div>
-<aside class="col-side">
-<section class="panel panel--sticky">
-<div class="panel__head"><span class="panel__tag"></span>Command Preview</div>
-<div class="panel__body">
-<code id="cmdPreview" class="cmd-code">—</code>
-<div class="cmd-actions">
-<button id="cmdExec" class="btn btn--primary btn--block">Execute</button>
-<button id="cmdCopy" class="btn btn--ghost">Copy</button>
-</div>
-</div>
-<div class="panel__head">
-<span class="panel__tag"></span>Response
-<button id="clearLog" class="btn btn--ghost btn--sm panel__head-btn">Clear</button>
-</div>
-<div class="panel__body">
-<pre id="respBox" class="resp">Waiting for a command…</pre>
-</div>
-</section>
-</aside>
-</div>
-</div>
-</div>
-<div id="toast" class="toast"><i class="toast__dot"></i><span id="toastMsg" class="toast__msg"></span></div>
+
 <script src="/common/api.js"></script>
-<script src="/gm/gm.js?v=202610262232"></script>
-
-<!--  ===== Lua patch (injection) =====  -->
-<div id="asc49-card" style="margin:16px;padding:16px;border:1px solid #3a4152;border-radius:12px;background:#151a24;">
-  <div style="color:#f05a5a;font-weight:700;margin-bottom:10px;font-size:16px;">Lua Patch</div>
-  <div id="asc49-status" style="color:#b9c2d5;font-size:13px;line-height:1.7;margin-bottom:12px;">Loading…</div>
-  <button id="asc49-btn" style="width:100%;padding:14px;border:0;border-radius:8px;background:#c3382f;color:#fff;font-size:15px;">Rewrite Lua Patch</button>
-</div>
-<script>
-(function () {
-  var API = 'http://127.0.0.1:32751';
-  var st = document.getElementById('asc49-status');
-  var btn = document.getElementById('asc49-btn');
-  function render(o, note) {
-    if (!o) { st.textContent = 'Read failed'; return; }
-    var out = [];
-    out.push('Android SDK: ' + o.sdk + ' granted: ' + (o.granted ? 'yes' : 'no'));
-    out.push('Target: ' + o.path);
-    out.push(o.exists ? ('Current: ' + o.size + ' bytes  sha1 ' + String(o.sha1).substring(0, 8)) : 'Current: file missing (launch the game once first)');
-    if (note) out.push('Result: ' + note);
-    st.innerHTML = out.join('<br>');
-  }
-  function load(note) {
-    fetch(API + '/status').then(function (r) { return r.json(); })
-      .then(function (o) { render(o, note); })
-      .catch(function (e) { st.textContent = 'Failed to read status: ' + e; });
-  }
-  btn.addEventListener('click', function () {
-    btn.disabled = true; st.textContent = 'Writing…';
-    fetch(API + '/install', { method: 'POST' }).then(function (r) { return r.json(); })
-      .then(function (o) { load(o && o.msg ? o.msg : (o && o.ok ? 'Done' : 'Failed')); })
-      .catch(function (e) { st.textContent = 'Write request failed: ' + e; })
-      .then(function () { btn.disabled = false; });
-  });
-  load();
-})();
-</script>
-
-<script id="fit-script">
-(function () {
-  var DW = 673, last = -1;
-  function fit() {
-    var w = window.innerWidth;
-    if (!w || !isFinite(w) || w <= 0) return;
-    last = w;
-    var z = w / DW;
-    if (!isFinite(z) || z <= 0) z = 1;
-    document.documentElement.style.zoom = z;
-  }
-  fit();
-  window.addEventListener("resize", fit);
-  window.addEventListener("orientationchange", fit);
-  setInterval(function () {
-    if (Math.abs(window.innerWidth - last) > 0.5) fit();
-  }, 400);
-})();
-</script>
+<script src="console.js"></script>
 </body>
 </html>
