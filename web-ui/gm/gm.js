@@ -46,24 +46,20 @@ async function getJson(url) {
   return res.json();
 }
 async function exec(command, args) {
-  const player = state.selected.player;
-  if (!player) { toast("Select a target first (an online player)", true); return; }
+  try {
+    await SelenaAPI.ensureAccount();
+  } catch (err) {
+    toast("Log in first", true);
+    return;
+  }
   log("Sending…");
   try {
-    const res = await fetch("/api/AscNet/gm/exec", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid: player.uid, command, args }),
-    });
-    const text = await res.text();
-    let obj = null;
-    try { obj = JSON.parse(text); } catch {}
-    log(obj ? JSON.stringify(obj, null, 2) : text);
-    if (res.ok && obj && obj.code === 0) toast(obj.msg || "Done");
-    else toast((obj && (obj.msg || obj.err)) || `Failed (${res.status})`, true);
+    const res = await SelenaAPI.command(command, args);
+    log(JSON.stringify(res, null, 2));
+    toast((res && res.msg) || "Done");
   } catch (err) {
-    log(String(err));
-    toast(`Network request failed: ${err.message || err}`, true);
+    log(String(err.message || err));
+    toast((err && err.message) || "Request failed", true);
   }
 }
 async function copyText(text) {
@@ -324,13 +320,17 @@ function navigate() {
 }
 let ssPlayer, ssItem, ssChar, ssEquip, ssCoating, ssStage;
 async function loadData() {
-  const res = await getJson("/api/AscNet/gm/data");
-  const d = res.data || {};
-  state.items = d.items || [];
-  state.characters = d.characters || [];
-  state.equips = d.equips || [];
-  state.coatingChars = d.coatingChars || [];
-  state.stages = d.stages || [];
+  const [items, characters, equips, stages] = await Promise.all([
+    SelenaAPI.catalog("items"),
+    SelenaAPI.catalog("characters"),
+    SelenaAPI.catalog("equips"),
+    SelenaAPI.catalog("stages"),
+  ]);
+  state.items = items;
+  state.characters = characters;
+  state.equips = equips;
+  state.coatingChars = characters.slice();
+  state.stages = stages;
   ssItem.setItems(state.items);
   ssChar.setItems(state.characters);
   ssEquip.setItems(state.equips);
@@ -339,17 +339,23 @@ async function loadData() {
   toast(`Catalog loaded: items ${state.items.length} · characters ${state.characters.length} · equipment ${state.equips.length} · stages ${state.stages.length}`);
 }
 async function loadPlayers() {
-  const res = await getJson("/api/AscNet/gm/players");
-  state.players = res.data || [];
-  ssPlayer.setItems(state.players);
   const dot = $("#connStatus"); const txt = $("#connText");
-  if (state.players.length) {
-    if (state.players.length === 1) ssPlayer.select(state.players[0]);
-    dot.classList.add("is-online"); txt.textContent = `Online: ${state.players.length}`;
-  } else {
-    dot.classList.remove("is-online"); txt.textContent = "No players online";
-    toast("No players online - enter the game first", true);
+  let acc;
+  try {
+    acc = await SelenaAPI.ensureAccount();
+  } catch (err) {
+    dot.classList.remove("is-online");
+    txt.textContent = "Not logged in";
+    return;
   }
+  // The command API acts on the account behind the token, so the only valid
+  // target is the account itself. Acting on another player needs a server-side
+  // admin endpoint (stage B).
+  state.players = [{ uid: acc.uid, name: acc.username, online: true }];
+  ssPlayer.setItems(state.players);
+  ssPlayer.select(state.players[0]);
+  dot.classList.add("is-online");
+  txt.textContent = `Online: ${acc.username} (UID ${acc.uid})`;
 }
 function buildSelects() {
   ssPlayer = new SearchSelect($("#playerSelect"), {

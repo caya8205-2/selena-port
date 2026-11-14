@@ -1,4 +1,5 @@
 using System.Net;
+using AscNet.WebPanel;
 using Microsoft.Extensions.FileProviders;
 
 // Selena-port web panel: static GM/player UI plus a pass-through to the AscNet
@@ -23,13 +24,13 @@ var webRoot = Environment.GetEnvironmentVariable("SELENA_WEB_UI")
               ?? Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "web-ui"));
 
 // The launcher runs this from bin/, the dev loop runs it from the project
-// directory: walk up until the repository's web-ui folder is found.
-static string? FindWebUi(string start)
+// directory: walk up until the named folder of the repository is found.
+static string? FindDirectory(string name, string start)
 {
     var dir = new DirectoryInfo(start);
     for (var depth = 0; depth < 8 && dir is not null; depth++)
     {
-        var candidate = Path.Combine(dir.FullName, "web-ui");
+        var candidate = Path.Combine(dir.FullName, name);
         if (Directory.Exists(candidate))
         {
             return candidate;
@@ -41,7 +42,15 @@ static string? FindWebUi(string start)
     return null;
 }
 
+static string? FindWebUi(string start) => FindDirectory("web-ui", start);
+
 builder.WebHost.UseUrls(panelUrl);
+
+var resourcesRoot = Environment.GetEnvironmentVariable("SELENA_RESOURCES")
+                    ?? FindDirectory("Resources", builder.Environment.ContentRootPath)
+                    ?? Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "Resources"));
+
+builder.Services.AddSingleton(sp => new Catalog(resourcesRoot, sp.GetRequiredService<ILogger<Catalog>>()));
 builder.Services.AddHttpClient("sdk", client =>
 {
     client.BaseAddress = new Uri(sdkBaseUrl.TrimEnd('/') + "/");
@@ -74,7 +83,16 @@ app.MapGet("/api/panel/info", () => Results.Json(new
     name = "Selena-port panel",
     sdk = sdkBaseUrl,
     webUi = webRoot,
+    resources = resourcesRoot,
 }));
+
+// Read-only catalog for the panel's search dropdowns (items, characters,
+// equips, stages). Served from the server's own TSV tables; the upstream
+// server keeps its typed readers and is not involved.
+app.MapGet("/api/panel/catalog/{kind}", (string kind, Catalog catalog) =>
+    catalog.TryGet(kind, out var entries)
+        ? Results.Json(new { code = 0, kind, count = entries.Length, entries })
+        : Results.Json(new { code = -1, kind, msg = "unknown or missing catalog" }, statusCode: 404));
 
 // Pass-through: the browser only ever talks to this process, which keeps the
 // SDK server bound to loopback and avoids cross-origin rules in the panel JS.
@@ -86,16 +104,17 @@ app.Map("/api/{**rest}", async (HttpContext ctx, IHttpClientFactory factory) =>
     using var upstream = new HttpRequestMessage(new HttpMethod(ctx.Request.Method), target + ctx.Request.QueryString);
 
     if (ctx.Request.ContentLength is > 0 || ctx.Request.Headers.ContainsKey("Transfer-Encoding"))
-    {
-        using var buffer = new MemoryStream();
-        await ctx.Request.Body.CopyToAsync(buffer, ctx.RequestAborted);
-        buffer.Position = 0;
-        upstream.Content = new StreamContent(buffer);
-        if (ctx.Request.ContentType is { } contentType)
         {
-            upstream.Content.Headers.TryAddWithoutValidation("Content-Type", contentType);
+            // Read the body into a byte[] first: a MemoryStream behind a StreamContent
+            // would be disposed before the upstream request is sent.
+            using var buffer = new MemoryStream();
+            await ctx.Request.Body.CopyToAsync(buffer, ctx.RequestAborted);
+            upstream.Content = new ByteArrayContent(buffer.ToArray());
+            if (ctx.Request.ContentType is { } contentType)
+            {
+                upstream.Content.Headers.TryAddWithoutValidation("Content-Type", contentType);
+            }
         }
-    }
 
     foreach (var header in ctx.Request.Headers)
     {
