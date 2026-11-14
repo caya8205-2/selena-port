@@ -1,0 +1,14 @@
+{
+  "solution": {
+    "path": "AscNet.sln",
+    "projects": [
+      "AscNet\\AscNet.csproj",
+      "AscNet.Common\\AscNet.Common.csproj",
+      "AscNet.GameServer\\AscNet.GameServer.csproj",
+      "AscNet.Logging\\AscNet.Logging.csproj",
+      "AscNet.SDKServer\\AscNet.SDKServer.csproj",
+      "AscNet.Table\\AscNet.Table.csproj",
+      "AscNet.Test\\AscNet.Test.csproj"
+    ]
+  }
+}
