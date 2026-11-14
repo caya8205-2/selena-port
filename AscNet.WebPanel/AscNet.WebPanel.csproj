@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    Selena-port web panel.
+    Intentionally has NO project references: it is a thin backend-for-frontend that
+    serves the static panel and forwards /api/* to the AscNet SDK server, so the
+    fork never needs to patch upstream code to gain a web UI.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>AscNet.WebPanel</RootNamespace>
+    <AssemblyName>AscNet.WebPanel</AssemblyName>
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+
+</Project>
