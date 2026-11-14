@@ -96,6 +96,24 @@
     updatePreview();
   }
 
+  /* Ask the server whether this account actually has a live session. */
+  async function refreshStatus() {
+    var status = $("#connStatus");
+    var text = $("#connText");
+    if (!window.SelenaAPI.account) return;
+
+    var result = await window.SelenaAPI.status();
+    if (result.state === "in-game") {
+      status.classList.add("is-online");
+      status.classList.remove("is-offline");
+      text.textContent = "In game";
+    } else if (result.state === "not-in-game") {
+      status.classList.remove("is-online");
+      status.classList.add("is-offline");
+      text.textContent = "Not in game";
+    }
+  }
+
   async function authenticate(register) {
     var user = $("#username").value.trim();
     var pass = $("#password").value;
@@ -112,6 +130,7 @@
       $("#password").value = "";
       errorBox.textContent = "";
       renderAccount();
+      refreshStatus();
     } catch (err) {
       var message = (err && err.message) || "Sign in failed";
       if (register && /already/i.test(message)) message = "That username is already registered - sign in instead.";
@@ -275,12 +294,14 @@
     try {
       var response = await window.SelenaAPI.command(cmd.name, cmd.args);
       performed += 1;
+      refreshStatus();
       window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, true, JSON.stringify(response, null, 2));
     } catch (err) {
       performed += 1;
       var detail = (err && (err.message || String(err))) || "Request failed";
       if (err && err.data) detail += "\n" + JSON.stringify(err.data, null, 2);
       window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, false, detail);
+      refreshStatus();
     } finally {
       run.textContent = "Perform";
       run.disabled = false;
@@ -330,4 +351,5 @@
 
   renderAccount();
   renderSection("items");
+  if (window.SelenaAPI.account) refreshStatus();
 })();

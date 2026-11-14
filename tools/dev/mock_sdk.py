@@ -10,6 +10,7 @@ AscNet.SDKServer, so the UI can be exercised without MongoDB or the game:
 Not part of the panel: dev-only, listens on 127.0.0.1:8085 by default.
 """
 import json
+import os
 import re
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -75,6 +76,10 @@ class Handler(BaseHTTPRequestHandler):
             if self.headers.get("Authorization") != TOKEN:
                 return self._send({"msg": "Invalid token!"}, 401)
             name = m.group(1)
+            # Offline fixture: lets the panel's status probe be exercised without
+            # a real game session.
+            if os.environ.get("MOCK_OFFLINE") == "1":
+                return self._send({"msg": "Player is offline!"}, 400)
             args = body.get("args") or []
             if name not in [c for c, _ in COMMANDS]:
                 return self._send({"msg": "Command does not exists!"}, 404)

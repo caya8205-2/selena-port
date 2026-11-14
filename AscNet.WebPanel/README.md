@@ -74,3 +74,22 @@ in sync with whatever the launcher or `run_steam.py` chose.
    cleanup by rarity/category, dorm blueprint shortfall calculation, per-player
    online status. These need new server-side handlers and will be proposed to
    upstream separately rather than patched in silently.
+
+## Pages served
+
+| Route | File | Purpose |
+|---|---|---|
+| `/gm` | `web-ui/gm/index.html` | GM console: grants, coatings, scenes, commandant level, stages |
+| `/player` | `web-ui/player/index.html` | Player self-service: sign in with the local account, grants to that account |
+
+Both pages share `web-ui/common/theme.css` (Selena palette, type stacks, custom
+scrollbars, staff motif) and `web-ui/common/ui.js` (searchable picker, number
+stepper, log entries), so the two surfaces cannot drift apart.
+
+`/api/panel/catalog/{items|characters|equips|stages}` feeds the pickers from the
+server's TSV tables (`Resources/table/...`), read-only and cached per file
+timestamp. Nothing is written back.
+
+Features the command layer cannot serve yet (inventory cleanup, dorm blueprints,
+guild resources) are visibly labelled *stage B* in the UI and specified in
+`docs/stage-b.md`.

@@ -44,11 +44,15 @@ The web panel is frontend-complete. The backend that will serve it
 ## Status
 
 - [x] Identify client/version compatibility (4.9.1, official launcher, EN)
-- [x] Panel UI translated to English, asset paths fixed, EN layout verified
 - [x] Android internals documented for reference
-- [ ] `AscNet.WebPanel` project: `/gm`, `/player`, `/api/player/*`
-- [ ] Wire panel actions to the server's command layer
-- [ ] End-to-end run: launcher -> client -> panel in browser
+- [x] `AscNet.WebPanel`: static host, `/api/*` pass-through, TSV catalog
+- [x] GM console rebuilt as a desktop console on the AscNet command API
+- [x] Player page rebuilt on the same design system and command API
+- [x] Shared `common/theme.css` + `common/ui.js` (Selena palette, staff motif,
+      picker, stepper, log entries)
+- [ ] Stage B: inventory cleanup, guild resources, dorm blueprints, online status
+      (see [docs/stage-b.md](docs/stage-b.md))
+- [ ] End-to-end run against a real AscNet server + MongoDB, then the launcher flow
 
 ## How to run (upstream flow)
 

@@ -171,6 +171,22 @@
     return promptLogin();
   }
 
+
+  /* Online status without a status endpoint: `save` is idempotent for the
+   * owner, and the server answers 400 "Player is offline!" when the account has
+   * no live session. Anything else (200) means the player is in game. */
+  async function status() {
+    if (!account()) return { state: "signed-out" };
+    try {
+      await command("save", []);
+      return { state: "in-game" };
+    } catch (err) {
+      if (err && err.status === 401) return { state: "signed-out" };
+      if (err && err.status === 400) return { state: "not-in-game", detail: err.message };
+      return { state: "unknown", detail: (err && err.message) || "probe failed" };
+    }
+  }
+
   window.SelenaAPI = {
     get account() { return account(); },
     login: login,
@@ -179,6 +195,7 @@
     promptLogin: promptLogin,
     catalog: catalog,
     commands: commands,
-    command: command
+    command: command,
+    status: status
   };
 })();
