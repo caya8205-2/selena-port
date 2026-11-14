@@ -400,3 +400,8 @@ Resources/table.pre-4.7.7/
 # direnv cache and local editor state
 .direnv/
 .vscode/
+
+# Selena-port fork additions
+web-ui/**/*.zh-orig
+web-ui/**/*.bak
+web-ui/**/*.bak-*

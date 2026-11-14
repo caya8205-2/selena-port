@@ -1,0 +1,1287 @@
+{
+ "gm/index.html": [
+  {
+   "kind": "text",
+   "line": 6,
+   "zh": "InfiniteLoop · GM 终端"
+  },
+  {
+   "kind": "text",
+   "line": 60,
+   "zh": "本软件完全免费，如果跟你收钱了，那说明你被骗了，请退款"
+  },
+  {
+   "kind": "text",
+   "line": 69,
+   "zh": "指挥终端"
+  },
+  {
+   "kind": "text",
+   "line": 75,
+   "zh": "资源发放"
+  },
+  {
+   "kind": "text",
+   "line": 76,
+   "zh": "物品"
+  },
+  {
+   "kind": "text",
+   "line": 77,
+   "zh": "角色"
+  },
+  {
+   "kind": "text",
+   "line": 78,
+   "zh": "装备"
+  },
+  {
+   "kind": "text",
+   "line": 81,
+   "zh": "外观"
+  },
+  {
+   "kind": "text",
+   "line": 82,
+   "zh": "涂装"
+  },
+  {
+   "kind": "text",
+   "line": 83,
+   "zh": "场景背景"
+  },
+  {
+   "kind": "text",
+   "line": 86,
+   "zh": "账号 · 进度"
+  },
+  {
+   "kind": "text",
+   "line": 87,
+   "zh": "指挥官等级"
+  },
+  {
+   "kind": "text",
+   "line": 88,
+   "zh": "关卡"
+  },
+  {
+   "kind": "text",
+   "line": 92,
+   "zh": "连接中…"
+  },
+  {
+   "kind": "text",
+   "line": 99,
+   "zh": "作战目标"
+  },
+  {
+   "kind": "text",
+   "line": 108,
+   "zh": "选择道具"
+  },
+  {
+   "kind": "text",
+   "line": 111,
+   "zh": "道具"
+  },
+  {
+   "kind": "text",
+   "line": 115,
+   "zh": "共 0 条"
+  },
+  {
+   "kind": "text",
+   "line": 123,
+   "zh": "数量"
+  },
+  {
+   "kind": "text",
+   "line": 126,
+   "zh": "填入上限"
+  },
+  {
+   "kind": "text",
+   "line": 131,
+   "zh": "批量 / 清理"
+  },
+  {
+   "kind": "text",
+   "line": 133,
+   "zh": "发放全部道具"
+  },
+  {
+   "kind": "text",
+   "line": 134,
+   "zh": "重置背包"
+  },
+  {
+   "kind": "text",
+   "line": 140,
+   "zh": "选择构造体"
+  },
+  {
+   "kind": "text",
+   "line": 143,
+   "zh": "构造体"
+  },
+  {
+   "kind": "text",
+   "line": 156,
+   "zh": "批量"
+  },
+  {
+   "kind": "text",
+   "line": 158,
+   "zh": "发放全部角色"
+  },
+  {
+   "kind": "text",
+   "line": 164,
+   "zh": "选择装备"
+  },
+  {
+   "kind": "text",
+   "line": 180,
+   "zh": "批量 / 维护"
+  },
+  {
+   "kind": "text",
+   "line": 182,
+   "zh": "发放全部装备"
+  },
+  {
+   "kind": "text",
+   "line": 183,
+   "zh": "清理无效"
+  },
+  {
+   "kind": "text",
+   "line": 184,
+   "zh": "同步"
+  },
+  {
+   "kind": "text",
+   "line": 190,
+   "zh": "选择角色"
+  },
+  {
+   "kind": "text",
+   "line": 193,
+   "zh": "角色（解锁其全部涂装）"
+  },
+  {
+   "kind": "text",
+   "line": 201,
+   "zh": "解锁全部角色"
+  },
+  {
+   "kind": "text",
+   "line": 207,
+   "zh": "主界面场景背景"
+  },
+  {
+   "kind": "text",
+   "line": 210,
+   "zh": "解锁全部场景背景"
+  },
+  {
+   "kind": "text",
+   "line": 221,
+   "zh": "目标等级"
+  },
+  {
+   "kind": "text",
+   "line": 224,
+   "zh": "上限"
+  },
+  {
+   "kind": "text",
+   "line": 231,
+   "zh": "选择关卡"
+  },
+  {
+   "kind": "text",
+   "line": 234,
+   "zh": "关卡（主线可通关区间）"
+  },
+  {
+   "kind": "text",
+   "line": 244,
+   "zh": "选择后点右侧「执行」标记该关卡为已通关。"
+  },
+  {
+   "kind": "text",
+   "line": 250,
+   "zh": "通关全部关卡"
+  },
+  {
+   "kind": "text",
+   "line": 257,
+   "zh": "命令预览"
+  },
+  {
+   "kind": "text",
+   "line": 261,
+   "zh": "执行"
+  },
+  {
+   "kind": "text",
+   "line": 262,
+   "zh": "复制"
+  },
+  {
+   "kind": "text",
+   "line": 266,
+   "zh": "响应"
+  },
+  {
+   "kind": "text",
+   "line": 267,
+   "zh": "清空"
+  },
+  {
+   "kind": "text",
+   "line": 270,
+   "zh": "等待指令…"
+  },
+  {
+   "kind": "text",
+   "line": 282,
+   "zh": "Lua 补丁"
+  },
+  {
+   "kind": "text",
+   "line": 283,
+   "zh": "读取中…"
+  },
+  {
+   "kind": "text",
+   "line": 284,
+   "zh": "重新写入 Lua 补丁"
+  },
+  {
+   "kind": "attr",
+   "line": 101,
+   "zh": "刷新在线玩家"
+  },
+  {
+   "kind": "attr",
+   "line": 113,
+   "zh": "搜索道具名或 ID…"
+  },
+  {
+   "kind": "attr",
+   "line": 126,
+   "zh": "填入该道具上限"
+  },
+  {
+   "kind": "attr",
+   "line": 145,
+   "zh": "搜索角色名或 ID…"
+  },
+  {
+   "kind": "attr",
+   "line": 169,
+   "zh": "搜索装备名或 ID…"
+  },
+  {
+   "kind": "attr",
+   "line": 224,
+   "zh": "按满级发放"
+  },
+  {
+   "kind": "attr",
+   "line": 236,
+   "zh": "搜索关卡名或 ID…"
+  }
+ ],
+ "gm/gm.js": [
+  {
+   "kind": "jslit",
+   "line": 10,
+   "zh": "物品"
+  },
+  {
+   "kind": "jslit",
+   "line": 10,
+   "zh": "角色"
+  },
+  {
+   "kind": "jslit",
+   "line": 10,
+   "zh": "装备"
+  },
+  {
+   "kind": "jslit",
+   "line": 11,
+   "zh": "涂装"
+  },
+  {
+   "kind": "jslit",
+   "line": 11,
+   "zh": "场景背景"
+  },
+  {
+   "kind": "jslit",
+   "line": 12,
+   "zh": "指挥官等级"
+  },
+  {
+   "kind": "jslit",
+   "line": 12,
+   "zh": "关卡"
+  },
+  {
+   "kind": "jslit",
+   "line": 35,
+   "zh": "数值已限制在 ${min ?? \"−∞\"} ~ ${max ?? \"∞\"}"
+  },
+  {
+   "kind": "jslit",
+   "line": 49,
+   "zh": "请先选择作战目标（在线玩家）"
+  },
+  {
+   "kind": "jslit",
+   "line": 50,
+   "zh": "请求中…"
+  },
+  {
+   "kind": "jslit",
+   "line": 61,
+   "zh": "执行成功"
+  },
+  {
+   "kind": "jslit",
+   "line": 62,
+   "zh": "执行失败 (${res.status})"
+  },
+  {
+   "kind": "jslit",
+   "line": 65,
+   "zh": "网络请求失败：${err.message || err}"
+  },
+  {
+   "kind": "jslit",
+   "line": 69,
+   "zh": "已复制命令"
+  },
+  {
+   "kind": "jslit",
+   "line": 120,
+   "zh": "搜索…"
+  },
+  {
+   "kind": "jslit",
+   "line": 125,
+   "zh": "\n      <input class=\"ss-input\" type=\"text\" placeholder=\"${this.opts.placeholder}\" autocomplete=\"off\" readonly />\n      <button class=\"ss-search-btn\" type=\"button\" title=\"搜索\">🔍</button>\n      <div class=\"ss-dropdown\"></div>"
+  },
+  {
+   "kind": "jslit",
+   "line": 190,
+   "zh": "无匹配结果"
+  },
+  {
+   "kind": "jslit",
+   "line": 211,
+   "zh": "共 ${this.matched.length} 条，输入关键字缩小范围…"
+  },
+  {
+   "kind": "jslit",
+   "line": 276,
+   "zh": "匹配 ${this.matched.length} 条"
+  },
+  {
+   "kind": "jslit",
+   "line": 276,
+   "zh": "共 ${this.items.length} 条"
+  },
+  {
+   "kind": "jslit",
+   "line": 300,
+   "zh": "共 ${this.matched.length} 条，继续输入缩小范围…"
+  },
+  {
+   "kind": "jslit",
+   "line": 338,
+   "zh": "目录已载入：道具 ${state.items.length} · 角色 ${state.characters.length} · 装备 ${state.equips.length} · 关卡 ${state.stages.length}"
+  },
+  {
+   "kind": "jslit",
+   "line": 347,
+   "zh": "在线 ${state.players.length}"
+  },
+  {
+   "kind": "jslit",
+   "line": 349,
+   "zh": "无在线玩家"
+  },
+  {
+   "kind": "jslit",
+   "line": 350,
+   "zh": "当前无在线玩家，请先进入游戏"
+  },
+  {
+   "kind": "jslit",
+   "line": 355,
+   "zh": "选择在线玩家…"
+  },
+  {
+   "kind": "jslit",
+   "line": 373,
+   "zh": "搜索角色名或 ID…"
+  },
+  {
+   "kind": "jslit",
+   "line": 391,
+   "zh": "执行"
+  },
+  {
+   "kind": "jslit",
+   "line": 398,
+   "zh": "请先选择目标对象"
+  },
+  {
+   "kind": "jslit",
+   "line": 407,
+   "zh": "等待指令…"
+  },
+  {
+   "kind": "jslit",
+   "line": 411,
+   "zh": "请先在当前页选择目标对象"
+  },
+  {
+   "kind": "jslit",
+   "line": 416,
+   "zh": "当前没有可复制的命令"
+  },
+  {
+   "kind": "jslit",
+   "line": 421,
+   "zh": "请先选择道具"
+  },
+  {
+   "kind": "jslit",
+   "line": 425,
+   "zh": "确定重置该玩家背包为默认物品？"
+  },
+  {
+   "kind": "jslit",
+   "line": 553,
+   "zh": "恢复 GM 界面默认样式？这只清除本浏览器的可视化修改。"
+  },
+  {
+   "kind": "jslit",
+   "line": 561,
+   "zh": "样式已导出"
+  },
+  {
+   "kind": "jslit",
+   "line": 577,
+   "zh": "已保存到本机浏览器"
+  },
+  {
+   "kind": "jslit",
+   "line": 609,
+   "zh": "初始化失败：${err.message || err}"
+  }
+ ],
+ "player/index.html": [
+  {
+   "kind": "text",
+   "line": 6,
+   "zh": "玩家自助面板"
+  },
+  {
+   "kind": "text",
+   "line": 26,
+   "zh": "本软件完全免费，如果跟你收钱了，那说明你被骗了，请退款"
+  },
+  {
+   "kind": "text",
+   "line": 30,
+   "zh": "玩家自助"
+  },
+  {
+   "kind": "text",
+   "line": 30,
+   "zh": "仅本人账号"
+  },
+  {
+   "kind": "text",
+   "line": 31,
+   "zh": "自己的账号，自己的操作。"
+  },
+  {
+   "kind": "text",
+   "line": 32,
+   "zh": "使用自己注册的游戏账号密码登录。"
+  },
+  {
+   "kind": "text",
+   "line": 34,
+   "zh": "登录游戏账号"
+  },
+  {
+   "kind": "text",
+   "line": 34,
+   "zh": "这里不创建新账号，也不会授予管理员权限。"
+  },
+  {
+   "kind": "text",
+   "line": 36,
+   "zh": "游戏账号"
+  },
+  {
+   "kind": "text",
+   "line": 37,
+   "zh": "密码"
+  },
+  {
+   "kind": "text",
+   "line": 38,
+   "zh": "登录自己的账号"
+  },
+  {
+   "kind": "text",
+   "line": 42,
+   "zh": "服务器绑定账号"
+  },
+  {
+   "kind": "text",
+   "line": 43,
+   "zh": "刷新状态"
+  },
+  {
+   "kind": "text",
+   "line": 43,
+   "zh": "退出登录"
+  },
+  {
+   "kind": "text",
+   "line": 46,
+   "zh": "操作类型"
+  },
+  {
+   "kind": "text",
+   "line": 47,
+   "zh": "发放单种道具"
+  },
+  {
+   "kind": "text",
+   "line": 47,
+   "zh": "获取单个角色"
+  },
+  {
+   "kind": "text",
+   "line": 48,
+   "zh": "获取单件装备"
+  },
+  {
+   "kind": "text",
+   "line": 48,
+   "zh": "解锁已拥有角色涂装"
+  },
+  {
+   "kind": "text",
+   "line": 49,
+   "zh": "解锁自己的场景背景"
+  },
+  {
+   "kind": "text",
+   "line": 49,
+   "zh": "设置自己的等级"
+  },
+  {
+   "kind": "text",
+   "line": 50,
+   "zh": "通关单个关卡"
+  },
+  {
+   "kind": "text",
+   "line": 52,
+   "zh": "搜索名称或 ID"
+  },
+  {
+   "kind": "text",
+   "line": 53,
+   "zh": "选择对象"
+  },
+  {
+   "kind": "text",
+   "line": 54,
+   "zh": "数量"
+  },
+  {
+   "kind": "text",
+   "line": 55,
+   "zh": "等级"
+  },
+  {
+   "kind": "text",
+   "line": 56,
+   "zh": "单次道具最多 10000；每分钟最多 12 次。协合勋绩、指挥局经验、信标增幅点数使用下方指挥局入口。"
+  },
+  {
+   "kind": "text",
+   "line": 59,
+   "zh": "操作预览"
+  },
+  {
+   "kind": "text",
+   "line": 59,
+   "zh": "先登录，再选择操作。"
+  },
+  {
+   "kind": "text",
+   "line": 60,
+   "zh": "仅对自己的账号执行"
+  },
+  {
+   "kind": "text",
+   "line": 61,
+   "zh": "响应"
+  },
+  {
+   "kind": "text",
+   "line": 61,
+   "zh": "等待操作…"
+  },
+  {
+   "kind": "text",
+   "line": 65,
+   "zh": "一键补齐模板图纸"
+  },
+  {
+   "kind": "text",
+   "line": 66,
+   "zh": "先在游戏内进入宿舍，在这里选择同一房间与装修模板。扣除该房间和家具背包已有的成品，再计算缺少的图纸。仅购买图纸，不会移动、回收或合成家具。"
+  },
+  {
+   "kind": "text",
+   "line": 68,
+   "zh": "本人宿舍"
+  },
+  {
+   "kind": "text",
+   "line": 69,
+   "zh": "搜索装修模板"
+  },
+  {
+   "kind": "text",
+   "line": 70,
+   "zh": "装修模板"
+  },
+  {
+   "kind": "text",
+   "line": 71,
+   "zh": "收藏模板请先在游戏内保存。本服分享码先导入并收藏；官服分享码目前不能直接读取官服装修数据。"
+  },
+  {
+   "kind": "text",
+   "line": 72,
+   "zh": "计算缺口与总价"
+  },
+  {
+   "kind": "text",
+   "line": 74,
+   "zh": "请先进入游戏，再选择房间和模板。"
+  },
+  {
+   "kind": "text",
+   "line": 75,
+   "zh": "只使用家具币，不使用虹卡或黑卡。已有图纸不重复买；图纸不可购买或余额不足时整单不执行。确认预览后才扣费。"
+  },
+  {
+   "kind": "text",
+   "line": 76,
+   "zh": "确认购买缺少的图纸"
+  },
+  {
+   "kind": "text",
+   "line": 77,
+   "zh": "刷新宿舍与模板"
+  },
+  {
+   "kind": "text",
+   "line": 78,
+   "zh": "购买后重新打开游戏内的一键家具合成页面。"
+  },
+  {
+   "kind": "text",
+   "line": 82,
+   "zh": "本人所在指挥局"
+  },
+  {
+   "kind": "text",
+   "line": 83,
+   "zh": "紫色协合勋绩属于公会公共余额；蓝色联合绩点属于自己的背包，两者分别补充。公共资源和升级仅总指挥、副指挥可操作；正式成员可补充自己的联合绩点。请先进入游戏。"
+  },
+  {
+   "kind": "text",
+   "line": 84,
+   "zh": "正在读取本人指挥局…"
+  },
+  {
+   "kind": "text",
+   "line": 86,
+   "zh": "选择操作"
+  },
+  {
+   "kind": "text",
+   "line": 87,
+   "zh": "协合勋绩（紫色·公会公共）"
+  },
+  {
+   "kind": "text",
+   "line": 88,
+   "zh": "联合绩点（蓝色·本人背包）"
+  },
+  {
+   "kind": "text",
+   "line": 89,
+   "zh": "指挥局经验"
+  },
+  {
+   "kind": "text",
+   "line": 90,
+   "zh": "信标增幅点数"
+  },
+  {
+   "kind": "text",
+   "line": 91,
+   "zh": "使用已有经验升一级"
+  },
+  {
+   "kind": "text",
+   "line": 94,
+   "zh": "补充每次1–10000，各项操作共用指挥局10秒冷却。经验不会自动升级：经验足够后选择“使用已有经验升一级”，或在游戏内「指挥局 → 信息 → 管理 → 升级」。公会升级奖励信标增幅点数，满级后每32000经验转换20点。"
+  },
+  {
+   "kind": "text",
+   "line": 95,
+   "zh": "补充到本人所在指挥局"
+  },
+  {
+   "kind": "text",
+   "line": 97,
+   "zh": "刷新指挥局状态"
+  },
+  {
+   "kind": "text",
+   "line": 98,
+   "zh": "操作结果会显示在这里。"
+  },
+  {
+   "kind": "text",
+   "line": 102,
+   "zh": "清理自己的背包"
+  },
+  {
+   "kind": "text",
+   "line": 103,
+   "zh": "先退出游戏，再预览和确认。清理直接删除，不返还材料；穿戴、锁定、队伍预设和意识套装引用的物品会保留。"
+  },
+  {
+   "kind": "text",
+   "line": 105,
+   "zh": "清理范围"
+  },
+  {
+   "kind": "text",
+   "line": 106,
+   "zh": "闲置意识"
+  },
+  {
+   "kind": "text",
+   "line": 106,
+   "zh": "闲置武器"
+  },
+  {
+   "kind": "text",
+   "line": 107,
+   "zh": "闲置辅助机"
+  },
+  {
+   "kind": "text",
+   "line": 107,
+   "zh": "指定普通道具"
+  },
+  {
+   "kind": "text",
+   "line": 109,
+   "zh": "最高星级"
+  },
+  {
+   "kind": "text",
+   "line": 110,
+   "zh": "三星及以下"
+  },
+  {
+   "kind": "text",
+   "line": 110,
+   "zh": "四星及以下"
+  },
+  {
+   "kind": "text",
+   "line": 111,
+   "zh": "五星及以下"
+  },
+  {
+   "kind": "text",
+   "line": 111,
+   "zh": "六星及以下"
+  },
+  {
+   "kind": "text",
+   "line": 114,
+   "zh": "搜索背包里的道具"
+  },
+  {
+   "kind": "text",
+   "line": 115,
+   "zh": "选择要清理的道具"
+  },
+  {
+   "kind": "text",
+   "line": 115,
+   "zh": "先退出游戏，再选择背包道具"
+  },
+  {
+   "kind": "text",
+   "line": 116,
+   "zh": "只列出本人背包里可清理的普通道具，并显示持有数量。"
+  },
+  {
+   "kind": "text",
+   "line": 118,
+   "zh": "同时清理已培养的闲置物品（默认保留）"
+  },
+  {
+   "kind": "text",
+   "line": 119,
+   "zh": "预览本人背包清理范围"
+  },
+  {
+   "kind": "text",
+   "line": 121,
+   "zh": "退出游戏后，选择范围并预览。"
+  },
+  {
+   "kind": "text",
+   "line": 122,
+   "zh": "输入“确认清理”"
+  },
+  {
+   "kind": "text",
+   "line": 123,
+   "zh": "确认删除预览中的本人背包物品"
+  },
+  {
+   "kind": "text",
+   "line": 127,
+   "zh": "发放等操作需先进入游戏；清理背包需先退出游戏。"
+  },
+  {
+   "kind": "attr",
+   "line": 52,
+   "zh": "输入名称或 ID 筛选"
+  },
+  {
+   "kind": "attr",
+   "line": 69,
+   "zh": "系统模板或本人已收藏的模板名称"
+  },
+  {
+   "kind": "attr",
+   "line": 114,
+   "zh": "输入道具名称或关键词"
+  },
+  {
+   "kind": "attr",
+   "line": 122,
+   "zh": "确认清理"
+  }
+ ],
+ "player/panel.js": [
+  {
+   "kind": "jslit",
+   "line": 16,
+   "zh": "请求失败"
+  },
+  {
+   "kind": "jslit",
+   "line": 27,
+   "zh": "未命名"
+  },
+  {
+   "kind": "jslit",
+   "line": 44,
+   "zh": "目标：本人 UID ${me?.uid??\"未登录\"}\\n/${op.command} ${op.args.join(\" \")}"
+  },
+  {
+   "kind": "jslit",
+   "line": 44,
+   "zh": "请选择对象"
+  },
+  {
+   "kind": "jslit",
+   "line": 56,
+   "zh": "游戏在线，可以自助操作。"
+  },
+  {
+   "kind": "jslit",
+   "line": 56,
+   "zh": "游戏未在线：可以清理背包；发放等操作需进入游戏后刷新。"
+  },
+  {
+   "kind": "jslit",
+   "line": 63,
+   "zh": "登录中…"
+  },
+  {
+   "kind": "jslit",
+   "line": 68,
+   "zh": "账号状态已刷新。"
+  },
+  {
+   "kind": "jslit",
+   "line": 69,
+   "zh": "已退出登录。"
+  },
+  {
+   "kind": "jslit",
+   "line": 73,
+   "zh": "执行中…"
+  },
+  {
+   "kind": "jslit",
+   "line": 77,
+   "zh": "先登录"
+  },
+  {
+   "kind": "jslit",
+   "line": 94,
+   "zh": "正在读取本人背包…"
+  },
+  {
+   "kind": "jslit",
+   "line": 94,
+   "zh": "请选择要清理的道具"
+  },
+  {
+   "kind": "jslit",
+   "line": 105,
+   "zh": "正在读取本人背包里的普通道具…"
+  },
+  {
+   "kind": "jslit",
+   "line": 106,
+   "zh": "没有匹配的背包道具，请换个名称或关键词。"
+  },
+  {
+   "kind": "jslit",
+   "line": 106,
+   "zh": "本人背包里没有可清理的普通道具。"
+  },
+  {
+   "kind": "jslit",
+   "line": 107,
+   "zh": "匹配${matches.length}种道具，先显示100种；输入更完整的名称缩小范围。"
+  },
+  {
+   "kind": "jslit",
+   "line": 108,
+   "zh": "匹配${matches.length}种道具；名称后为本人持有数量。"
+  },
+  {
+   "kind": "jslit",
+   "line": 120,
+   "zh": "本人背包目录校验失败，请刷新。"
+  },
+  {
+   "kind": "jslit",
+   "line": 144,
+   "zh": "退出游戏后，选择范围并预览。"
+  },
+  {
+   "kind": "jslit",
+   "line": 162,
+   "zh": "确认清理"
+  },
+  {
+   "kind": "jslit",
+   "line": 168,
+   "zh": "背包正在读取，请稍后再预览。"
+  },
+  {
+   "kind": "jslit",
+   "line": 168,
+   "zh": "请先按名称搜索并选择一个背包道具。"
+  },
+  {
+   "kind": "jslit",
+   "line": 182,
+   "zh": "本人 UID ${plan.uid}\\n符合条件：${plan.count}件 / ${plan.quantity}个\\n"
+  },
+  {
+   "kind": "jslit",
+   "line": 184,
+   "zh": "\\n仅展示前${plan.sampleLimit}项。"
+  },
+  {
+   "kind": "jslit",
+   "line": 204,
+   "zh": "\\n已清理${data.data.deleted}件，仅作用于本人 UID ${data.data.uid}。"
+  },
+  {
+   "kind": "jslit",
+   "line": 251,
+   "zh": "正在保存…"
+  },
+  {
+   "kind": "jslit",
+   "line": 251,
+   "zh": "核对并重试同一请求"
+  },
+  {
+   "kind": "jslit",
+   "line": 252,
+   "zh": "本指挥局冷却中（${cooling}秒）"
+  },
+  {
+   "kind": "jslit",
+   "line": 253,
+   "zh": "消耗已有经验，升一级"
+  },
+  {
+   "kind": "jslit",
+   "line": 253,
+   "zh": "补充到自己的背包"
+  },
+  {
+   "kind": "jslit",
+   "line": 253,
+   "zh": "补充到本人所在指挥局"
+  },
+  {
+   "kind": "jslit",
+   "line": 257,
+   "zh": "指挥局所属账号已变化，请重新刷新。"
+  },
+  {
+   "kind": "jslit",
+   "line": 258,
+   "zh": "本人账号尚未加入指挥局。"
+  },
+  {
+   "kind": "jslit",
+   "line": 259,
+   "zh": "总指挥"
+  },
+  {
+   "kind": "jslit",
+   "line": 259,
+   "zh": "副指挥"
+  },
+  {
+   "kind": "jslit",
+   "line": 259,
+   "zh": "成员"
+  },
+  {
+   "kind": "jslit",
+   "line": 259,
+   "zh": "游客"
+  },
+  {
+   "kind": "jslit",
+   "line": 260,
+   "zh": "${data.name} · Lv.${data.level}\\n本人身份：${roles[data.rank] || \"成员\"}\\n"
+  },
+  {
+   "kind": "jslit",
+   "line": 261,
+   "zh": "协合勋绩（紫色·公会公共）：${data.shopCoin} / ${data.shopCoinLimit}\\n"
+  },
+  {
+   "kind": "jslit",
+   "line": 262,
+   "zh": "联合绩点（蓝色·本人背包）：${data.personalCoin}\\n"
+  },
+  {
+   "kind": "jslit",
+   "line": 263,
+   "zh": "人数上限：${data.maxMembers}\\n指挥局经验：${data.experience}"
+  },
+  {
+   "kind": "jslit",
+   "line": 264,
+   "zh": "（已满级，新增经验按游戏规则转换信标增幅点数）"
+  },
+  {
+   "kind": "jslit",
+   "line": 264,
+   "zh": " / 升级所需 ${data.nextLevelExperience}"
+  },
+  {
+   "kind": "jslit",
+   "line": 265,
+   "zh": "\\n信标增幅点数：${data.talentPoint}\\n"
+  },
+  {
+   "kind": "jslit",
+   "line": 266,
+   "zh": "请先进入游戏，再刷新本页。"
+  },
+  {
+   "kind": "jslit",
+   "line": 267,
+   "zh": "经验足够，可选择“使用已有经验升一级”。"
+  },
+  {
+   "kind": "jslit",
+   "line": 267,
+   "zh": "可补充公会公共资源和自己的联合绩点。"
+  },
+  {
+   "kind": "jslit",
+   "line": 268,
+   "zh": "可补充自己的联合绩点；公共资源与升级需总指挥、副指挥操作。"
+  },
+  {
+   "kind": "jslit",
+   "line": 268,
+   "zh": "游客不能补充资源。"
+  },
+  {
+   "kind": "jslit",
+   "line": 286,
+   "zh": "有一笔待核对请求，请重试同一请求；已经到账的不会重复增加。"
+  },
+  {
+   "kind": "jslit",
+   "line": 286,
+   "zh": "操作结果会显示在这里。"
+  },
+  {
+   "kind": "jslit",
+   "line": 298,
+   "zh": "单次数量必须是1–10000的整数。"
+  },
+  {
+   "kind": "jslit",
+   "line": 305,
+   "zh": "正在核对本人身份并保存操作…"
+  },
+  {
+   "kind": "jslit",
+   "line": 333,
+   "zh": "确认购买缺少的图纸"
+  },
+  {
+   "kind": "jslit",
+   "line": 336,
+   "zh": "选择已变化，请重新计算图纸缺口和总价。"
+  },
+  {
+   "kind": "jslit",
+   "line": 365,
+   "zh": "正在读取本人宿舍与装修模板…"
+  },
+  {
+   "kind": "jslit",
+   "line": 369,
+   "zh": "账号状态已变化，请重新登录。"
+  },
+  {
+   "kind": "jslit",
+   "line": 374,
+   "zh": "家具币余额：${response.data.balance}\\n请选择房间和模板，再计算图纸缺口。"
+  },
+  {
+   "kind": "jslit",
+   "line": 390,
+   "zh": "正在计算缺口…"
+  },
+  {
+   "kind": "jslit",
+   "line": 396,
+   "zh": "购买所属账号已变化。"
+  },
+  {
+   "kind": "jslit",
+   "line": 399,
+   "zh": "${x.name}：需要 ${x.required}，已有 ${x.owned}，缺 ${x.missing}；"
+  },
+  {
+   "kind": "jslit",
+   "line": 400,
+   "zh": "购买 ${x.gain} 张，${x.cost} 家具币"
+  },
+  {
+   "kind": "jslit",
+   "line": 402,
+   "zh": "所需图纸已齐全，无需购买。"
+  },
+  {
+   "kind": "jslit",
+   "line": 403,
+   "zh": "\\n\\n总价：${quote.totalCost} 家具币\\n余额：${quote.balance} 家具币"
+  },
+  {
+   "kind": "jslit",
+   "line": 404,
+   "zh": "确认花费 ${quote.totalCost} 家具币并购买"
+  },
+  {
+   "kind": "jslit",
+   "line": 405,
+   "zh": "有图纸无法购买，整单不会执行。"
+  },
+  {
+   "kind": "jslit",
+   "line": 406,
+   "zh": "家具币不足，整单不会扣费。"
+  },
+  {
+   "kind": "jslit",
+   "line": 407,
+   "zh": "核对清单与总价后点击确认购买。预览5分钟内有效。"
+  },
+  {
+   "kind": "jslit",
+   "line": 407,
+   "zh": "无需购买图纸。"
+  },
+  {
+   "kind": "jslit",
+   "line": 415,
+   "zh": "正在确认并保存购买…"
+  },
+  {
+   "kind": "jslit",
+   "line": 421,
+   "zh": "${response.msg}\\n本单花费 ${response.data.totalCost} 家具币，"
+  },
+  {
+   "kind": "jslit",
+   "line": 422,
+   "zh": "${response.data.types} 种、共 ${response.data.count} 张图纸；"
+  },
+  {
+   "kind": "jslit",
+   "line": 423,
+   "zh": "家具币剩余 ${response.data.furnitureCoinRemaining}。"
+  },
+  {
+   "kind": "jslit",
+   "line": 427,
+   "zh": " 可再次点击核对同一笔请求，不会重复扣费。"
+  }
+ ],
+ "gm/gm.css": [],
+ "player/panel.css": []
+}

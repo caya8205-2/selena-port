@@ -1,5 +1,11 @@
 # InfiniteLoop
 
+> **This is the [Selena-port](SELENA.md) fork.** Upstream InfiniteLoop is kept as
+> the base and left intact; this fork adds a browser self-service panel
+> (`web-ui/`) and keeps the Android-port research in `docs/apk-port/`.
+> Licensing is mixed and documented in [LICENSE.md](LICENSE.md) and
+> [NOTICE.md](NOTICE.md).
+
 <img width="1500" height="500" alt="image" src="https://github.com/user-attachments/assets/f41daa42-e75a-4fb5-a612-daae67b2cc30" />
 
 
