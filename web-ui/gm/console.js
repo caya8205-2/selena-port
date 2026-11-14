@@ -1,8 +1,9 @@
 /* Selena-port GM console.
  *
  * Every action is one AscNet chat command (AscNet.GameServer/Commands), executed
- * through the SDK server with the signed-in account's token. The panel never
- * touches the database; the performance log shows exactly what the server said.
+ * through the SDK server with the signed-in account's token. The performance log
+ * shows exactly what the server answered; the picker, stepper and log rendering
+ * come from common/ui.js so both panels stay identical.
  */
 (function () {
   "use strict";
@@ -59,8 +60,9 @@
   };
 
   var catalogCache = {};
-  var current = null;
+  var current = "items";
   var values = {};
+  var picks = {};
   var performed = 0;
 
   /* ---------------------------------------------------------------- account */
@@ -87,16 +89,17 @@
       label.removeAttribute("title");
       btn.textContent = "Sign in";
     }
+
+    updatePreview();
   }
 
   async function signIn() {
     try {
       await window.SelenaAPI.promptLogin();
     } catch (err) {
-      /* cancelled: nothing to do */
+      /* cancelled */
     }
     renderAccount();
-    updatePreview();
   }
 
   /* ---------------------------------------------------------------- catalogs */
@@ -108,196 +111,14 @@
     return entries;
   }
 
-  /* ---------------------------------------------------------------- picker */
-
-  function makeCombo(field) {
-    var wrap = document.createElement("div");
-    wrap.className = "combo";
-
-    var input = document.createElement("input");
-    input.className = "combo__input";
-    input.type = "text";
-    input.placeholder = field.placeholder || "";
-    input.autocomplete = "off";
-    input.setAttribute("role", "combobox");
-    input.setAttribute("aria-expanded", "false");
-
-    var list = document.createElement("ul");
-    list.className = "combo__list";
-    list.hidden = true;
-    list.setAttribute("role", "listbox");
-
-    wrap.appendChild(input);
-    wrap.appendChild(list);
-
-    var entries = [];
-    var filtered = [];
-    var active = -1;
-
-    function close() {
-      list.hidden = true;
-      input.setAttribute("aria-expanded", "false");
-    }
-
-    function renderList() {
-      list.textContent = "";
-      if (!filtered.length) {
-        var empty = document.createElement("li");
-        empty.className = "combo__empty";
-        empty.textContent = entries.length ? "No entry matches that name or ID." : "Catalog is unavailable.";
-        list.appendChild(empty);
-      } else {
-        filtered.slice(0, 200).forEach(function (entry, index) {
-          var li = document.createElement("li");
-          li.className = "combo__option";
-          li.setAttribute("role", "option");
-          li.setAttribute("aria-selected", index === active ? "true" : "false");
-
-          var name = document.createElement("span");
-          name.textContent = entry.name;
-          var id = document.createElement("span");
-          id.className = "combo__id";
-          id.textContent = String(entry.id);
-
-          li.appendChild(name);
-          li.appendChild(id);
-          li.addEventListener("mousedown", function (event) {
-            event.preventDefault();
-            choose(entry);
-          });
-          list.appendChild(li);
-        });
-      }
-      place();
-      list.hidden = false;
-      input.setAttribute("aria-expanded", "true");
-    }
-
-    /* Open downwards by default, upwards when the viewport has no room below, so
-     * the list is never clipped by the card or the window bottom. */
-    function place() {
-      var rect = input.getBoundingClientRect();
-      var rows = Math.min(filtered.length, 200);
-      var wanted = Math.min(292, rows * 34 + 12);
-      var below = window.innerHeight - rect.bottom - 12;
-      if (below < wanted && rect.top > below) {
-        list.style.top = "auto";
-        list.style.bottom = "calc(100% + 4px)";
-      } else {
-        list.style.top = "calc(100% + 4px)";
-        list.style.bottom = "auto";
-      }
-    }
-
-    function choose(entry) {
-      values[field.key] = entry;
-      input.value = entry.name + " · " + entry.id;
-      close();
-      updatePreview();
-    }
-
-    function filter() {
-      var q = input.value.trim().toLowerCase();
-      filtered = q
-        ? entries.filter(function (e) {
-            return e.name.toLowerCase().indexOf(q) >= 0 || String(e.id).indexOf(q) === 0;
-          })
-        : entries;
-      active = filtered.length ? 0 : -1;
-    }
-
-    input.addEventListener("focus", function () {
-      input.select();
-      filter();
-      renderList();
-    });
-
-    input.addEventListener("input", function () {
-      values[field.key] = null;
-      updatePreview();
-      filter();
-      renderList();
-    });
-
-    input.addEventListener("keydown", function (event) {
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        if (list.hidden) return;
-        event.preventDefault();
-        var limit = Math.min(filtered.length, 200) - 1;
-        active += event.key === "ArrowDown" ? 1 : -1;
-        if (active < 0) active = 0;
-        if (active > limit) active = limit;
-        renderList();
-        var el = list.children[active];
-        if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
-      } else if (event.key === "Enter") {
-        if (!list.hidden && filtered[active]) {
-          event.preventDefault();
-          choose(filtered[active]);
-        }
-      } else if (event.key === "Escape") {
-        close();
-      }
-    });
-
-    input.addEventListener("blur", function () { setTimeout(close, 120); });
-
-    catalog(field.catalog).then(function (data) {
-      entries = data;
-      filtered = data;
-    }).catch(function () {
-      entries = [];
-      filtered = [];
-    });
-
-    return wrap;
-  }
-
-  /* Number field with console-styled stepper buttons. The native OS spinner is
-   * hidden in CSS and replaced by these, while the input keeps its keyboard and
-   * accessibility behaviour. */
-  function makeStepper(input, field) {
-    var wrap = document.createElement("div");
-    wrap.className = "stepper";
-
-    function step(delta) {
-      var min = field.min !== undefined ? Number(field.min) : -Infinity;
-      var max = field.max !== undefined ? Number(field.max) : Infinity;
-      var current = input.value === "" ? 0 : Number(input.value);
-      if (isNaN(current)) current = min === -Infinity ? 0 : min;
-      var next = current + delta;
-      if (next < min) next = min;
-      if (next > max) next = max;
-      input.value = String(next);
-      values[field.key] = input.value;
-      updatePreview();
-    }
-
-    function button(label, aria, delta) {
-      var el = document.createElement("button");
-      el.type = "button";
-      el.className = "stepper__btn";
-      el.textContent = label;
-      el.setAttribute("aria-label", aria);
-      el.addEventListener("click", function () {
-        step(delta);
-        input.focus();
-      });
-      return el;
-    }
-
-    wrap.appendChild(input);
-    wrap.appendChild(button("\u2212", "Decrease " + field.label.toLowerCase(), -1));
-    wrap.appendChild(button("+", "Increase " + field.label.toLowerCase(), 1));
-    return wrap;
-  }
-
   /* ---------------------------------------------------------------- sections */
 
-  function renderSection(key, keepValues) {
-    var section = SECTIONS[key];
+  function renderSection(key) {
     current = key;
-    if (!keepValues) values = {};
+    values = {};
+    picks = {};
+
+    var section = SECTIONS[key];
 
     document.querySelectorAll(".rail__item").forEach(function (el) {
       if (el.dataset.section === key) el.setAttribute("aria-current", "page");
@@ -327,7 +148,9 @@
       wrap.appendChild(labelRow);
 
       if (field.type === "combo") {
-        wrap.appendChild(makeCombo(field));
+        var picker = window.SelenaUI.combo(field, function () { return catalog(field.catalog); }, updatePreview);
+        picks[field.key] = picker;
+        wrap.appendChild(picker.node);
       } else {
         var input = document.createElement("input");
         input.className = "input" + (field.type === "number" ? " input--mono" : "");
@@ -341,11 +164,9 @@
           values[field.key] = input.value.trim();
           updatePreview();
         });
-        if (field.type === "number") {
-          wrap.appendChild(makeStepper(input, field));
-        } else {
-          wrap.appendChild(input);
-        }
+        wrap.appendChild(field.type === "number"
+          ? window.SelenaUI.stepper(input, field, updatePreview)
+          : input);
       }
 
       host.appendChild(wrap);
@@ -353,8 +174,7 @@
 
     if (section.note) {
       var note = document.createElement("p");
-      note.className = "field__hint";
-      note.style.margin = "0";
+      note.className = "hint-block";
       note.textContent = section.note;
       host.appendChild(note);
     }
@@ -379,12 +199,18 @@
 
   function buildCommand() {
     var section = SECTIONS[current];
-    var missing = section.fields.some(function (field) {
-      if (!field.required) return false;
-      var v = values[field.key];
-      return v === null || v === undefined || v === "" || (field.type === "combo" && !v.id);
-    });
-    if (missing) return null;
+
+    for (var i = 0; i < section.fields.length; i += 1) {
+      var field = section.fields[i];
+      if (!field.required) continue;
+      var pick = picks[field.key] && picks[field.key].value();
+      if (field.type === "combo") {
+        if (!pick) return null;
+        values[field.key] = pick;
+      } else if (values[field.key] === undefined || values[field.key] === "") {
+        return null;
+      }
+    }
 
     var args = section.build(values);
     if (args.some(function (a) { return a === null || a === undefined || a === ""; })) return null;
@@ -411,49 +237,7 @@
     $("#runHint").textContent = window.SelenaAPI.account ? "" : "sign in to perform";
   }
 
-  /* ---------------------------------------------------------------- performance log */
-
-  function stamp() {
-    return new Date().toTimeString().slice(0, 8);
-  }
-
-  function pushEntry(cmd, ok, body) {
-    if (performed === 0) $("#consoleList").textContent = "";
-    performed += 1;
-
-    var entry = document.createElement("div");
-    entry.className = "entry " + (ok ? "entry--ok" : "entry--err");
-
-    var head = document.createElement("div");
-    head.className = "entry__head";
-
-    var t = document.createElement("span");
-    t.className = "entry__time";
-    t.textContent = stamp();
-
-    var c = document.createElement("span");
-    c.className = "entry__cmd";
-    c.textContent = "/" + cmd.name + " " + cmd.args.join(" ");
-
-    var tag = document.createElement("span");
-    tag.className = "entry__tag";
-    tag.textContent = ok ? "ok" : "error";
-
-    head.appendChild(t);
-    head.appendChild(c);
-    head.appendChild(tag);
-
-    var bodyEl = document.createElement("pre");
-    bodyEl.className = "entry__body";
-    bodyEl.textContent = body;
-
-    entry.appendChild(head);
-    entry.appendChild(bodyEl);
-
-    var list = $("#consoleList");
-    list.insertBefore(entry, list.firstChild);
-    $("#consoleMeta").textContent = performed + (performed === 1 ? " command" : " commands");
-  }
+  /* ---------------------------------------------------------------- perform */
 
   async function perform(event) {
     if (event) event.preventDefault();
@@ -472,12 +256,14 @@
 
     try {
       var response = await window.SelenaAPI.command(cmd.name, cmd.args);
+      performed += 1;
       renderAccount();
-      pushEntry(cmd, true, JSON.stringify(response, null, 2));
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, true, JSON.stringify(response, null, 2));
     } catch (err) {
-      var detail = err && (err.message || String(err));
+      performed += 1;
+      var detail = (err && (err.message || String(err))) || "Request failed";
       if (err && err.data) detail += "\n" + JSON.stringify(err.data, null, 2);
-      pushEntry(cmd, false, detail);
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, false, detail);
     } finally {
       run.textContent = "Perform";
       run.disabled = false;
@@ -488,14 +274,13 @@
   /* ---------------------------------------------------------------- wiring */
 
   document.querySelectorAll(".rail__item").forEach(function (el) {
-    el.addEventListener("click", function () { renderSection(el.dataset.section, false); });
+    el.addEventListener("click", function () { renderSection(el.dataset.section); });
   });
 
   $("#accountBtn").addEventListener("click", function () {
     if (window.SelenaAPI.account) {
       window.SelenaAPI.logout();
       renderAccount();
-      updatePreview();
     } else {
       signIn();
     }
@@ -506,17 +291,8 @@
   $("#clearBtn").addEventListener("click", function () {
     performed = 0;
     $("#consoleMeta").textContent = "0 commands";
-
-    var list = $("#consoleList");
-    list.textContent = "";
-
-    var empty = document.createElement("div");
-    empty.className = "console__empty";
-    var strong = document.createElement("strong");
-    strong.textContent = "Nothing performed yet";
-    empty.appendChild(strong);
-    empty.appendChild(document.createTextNode("Choose a target, run the action, and the server response appears here."));
-    list.appendChild(empty);
+    window.SelenaUI.resetLog($("#consoleList"), "Nothing performed yet",
+      "Choose a target, run the action, and the server response appears here.");
   });
 
   document.addEventListener("keydown", function (event) {
@@ -524,5 +300,5 @@
   });
 
   renderAccount();
-  renderSection("items", false);
+  renderSection("items");
 })();

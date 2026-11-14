@@ -86,6 +86,7 @@
       <div class="topbar__spacer"></div>
       <div class="topbar__hint">Perform with <kbd>Ctrl</kbd> + <kbd>Enter</kbd></div>
     </header>
+    <div class="staff topbar__staff" aria-hidden="true"></div>
 
     <div class="workspace">
       <section class="panel" aria-labelledby="formTitle">
@@ -112,10 +113,13 @@
       <section class="panel console" aria-labelledby="consoleTitle">
         <div class="panel__head">
           <div class="panel__title" id="consoleTitle">Performance</div>
-          <div class="panel__meta" id="consoleMeta">0 commands</div>
+          <div class="console__corner">
+            <span class="staff--corner" aria-hidden="true"></span>
+            <div class="panel__meta" id="consoleMeta">0 commands</div>
+          </div>
         </div>
-        <div class="console__list" id="consoleList">
-          <div class="console__empty">
+        <div class="log" id="consoleList">
+          <div class="empty">
             <strong>Nothing performed yet</strong>
             Choose a target, run the action, and the server response appears here.
           </div>
@@ -126,6 +130,7 @@
 </div>
 
 <script src="/common/api.js"></script>
+<script src="/common/ui.js"></script>
 <script src="console.js"></script>
 </body>
 </html>

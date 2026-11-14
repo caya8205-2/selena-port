@@ -1,133 +1,202 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Player Self-Service Panel</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/%3E">
-  <link rel="stylesheet" href="panel.css">
-
-<style id="free-banner-style">
-:root{--fbh:38px;}
-#free-banner{position:fixed;top:0;left:0;right:0;z-index:9999;box-sizing:border-box;
-display:block;min-height:38px;padding:9px 14px;text-align:center;
-background:linear-gradient(90deg,#5d120d 0%,#c41c1a 50%,#5d120d 100%);
-color:#fff;font:700 13px/1.45 var(--sans,system-ui,"Microsoft YaHei",sans-serif);
-letter-spacing:.4px;border-bottom:1px solid rgba(255,255,255,.18);
-box-shadow:0 4px 14px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.16) inset;}
-#free-banner em{font-style:normal;font-size:15px;line-height:1;margin-right:6px;
-vertical-align:-2px;filter:drop-shadow(0 0 6px rgba(255,255,255,.4));}
-#free-banner span{white-space:normal;word-break:break-word;}
-body{padding-top:var(--fbh);}
-@media (max-width:600px){#free-banner{font-size:12px;padding:8px 10px;}}
-</style>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Selena-port · Player</title>
+  <link rel="icon" type="image/webp" href="/icon.webp">
+  <link rel="apple-touch-icon" href="/icon.webp">
+  <link rel="stylesheet" href="player.css">
 </head>
 <body>
-<div id="free-banner" role="note"><em>⚠</em><span>Free software. If you paid for this, you were scammed - ask for a refund.</span></div>
-<script>(function(){function m(){var b=document.getElementById("free-banner");if(b){document.documentElement.style.setProperty("--fbh",b.offsetHeight+"px");}}m();window.addEventListener("load",m);window.addEventListener("resize",m);})();</script>
+<div class="app">
 
-  <main class="shell">
-    <header><div class="brand">Player Self-Service</div><span class="badge">Own account only</span></header>
-    <section class="intro"><p class="eyebrow">PLAYER SELF SERVICE</p><h1>Your account, your actions.</h1>
-      <p>Log in with the game account you registered.</p></section>
-    <section id="loginPanel" class="card">
-      <h2>Log in to your game account</h2><p class="muted">No new accounts are created here, and no admin rights are granted.</p>
-      <form id="loginForm">
-        <label>Game account<input id="username" name="username" autocomplete="username" maxlength="128" required></label>
-        <label>Password<input id="password" name="password" type="password" autocomplete="current-password" maxlength="128" required></label>
-        <button type="submit">Log in to your account</button>
-      </form>
-    </section>
-    <section id="workspace" class="hidden">
-      <div class="account card"><div><span class="muted">Server-linked account</span><h2 id="identity"></h2><p id="online"></p></div>
-        <div class="actions"><button id="refresh" class="secondary">Refresh status</button><button id="logout" class="secondary">Log out</button></div></div>
-      <div class="columns">
-        <section class="card">
-          <label>Action type<select id="kind">
-            <option value="item">Grant a single item type</option><option value="character">Unlock a single character</option>
-            <option value="equip">Obtain a single equipment piece</option><option value="coating">Unlock coatings for owned characters</option>
-            <option value="scene">Unlock your scene backgrounds</option><option value="level">Set your level</option>
-            <option value="stage">Clear a single stage</option>
-          </select></label>
-          <div id="targetFields"><label>Search name or ID<input id="search" placeholder="Filter by name or ID"></label>
-            <label>Select target<select id="object"></select></label></div>
-          <label id="quantityField">Amount<input id="quantity" type="number" min="1" max="10000" value="1"></label>
-          <label id="levelField" class="hidden">Level<input id="level" type="number" min="1" value="1"></label>
-          <p class="muted">Up to 10,000 items per request, 12 requests per minute. For Co-op Merits, Bureau EXP and Beacon Boost Points use the bureau section below.</p>
+  <aside class="rail">
+    <div class="rail__mark">
+      <img class="rail__portrait" src="/icon.webp" alt="" width="36" height="36">
+      <div class="rail__name">
+        <strong>Selena-port</strong>
+        <span>Player</span>
+      </div>
+    </div>
+
+    <nav class="rail__nav" aria-label="Actions">
+      <div class="rail__group">
+        <div class="rail__label">Grants</div>
+        <button class="rail__item" data-section="items" aria-current="page">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 3v10M3 8h10"/></svg></span>
+          Items
+        </button>
+        <button class="rail__item" data-section="characters">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="5.6" r="2.6"/><path d="M3.2 13c.6-2.4 2.5-3.6 4.8-3.6s4.2 1.2 4.8 3.6"/></svg></span>
+          Characters
+        </button>
+        <button class="rail__item" data-section="equipment">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2l5 2v4.2c0 2.6-2 4.6-5 5.8-3-1.2-5-3.2-5-5.8V4l5-2z"/></svg></span>
+          Equipment
+        </button>
+      </div>
+
+      <div class="rail__group">
+        <div class="rail__label">Appearance</div>
+        <button class="rail__item" data-section="coatings">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2.6a5.4 5.4 0 100 10.8c1 0 1.4-.6 1.4-1.3 0-.9-.8-1.1-.8-1.9 0-.7.6-1.2 1.4-1.2h1a2 2 0 001.9-2.2A5.4 5.4 0 008 2.6z"/><circle cx="6" cy="6.6" r=".9" fill="currentColor" stroke="none"/></svg></span>
+          Coatings
+        </button>
+        <button class="rail__item" data-section="scenes">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.4" y="3.4" width="11.2" height="9.2" rx="1.4"/><path d="M2.6 10.4l3-3 2.4 2.4 2-1.8 3.4 3.2"/></svg></span>
+          Scenes
+        </button>
+      </div>
+
+      <div class="rail__group">
+        <div class="rail__label">Account</div>
+        <button class="rail__item" data-section="commandant">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 12.4L8 3l4 9.4"/><path d="M5.6 9.6h4.8"/></svg></span>
+          Commandant
+        </button>
+        <button class="rail__item" data-section="stages">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 13V4l5 2 5-2v9l-5 2-5-2z"/><path d="M8 6v9"/></svg></span>
+          Stages
+        </button>
+      </div>
+
+      <div class="rail__group">
+        <div class="rail__label">Not available</div>
+        <div class="rail__item" data-state="unavailable">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.6" y="4.6" width="10.8" height="7.6" rx="1.2"/><path d="M2.6 7.4h10.8"/></svg></span>
+          Inventory cleanup
+        </div>
+        <div class="rail__item" data-state="unavailable">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 12.6V6.2l5-2.8 5 2.8v6.4z"/><path d="M6.4 12.6V8.8h3.2v3.8"/></svg></span>
+          Dorm blueprints
+        </div>
+        <div class="rail__item" data-state="unavailable">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="5.4" cy="8" r="2"/><circle cx="10.6" cy="8" r="2"/></svg></span>
+          Guild resources
+        </div>
+        <p class="rail__note">These need server-side handlers that the command layer does not have yet.</p>
+      </div>
+    </nav>
+
+    <div class="rail__foot">
+      <div class="staff" aria-hidden="true"></div>
+      <div class="status" id="connStatus" aria-live="polite">
+        <span class="status__dot"></span>
+        <span id="connText">Signed out</span>
+      </div>
+      <div class="rail__account">
+        <span id="accountLabel">No account</span>
+        <button id="accountBtn" type="button">Sign in</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="banner">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 2.6l6 10.8H2L8 2.6z"/><path d="M8 6.4v3.4M8 11.6v.6"/></svg>
+      <span>Free software. If you paid for this, you were scammed - ask for a refund.</span>
+    </div>
+
+    <header class="topbar">
+      <h1 class="topbar__title" id="sectionTitle">Items</h1>
+      <div class="topbar__spacer"></div>
+      <div class="topbar__hint">Perform with <kbd>Ctrl</kbd> + <kbd>Enter</kbd></div>
+    </header>
+    <div class="staff topbar__staff" aria-hidden="true"></div>
+
+    <div class="workspace">
+      <div>
+        <section class="panel" aria-labelledby="accountTitle">
+          <div class="panel__head">
+            <div class="panel__title" id="accountTitle">Your account</div>
+            <div class="panel__meta" id="accountMeta">local only</div>
+          </div>
+          <div class="panel__body">
+            <form class="account-form" id="accountForm" autocomplete="off">
+              <label class="field">
+                <span class="field__label">Game account</span>
+                <input class="input" id="username" name="username" autocomplete="username" required maxlength="128">
+              </label>
+              <label class="field">
+                <span class="field__label">Password</span>
+                <input class="input" id="password" name="password" type="password" autocomplete="current-password" required maxlength="128">
+              </label>
+              <div class="actions">
+                <button class="btn btn--primary" type="submit" id="signInBtn">Sign in</button>
+                <button class="btn btn--quiet" type="button" id="registerBtn">Create account</button>
+              </div>
+              <p class="account-note">Accounts are created inside the game. This page never asks for a Kuro account and never creates admin rights.</p>
+              <p class="panel__meta" id="accountError" role="status"></p>
+            </form>
+
+            <div id="accountPanel" hidden>
+              <p class="account-id">Signed in as <strong id="accountName"></strong></p>
+              <p class="panel__meta" id="accountUid"></p>
+              <div class="actions" style="margin-top:12px">
+                <button class="btn btn--quiet" type="button" id="signOutBtn">Sign out</button>
+              </div>
+            </div>
+          </div>
         </section>
-        <section class="card">
-          <h2>Action preview</h2><code id="preview">Log in first, then pick an action.</code>
-          <button id="execute" disabled>Execute on your account only</button>
-          <h2>Response</h2><pre id="response">Waiting for an action…</pre>
+
+        <section class="panel" aria-labelledby="formTitle">
+          <div class="panel__head">
+            <div class="panel__title" id="formTitle">Score</div>
+            <div class="panel__meta" id="catalogMeta">catalog: loading…</div>
+          </div>
+          <div class="panel__body">
+            <form id="actionForm" autocomplete="off">
+              <div id="formFields" style="display:flex;flex-direction:column;gap:14px"></div>
+              <div class="field" style="margin-top:14px">
+                <span class="field__label">Score preview</span>
+                <div class="preview" id="preview" data-ready="false"><span class="preview__prompt">&gt;</span><span id="previewText">choose a target</span></div>
+              </div>
+              <div class="actions" style="margin-top:16px">
+                <button class="btn btn--primary" type="submit" id="runBtn" disabled>Perform</button>
+                <button class="btn btn--quiet" type="button" id="clearBtn">Silence</button>
+                <span class="field__hint" id="runHint"></span>
+              </div>
+            </form>
+          </div>
         </section>
       </div>
-      <section class="card" id="dormDrawingCard">
-        <h2>Fill missing template blueprints in one click</h2>
-        <p class="muted">Enter your dorm in game first, then pick the same room and decoration template here. Finished pieces already in that room and in your furniture bag are deducted, then the missing blueprints are calculated. Only blueprints are purchased - furniture is never moved, recycled or crafted.</p>
-        <form id="dormDrawingForm">
-          <label>Your dorm<select id="dormDrawingRoom" required></select></label>
-          <label>Search templates<input id="dormDrawingSearch" placeholder="System template or a template you saved"></label>
-          <label>Decoration template<select id="dormDrawingTemplate" required></select></label>
-          <p class="muted">Save a template in game first to use it here. Import this server's share codes and save them first; official-server share codes cannot read official decoration data yet.</p>
-          <button id="dormDrawingPreview" type="submit">Calculate missing blueprints and total cost</button>
-        </form>
-        <pre id="dormDrawingSummary" role="status">Enter the game first, then choose a room and template.</pre>
-        <p class="muted">Only Furniture Coins are used - never Rainbow or Black Cards. Blueprints you already own are not bought again; if any blueprint is unbuyable or the balance is short, the whole order is skipped. Nothing is charged until you confirm the preview.</p>
-        <button id="dormDrawingBuy" type="button" disabled>Confirm purchase of missing blueprints</button>
-        <button id="dormDrawingRefresh" type="button" class="secondary">Refresh dorm and templates</button>
-        <p id="dormDrawingResult" role="status">After purchasing, reopen the one-click furniture synthesis page in game.</p>
-      </section>
 
-      <section class="card guild-card" id="guildCard">
-        <h2>Your bureau</h2>
-        <p class="muted">Purple Co-op Merits belong to the shared guild pool; blue Joint Points belong to your own inventory, and they are topped up separately. Only the Commander and Vice Commander can move pool resources or upgrade; regular members can top up their own Joint Points. Enter the game first.</p>
-        <pre id="guildStatus" role="status">Reading your bureau…</pre>
-        <form id="guildResourceForm">
-          <label>Choose action<select id="guildResource">
-            <option value="shopCoin">Co-op Merits (purple - guild pool)</option>
-            <option value="personalCoin">Joint Points (blue - personal)</option>
-            <option value="experience">Bureau EXP</option>
-            <option value="talentPoint">Beacon Boost Points</option>
-            <option value="levelUp">Spend stored EXP to level up once</option>
-          </select></label>
-          <label>Amount<input id="guildQuantity" type="number" min="1" max="10000" value="10000" required></label>
-          <p id="guildActionHint" class="muted">Top-ups range 1-10,000 each and share a 10-second bureau cooldown. EXP does not auto-level: once you have enough, either pick "Spend stored EXP to level up once" or use Guild > Info > Manage > Upgrade in game. Guild level-ups award Beacon Boost Points; at max level every 32,000 EXP converts to 20 points.</p>
-          <button id="guildSubmit" type="submit" disabled>Add to your bureau</button>
-        </form>
-        <button id="guildRefresh" type="button" class="secondary">Refresh bureau status</button>
-        <p id="guildResult" role="status">Results appear here.</p>
-      </section>
-
-      <section class="card cleanup-card">
-        <h2>Clean up your inventory</h2>
-        <p class="muted">Exit the game first, then preview and confirm. Cleanup deletes items outright with no material refund; items that are equipped, locked, or referenced by team presets and Memory sets are kept.</p>
-        <form id="cleanupForm">
-          <label>Cleanup scope<select id="cleanupCategory">
-            <option value="memories">Idle Memories</option><option value="weapons">Idle Weapons</option>
-            <option value="partners">Idle Companions</option><option value="items">Specific normal items</option>
-          </select></label>
-          <label id="cleanupStarField">Max rarity<select id="cleanupStar">
-            <option value="3">3★ and below</option><option value="4">4★ and below</option>
-            <option value="5">5★ and below</option><option value="6">6★ and below</option>
-          </select></label>
-          <div id="cleanupItemField" class="hidden">
-            <label>Search inventory items<input id="cleanupItemSearch" type="search" autocomplete="off" placeholder="Enter an item name or keyword"></label>
-            <label>Select items to clean up<select id="cleanupItem"><option value="">Exit the game first, then pick inventory items</option></select></label>
-            <p id="cleanupItemHint" class="muted" role="status">Only cleanable normal items in your inventory are listed, with quantities owned.</p>
+      <div>
+        <section class="panel" aria-labelledby="consoleTitle">
+          <div class="panel__head">
+            <div class="panel__title" id="consoleTitle">Performance</div>
+            <div class="corner">
+              <span class="staff--corner" aria-hidden="true"></span>
+              <div class="panel__meta" id="consoleMeta">0 commands</div>
+            </div>
           </div>
-          <label id="cleanupDevelopedField"><input id="cleanupDeveloped" type="checkbox">Also clean up invested idle items (kept by default)</label>
-          <button id="cleanupPreviewButton" type="submit">Preview inventory cleanup scope</button>
-        </form>
-        <pre id="cleanupPreview">Exit the game, then choose a scope and preview.</pre>
-        <label>Type "CONFIRM CLEANUP"<input id="cleanupConfirmation" autocomplete="off" maxlength="4" placeholder="CONFIRM CLEANUP"></label>
-        <button id="cleanupConfirm" type="button" disabled>Confirm deleting the previewed inventory items</button>
-      </section>
-    </section>
-    <p id="notice" role="status"></p>
-    <footer>Grant actions require the game to be open; inventory cleanup requires it to be closed.</footer>
+          <div class="log" id="consoleList">
+            <div class="empty">
+              <strong>Nothing performed yet</strong>
+              Choose a target, run the action, and the server response appears here.
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="unavailableTitle">
+          <div class="panel__head">
+            <div class="panel__title" id="unavailableTitle">Not in this build</div>
+            <div class="panel__meta">needs server support</div>
+          </div>
+          <div class="unavailable">
+            <div class="unavailable__row"><span class="unavailable__name">Inventory cleanup</span><span class="unavailable__tag">stage B</span></div>
+            <div class="unavailable__row"><span class="unavailable__name">Dorm blueprint shortfall</span><span class="unavailable__tag">stage B</span></div>
+            <div class="unavailable__row"><span class="unavailable__name">Guild resources and experience</span><span class="unavailable__tag">stage B</span></div>
+          </div>
+        </section>
+      </div>
+    </div>
   </main>
+</div>
+
 <script src="/common/api.js"></script>
-<script src="panel.js?v=dorm-drawings-20261018"></script>
+<script src="/common/ui.js"></script>
+<script src="player.js"></script>
 </body>
 </html>
-
