@@ -133,9 +133,10 @@ a { color: inherit; text-decoration: none; }
   width: 36px;
   height: 36px;
   flex: 0 0 36px;
-  border: 1px solid var(--gold-soft);
-  border-radius: var(--r-xs);
-  background: var(--surface-2);
+  /* No frame: the portrait is the mark, a box around it just adds noise. */
+  border: 0;
+  border-radius: 0;
+  background: none;
   object-fit: cover;
   object-position: 50% 30%;
   /* The brand mark is a deliberately pixelated chibi portrait: keep the hard
@@ -355,7 +356,8 @@ a { color: inherit; text-decoration: none; }
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
-  overflow: hidden;
+  /* No overflow clipping here: the picker list is positioned inside the card and
+   * must be allowed to extend past its edge, otherwise it gets cut off. */
   box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.03);
 }
 
@@ -424,6 +426,48 @@ a { color: inherit; text-decoration: none; }
 .row { display: flex; gap: 10px; }
 .row > .field { flex: 1; min-width: 0; }
 .row > .field--fixed { flex: 0 0 116px; }
+
+
+/* Number fields: the OS spinner is removed and replaced by a stepper that uses
+ * the same hairline/indigo language as the rest of the console. Keyboard and
+ * wheel behaviour of the native number input are kept. */
+.input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+.input[type="number"]::-webkit-outer-spin-button,
+.input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.stepper { display: flex; align-items: stretch; }
+
+.stepper .input {
+  border-radius: var(--r-xs) 0 0 var(--r-xs);
+  border-right: 0;
+  font-family: var(--mono);
+  text-align: right;
+}
+
+.stepper__btn {
+  width: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+
+.stepper__btn:last-of-type { border-radius: 0 var(--r-xs) var(--r-xs) 0; }
+
+.stepper__btn:hover { background: var(--surface-3); color: var(--silver); border-color: var(--line-strong); }
+.stepper__btn:active { background: var(--accent-soft); color: var(--silver); }
+.stepper__btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+.stepper__btn:focus-visible { outline: 2px solid var(--gold); outline-offset: -3px; }
 
 /* ------------------------------------------------------------ picker */
 

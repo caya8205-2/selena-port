@@ -168,8 +168,25 @@
           list.appendChild(li);
         });
       }
+      place();
       list.hidden = false;
       input.setAttribute("aria-expanded", "true");
+    }
+
+    /* Open downwards by default, upwards when the viewport has no room below, so
+     * the list is never clipped by the card or the window bottom. */
+    function place() {
+      var rect = input.getBoundingClientRect();
+      var rows = Math.min(filtered.length, 200);
+      var wanted = Math.min(292, rows * 34 + 12);
+      var below = window.innerHeight - rect.bottom - 12;
+      if (below < wanted && rect.top > below) {
+        list.style.top = "auto";
+        list.style.bottom = "calc(100% + 4px)";
+      } else {
+        list.style.top = "calc(100% + 4px)";
+        list.style.bottom = "auto";
+      }
     }
 
     function choose(entry) {
@@ -236,6 +253,45 @@
     return wrap;
   }
 
+  /* Number field with console-styled stepper buttons. The native OS spinner is
+   * hidden in CSS and replaced by these, while the input keeps its keyboard and
+   * accessibility behaviour. */
+  function makeStepper(input, field) {
+    var wrap = document.createElement("div");
+    wrap.className = "stepper";
+
+    function step(delta) {
+      var min = field.min !== undefined ? Number(field.min) : -Infinity;
+      var max = field.max !== undefined ? Number(field.max) : Infinity;
+      var current = input.value === "" ? 0 : Number(input.value);
+      if (isNaN(current)) current = min === -Infinity ? 0 : min;
+      var next = current + delta;
+      if (next < min) next = min;
+      if (next > max) next = max;
+      input.value = String(next);
+      values[field.key] = input.value;
+      updatePreview();
+    }
+
+    function button(label, aria, delta) {
+      var el = document.createElement("button");
+      el.type = "button";
+      el.className = "stepper__btn";
+      el.textContent = label;
+      el.setAttribute("aria-label", aria);
+      el.addEventListener("click", function () {
+        step(delta);
+        input.focus();
+      });
+      return el;
+    }
+
+    wrap.appendChild(input);
+    wrap.appendChild(button("\u2212", "Decrease " + field.label.toLowerCase(), -1));
+    wrap.appendChild(button("+", "Increase " + field.label.toLowerCase(), 1));
+    return wrap;
+  }
+
   /* ---------------------------------------------------------------- sections */
 
   function renderSection(key, keepValues) {
@@ -285,7 +341,11 @@
           values[field.key] = input.value.trim();
           updatePreview();
         });
-        wrap.appendChild(input);
+        if (field.type === "number") {
+          wrap.appendChild(makeStepper(input, field));
+        } else {
+          wrap.appendChild(input);
+        }
       }
 
       host.appendChild(wrap);
