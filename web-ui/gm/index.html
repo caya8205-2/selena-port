@@ -40,11 +40,11 @@
       <div class="rail__group">
         <div class="rail__label">Appearance</div>
         <button class="rail__item" data-section="coatings">
-          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2.6a5.4 5.4 0 100 10.8c1 0 1.4-.6 1.4-1.3 0-.9-.8-1.1-.8-1.9 0-.7.6-1.2 1.4-1.2h1a2 2 0 001.9-2.2A5.4 5.4 0 008 2.6z"/><circle cx="6" cy="6.6" r=".9" fill="currentColor" stroke="none"/></svg></span>
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 5v6"/><path d="M8 6.6C6.8 4.3 3.4 4 3.4 6.3c0 2.2 2.6 2.4 4.6 1.4"/><path d="M8 6.6c1.2-2.3 4.6-2.6 4.6-.3 0 2.2-2.6 2.4-4.6 1.4"/><path d="M8 10.2c-.9 1.5-3.2 1.9-3.2.2 0-1.2 1.6-1.7 3.2-1.1"/><path d="M8 10.2c.9 1.5 3.2 1.9 3.2.2 0-1.2-1.6-1.7-3.2-1.1"/></svg></span>
           Coatings
         </button>
         <button class="rail__item" data-section="scenes">
-          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.4" y="3.4" width="11.2" height="9.2" rx="1.4"/><path d="M2.6 10.4l3-3 2.4 2.4 2-1.8 3.4 3.2"/></svg></span>
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.6 3.6h10.8"/><path d="M4.6 3.6c0 3.2 1 5.4 1 8.8"/><path d="M11.4 3.6c0 3.2-1 5.4-1 8.8"/><path d="M2.6 12.4h10.8"/></svg></span>
           Scenes
         </button>
       </div>
@@ -52,7 +52,7 @@
       <div class="rail__group">
         <div class="rail__label">Account</div>
         <button class="rail__item" data-section="commandant">
-          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 12.4L8 3l4 9.4"/><path d="M5.6 9.6h4.8"/></svg></span>
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3.4 12.6l7-7"/><path d="M11.2 4.4l1.4-1.4"/><circle cx="12.9" cy="2.9" r="1"/></svg></span>
           Commandant
         </button>
         <button class="rail__item" data-section="stages">
@@ -77,7 +77,7 @@
 
   <main class="main">
     <div class="banner">
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 2.6l6 10.8H2L8 2.6z"/><path d="M8 6.4v3.4M8 11.6v.6"/></svg>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M8 1.6l6.4 6.4L8 14.4 1.6 8z"/><path d="M8 5.6v3.6M8 11.1v.4"/></svg>
       <span>Free software. If you paid for this, you were scammed - ask for a refund.</span>
     </div>
 
@@ -99,7 +99,7 @@
             <div id="formFields" style="display:flex;flex-direction:column;gap:14px"></div>
             <div class="field" style="margin-top:14px">
               <span class="field__label">Score preview</span>
-              <div class="preview" id="preview" data-ready="false"><span class="preview__prompt">&gt;</span><span id="previewText">choose a target</span></div>
+              <div class="preview" id="preview" data-ready="false"><span class="preview__prompt">&gt;</span><span id="previewText">choose a target</span><span class="preview__meter" id="meter" data-state="idle" aria-hidden="true"><i></i><i></i><i></i></span></div>
             </div>
             <div class="actions" style="margin-top:16px">
               <button class="btn btn--primary" type="submit" id="runBtn" disabled>Perform</button>
@@ -110,7 +110,7 @@
         </div>
       </section>
 
-      <section class="panel console" aria-labelledby="consoleTitle">
+      <section class="panel console panel--watermark" aria-labelledby="consoleTitle">
         <div class="panel__head">
           <div class="panel__title" id="consoleTitle">Performance</div>
           <div class="console__corner">
@@ -118,14 +118,22 @@
             <div class="panel__meta" id="consoleMeta">0 commands</div>
           </div>
         </div>
+                  <svg class="watermark" viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M60 100V62"/>
+            <path d="M60 62c-11-5-19-16-17-27 11 2 18 11 17 23"/>
+            <path d="M60 62c11-5 19-16 17-27-11 2-18 11-17 23"/>
+            <path d="M60 62c0-15 7-26 16-30-2 13-9 24-16 28"/>
+            <path d="M60 62c0-15-7-26-16-30 2 13 9 24 16 28"/>
+          </svg>
         <div class="log" id="consoleList">
           <div class="empty">
-            <strong>Nothing performed yet</strong>
-            Choose a target, run the action, and the server response appears here.
+            <strong>The stage is quiet</strong>
+            Commandant, write the first note of our duet: choose a target and perform.
           </div>
         </div>
       </section>
     </div>
+    <p class="credit"><strong>Dedicated to Selena</strong> <span>· conducted with devotion · a fork of InfiniteLoop</span></p>
   </main>
 </div>
 

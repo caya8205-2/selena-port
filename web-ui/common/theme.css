@@ -49,8 +49,8 @@
   /* scrollbars */
   --scroll-size: 10px;
   --scroll-track: transparent;
-  --scroll-thumb: rgba(226, 232, 240, 0.16);
-  --scroll-thumb-hover: rgba(212, 175, 55, 0.45);
+  --scroll-thumb: rgba(106, 127, 219, 0.34);
+  --scroll-thumb-hover: rgba(212, 175, 55, 0.5);
 
   /* type */
   --serif: "Cinzel", "Playfair Display", "EB Garamond", ui-serif, Georgia, "Times New Roman", serif;
@@ -425,3 +425,118 @@ a { color: inherit; text-decoration: none; }
 
 /* Class rules with display:flex would otherwise win over the hidden attribute. */
 [hidden] { display: none !important; }
+
+/* ------------------------------------------------------------ selection */
+
+/* Selecting text is a real state, so it gets the accent rather than the OS blue. */
+::selection { background: rgba(106, 127, 219, 0.38); color: #f3e9cd; }
+
+/* ------------------------------------------------------------ banner */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 22px;
+  font-size: 12px;
+  color: var(--gold);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--gold-soft);
+}
+
+.banner svg { width: 13px; height: 13px; flex: 0 0 13px; color: var(--gold); }
+
+/* ------------------------------------------------------------ score meter */
+
+/* Three bars that only move while a command is actually in flight: the motion
+ * reports the request state, it is not decoration. */
+.preview__meter {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+  flex: 0 0 auto;
+  /* Idle looks like an ellipsis at this size, so the meter is hidden unless a
+   * request is actually running; the space stays reserved to avoid a jump. */
+  visibility: hidden;
+}
+
+.preview__meter[data-state="running"] { visibility: visible; }
+
+.preview__meter i {
+  display: block;
+  width: 2px;
+  height: 3px;
+  background: var(--text-faint);
+  transition: background 200ms;
+}
+
+.preview__meter[data-state="running"] i {
+  background: var(--accent);
+  animation: meter 620ms ease-in-out infinite alternate;
+}
+
+.preview__meter[data-state="running"] i:nth-child(2) { animation-delay: 120ms; }
+.preview__meter[data-state="running"] i:nth-child(3) { animation-delay: 240ms; }
+
+@keyframes meter {
+  from { height: 3px; }
+  to { height: 12px; }
+}
+
+/* ------------------------------------------------------------ petals */
+
+/* One-shot burst on a successful Perform: four petals that fade out and remove
+ * themselves. No loop, no idle animation. */
+.petal {
+  position: fixed;
+  z-index: 90;
+  width: 8px;
+  height: 8px;
+  pointer-events: none;
+  border-radius: 60% 0 60% 0;
+  background: linear-gradient(140deg, rgba(106, 127, 219, 0.95), rgba(212, 175, 55, 0.75));
+  animation: petal-fall 900ms ease-out forwards;
+}
+
+@keyframes petal-fall {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0deg) scale(0.6); }
+  25% { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(var(--dx, 12px), var(--dy, 46px)) rotate(140deg) scale(0.9); }
+}
+
+/* ------------------------------------------------------------ watermark */
+
+/* Brand mark at the edge of the performance panel, barely visible by design. */
+.watermark {
+  position: absolute;
+  right: 14px;
+  bottom: 10px;
+  width: 120px;
+  height: 120px;
+  opacity: 0.045;
+  pointer-events: none;
+  color: var(--silver);
+}
+
+.panel--watermark { position: relative; }
+
+/* ------------------------------------------------------------ credit */
+
+.credit {
+  padding: 18px 22px 26px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.credit strong {
+  font-family: var(--serif);
+  font-size: 12px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.credit span { color: var(--text-faint); }

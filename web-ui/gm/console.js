@@ -64,6 +64,30 @@
   var values = {};
   var picks = {};
   var performed = 0;
+  var opus = 1;
+
+  /* One-shot petal burst on a successful Perform. Four petals that fade and
+   * remove themselves; nothing animates while idle. */
+  function celebrate(button) {
+    var rect = button.getBoundingClientRect();
+    for (var i = 0; i < 4; i += 1) {
+      var petal = document.createElement("span");
+      petal.className = "petal";
+      petal.style.left = (rect.left + rect.width / 2 - 4 + (i - 1.5) * 9) + "px";
+      petal.style.top = (rect.top + 10) + "px";
+      petal.style.setProperty("--dx", ((i - 1.5) * 24) + "px");
+      petal.style.setProperty("--dy", (36 + i * 10) + "px");
+      petal.style.animationDelay = (i * 55) + "ms";
+      document.body.appendChild(petal);
+      (function (node) { setTimeout(function () { node.remove(); }, 1100); })(petal);
+    }
+  }
+
+  /* Each Silence starts a new opus. */
+  function opusLabel(count) {
+    return "Opus " + String(opus).padStart(2, "0") + " · " + count + (count === 1 ? " command" : " commands");
+  }
+
 
   /* ---------------------------------------------------------------- account */
 
@@ -274,6 +298,7 @@
     var run = $("#runBtn");
     run.disabled = true;
     run.textContent = "Performing…";
+    $("#meter").dataset.state = "running";
 
     try {
       var response = await window.SelenaAPI.command(cmd.name, cmd.args);
@@ -281,13 +306,17 @@
       renderAccount();
       refreshStatus();
       window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, true, JSON.stringify(response, null, 2));
+      $("#consoleMeta").textContent = opusLabel(performed);
+      celebrate(run);
     } catch (err) {
       performed += 1;
       var detail = (err && (err.message || String(err))) || "Request failed";
       if (err && err.data) detail += "\n" + JSON.stringify(err.data, null, 2);
       window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, false, detail);
+      $("#consoleMeta").textContent = opusLabel(performed);
       refreshStatus();
     } finally {
+      $("#meter").dataset.state = "idle";
       run.textContent = "Perform";
       run.disabled = false;
       updatePreview();
@@ -313,9 +342,10 @@
 
   $("#clearBtn").addEventListener("click", function () {
     performed = 0;
-    $("#consoleMeta").textContent = "0 commands";
-    window.SelenaUI.resetLog($("#consoleList"), "Nothing performed yet",
-      "Choose a target, run the action, and the server response appears here.");
+    opus += 1;
+    $("#consoleMeta").textContent = opusLabel(0);
+    window.SelenaUI.resetLog($("#consoleList"), "The stage is quiet",
+      "Commandant, write the first note of our duet: choose a target and perform.");
   });
 
   document.addEventListener("keydown", function (event) {
@@ -324,5 +354,6 @@
 
   renderAccount();
   renderSection("items");
+  $("#consoleMeta").textContent = opusLabel(0);
   if (window.SelenaAPI.account) refreshStatus();
 })();
