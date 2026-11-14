@@ -1,9 +1,8 @@
 /* Selena-port GM console.
  *
- * Every action is a single AscNet chat command (see AscNet.GameServer/Commands),
- * executed through the SDK server with the signed-in account's token. The panel
- * never talks to the database; the console below shows exactly what the server
- * answered.
+ * Every action is one AscNet chat command (AscNet.GameServer/Commands), executed
+ * through the SDK server with the signed-in account's token. The panel never
+ * touches the database; the performance log shows exactly what the server said.
  */
 (function () {
   "use strict";
@@ -12,7 +11,7 @@
 
   var SECTIONS = {
     items: {
-      title: "Items", crumb: "Grant",
+      title: "Items",
       command: "item",
       fields: [
         { key: "item", type: "combo", catalog: "items", label: "Item", placeholder: "Search item name or ID", required: true },
@@ -21,38 +20,38 @@
       build: function (v) { return ["add", v.item.id, v.qty]; }
     },
     characters: {
-      title: "Characters", crumb: "Grant",
+      title: "Characters",
       command: "character",
       fields: [{ key: "character", type: "combo", catalog: "characters", label: "Character", placeholder: "Search character name or ID", required: true }],
       build: function (v) { return ["add", v.character.id]; }
     },
     equipment: {
-      title: "Equipment", crumb: "Grant",
+      title: "Equipment",
       command: "equip",
       fields: [{ key: "equip", type: "combo", catalog: "equips", label: "Equipment", placeholder: "Search equipment name or ID", required: true }],
       build: function (v) { return ["add", v.equip.id]; }
     },
     coatings: {
-      title: "Coatings", crumb: "Appearance",
+      title: "Coatings",
       command: "coating",
       fields: [{ key: "owner", type: "combo", catalog: "characters", label: "Owner", placeholder: "Search owned character name or ID", required: true, hint: "unlocks every coating of that character" }],
       build: function (v) { return ["unlock", v.owner.id]; }
     },
     scenes: {
-      title: "Scenes", crumb: "Appearance",
+      title: "Scenes",
       command: "scene",
       fields: [],
-      note: "Unlocks every scene background in the catalog. There is no per-scene selection in the command layer.",
+      note: "Unlocks every scene background in the catalog. The command layer has no per-scene selection yet.",
       build: function () { return ["unlock", "all"]; }
     },
     commandant: {
-      title: "Commandant", crumb: "Account",
+      title: "Commandant",
       command: "level",
-      fields: [{ key: "level", type: "text", label: "Level", placeholder: "1-113 or max", required: true, pattern: "^(\\d+|max)$", hint: "digits or max" }],
+      fields: [{ key: "level", type: "text", label: "Level", placeholder: "1-113 or max", required: true, hint: "digits or max" }],
       build: function (v) { return [v.level]; }
     },
     stages: {
-      title: "Stages", crumb: "Account",
+      title: "Stages",
       command: "stage",
       fields: [{ key: "stage", type: "combo", catalog: "stages", label: "Stage", placeholder: "Search stage name or ID", required: true }],
       build: function (v) { return [v.stage.id]; }
@@ -62,7 +61,7 @@
   var catalogCache = {};
   var current = null;
   var values = {};
-  var history = [];
+  var performed = 0;
 
   /* ---------------------------------------------------------------- account */
 
@@ -85,6 +84,7 @@
       status.classList.add("is-offline");
       text.textContent = "Signed out";
       label.textContent = "No account";
+      label.removeAttribute("title");
       btn.textContent = "Sign in";
     }
   }
@@ -96,7 +96,7 @@
       /* cancelled: nothing to do */
     }
     renderAccount();
-    renderSection(current, true);
+    updatePreview();
   }
 
   /* ---------------------------------------------------------------- catalogs */
@@ -108,9 +108,9 @@
     return entries;
   }
 
-  /* ---------------------------------------------------------------- combobox */
+  /* ---------------------------------------------------------------- picker */
 
-  function makeCombo(field, onChange) {
+  function makeCombo(field) {
     var wrap = document.createElement("div");
     wrap.className = "combo";
 
@@ -144,7 +144,7 @@
       if (!filtered.length) {
         var empty = document.createElement("li");
         empty.className = "combo__empty";
-        empty.textContent = entries.length ? "No entry matches that name or ID." : "Catalog is empty.";
+        empty.textContent = entries.length ? "No entry matches that name or ID." : "Catalog is unavailable.";
         list.appendChild(empty);
       } else {
         filtered.slice(0, 200).forEach(function (entry, index) {
@@ -152,7 +152,6 @@
           li.className = "combo__option";
           li.setAttribute("role", "option");
           li.setAttribute("aria-selected", index === active ? "true" : "false");
-          li.dataset.index = String(index);
 
           var name = document.createElement("span");
           name.textContent = entry.name;
@@ -177,13 +176,15 @@
       values[field.key] = entry;
       input.value = entry.name + " · " + entry.id;
       close();
-      onChange();
+      updatePreview();
     }
 
     function filter() {
       var q = input.value.trim().toLowerCase();
       filtered = q
-        ? entries.filter(function (e) { return e.name.toLowerCase().indexOf(q) >= 0 || String(e.id).indexOf(q) === 0; })
+        ? entries.filter(function (e) {
+            return e.name.toLowerCase().indexOf(q) >= 0 || String(e.id).indexOf(q) === 0;
+          })
         : entries;
       active = filtered.length ? 0 : -1;
     }
@@ -196,7 +197,7 @@
 
     input.addEventListener("input", function () {
       values[field.key] = null;
-      onChange();
+      updatePreview();
       filter();
       renderList();
     });
@@ -205,9 +206,10 @@
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         if (list.hidden) return;
         event.preventDefault();
+        var limit = Math.min(filtered.length, 200) - 1;
         active += event.key === "ArrowDown" ? 1 : -1;
         if (active < 0) active = 0;
-        if (active > Math.min(filtered.length, 200) - 1) active = Math.min(filtered.length, 200) - 1;
+        if (active > limit) active = limit;
         renderList();
         var el = list.children[active];
         if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
@@ -231,7 +233,7 @@
       filtered = [];
     });
 
-    return { node: wrap, focus: function () { input.focus(); } };
+    return wrap;
   }
 
   /* ---------------------------------------------------------------- sections */
@@ -247,8 +249,6 @@
     });
 
     $("#sectionTitle").textContent = section.title;
-    $("#sectionCrumb").textContent = section.crumb;
-    $("#formTitle").textContent = section.title + " action";
 
     var host = $("#formFields");
     host.textContent = "";
@@ -271,8 +271,7 @@
       wrap.appendChild(labelRow);
 
       if (field.type === "combo") {
-        var combo = makeCombo(field, updatePreview);
-        wrap.appendChild(combo.node);
+        wrap.appendChild(makeCombo(field));
       } else {
         var input = document.createElement("input");
         input.className = "input" + (field.type === "number" ? " input--mono" : "");
@@ -301,10 +300,10 @@
     }
 
     var meta = $("#catalogMeta");
-    if (section.fields.some(function (f) { return f.type === "combo"; })) {
-      var kind = section.fields.filter(function (f) { return f.type === "combo"; })[0].catalog;
+    var comboField = section.fields.filter(function (f) { return f.type === "combo"; })[0];
+    if (comboField) {
       meta.textContent = "catalog: loading…";
-      catalog(kind).then(function (data) {
+      catalog(comboField.catalog).then(function (data) {
         meta.textContent = "catalog: " + data.length + " entries";
       }).catch(function () {
         meta.textContent = "catalog: unavailable";
@@ -316,7 +315,7 @@
     updatePreview();
   }
 
-  /* ---------------------------------------------------------------- preview */
+  /* ---------------------------------------------------------------- score */
 
   function buildCommand() {
     var section = SECTIONS[current];
@@ -326,6 +325,7 @@
       return v === null || v === undefined || v === "" || (field.type === "combo" && !v.id);
     });
     if (missing) return null;
+
     var args = section.build(values);
     if (args.some(function (a) { return a === null || a === undefined || a === ""; })) return null;
     return { name: section.command, args: args.map(String) };
@@ -338,7 +338,7 @@
     var run = $("#runBtn");
 
     if (!cmd) {
-      text.textContent = "pick a target";
+      text.textContent = "choose a target";
       preview.dataset.ready = "false";
       run.disabled = true;
       $("#runHint").textContent = "";
@@ -348,34 +348,37 @@
     text.textContent = "/" + cmd.name + " " + cmd.args.join(" ");
     preview.dataset.ready = "true";
     run.disabled = false;
-    $("#runHint").textContent = window.SelenaAPI.account ? "" : "sign in to execute";
+    $("#runHint").textContent = window.SelenaAPI.account ? "" : "sign in to perform";
   }
 
-  /* ---------------------------------------------------------------- console */
+  /* ---------------------------------------------------------------- performance log */
 
-  function time() {
-    var d = new Date();
-    return d.toTimeString().slice(0, 8);
+  function stamp() {
+    return new Date().toTimeString().slice(0, 8);
   }
 
   function pushEntry(cmd, ok, body) {
-    if (!history.length) $("#consoleList").textContent = "";
-    history.push({ cmd: cmd, ok: ok, body: body });
+    if (performed === 0) $("#consoleList").textContent = "";
+    performed += 1;
 
     var entry = document.createElement("div");
     entry.className = "entry " + (ok ? "entry--ok" : "entry--err");
 
     var head = document.createElement("div");
     head.className = "entry__head";
+
     var t = document.createElement("span");
     t.className = "entry__time";
-    t.textContent = time();
+    t.textContent = stamp();
+
     var c = document.createElement("span");
     c.className = "entry__cmd";
     c.textContent = "/" + cmd.name + " " + cmd.args.join(" ");
+
     var tag = document.createElement("span");
     tag.className = "entry__tag";
     tag.textContent = ok ? "ok" : "error";
+
     head.appendChild(t);
     head.appendChild(c);
     head.appendChild(tag);
@@ -386,33 +389,37 @@
 
     entry.appendChild(head);
     entry.appendChild(bodyEl);
+
     var list = $("#consoleList");
     list.insertBefore(entry, list.firstChild);
-    $("#consoleMeta").textContent = history.length + (history.length === 1 ? " command" : " commands");
+    $("#consoleMeta").textContent = performed + (performed === 1 ? " command" : " commands");
   }
 
-  async function execute(event) {
+  async function perform(event) {
     if (event) event.preventDefault();
+
     var cmd = buildCommand();
     if (!cmd) return;
 
     if (!window.SelenaAPI.account) {
       await signIn();
-      return;
+      if (!window.SelenaAPI.account) return;
     }
 
     var run = $("#runBtn");
     run.disabled = true;
-    run.textContent = "Running…";
+    run.textContent = "Performing…";
 
     try {
       var response = await window.SelenaAPI.command(cmd.name, cmd.args);
       renderAccount();
       pushEntry(cmd, true, JSON.stringify(response, null, 2));
     } catch (err) {
-      pushEntry(cmd, false, (err && (err.message || String(err))) + (err && err.data ? "\n" + JSON.stringify(err.data, null, 2) : ""));
+      var detail = err && (err.message || String(err));
+      if (err && err.data) detail += "\n" + JSON.stringify(err.data, null, 2);
+      pushEntry(cmd, false, detail);
     } finally {
-      run.textContent = "Execute";
+      run.textContent = "Perform";
       run.disabled = false;
       updatePreview();
     }
@@ -428,32 +435,32 @@
     if (window.SelenaAPI.account) {
       window.SelenaAPI.logout();
       renderAccount();
-      renderSection(current, true);
+      updatePreview();
     } else {
       signIn();
     }
   });
 
-  $("#actionForm").addEventListener("submit", execute);
+  $("#actionForm").addEventListener("submit", perform);
 
   $("#clearBtn").addEventListener("click", function () {
-    history = [];
+    performed = 0;
     $("#consoleMeta").textContent = "0 commands";
+
     var list = $("#consoleList");
     list.textContent = "";
+
     var empty = document.createElement("div");
     empty.className = "console__empty";
     var strong = document.createElement("strong");
-    strong.textContent = "Nothing executed yet";
+    strong.textContent = "Nothing performed yet";
     empty.appendChild(strong);
     empty.appendChild(document.createTextNode("Choose a target, run the action, and the server response appears here."));
     list.appendChild(empty);
   });
 
   document.addEventListener("keydown", function (event) {
-    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-      execute(event);
-    }
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") perform(event);
   });
 
   renderAccount();

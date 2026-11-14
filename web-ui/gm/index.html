@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>GM Console · Selena-port</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230a0c11'/%3E%3Cpath d='M4 11V5h3a2 2 0 010 4H4' stroke='%23d83e3e' stroke-width='1.6' fill='none'/%3E%3C/svg%3E">
+  <title>Selena-port · GM Console</title>
+  <link rel="icon" type="image/webp" href="/icon.webp">
+  <link rel="apple-touch-icon" href="/icon.webp">
   <link rel="stylesheet" href="console.css">
 </head>
 <body>
@@ -12,7 +13,7 @@
 
   <aside class="rail">
     <div class="rail__mark">
-      <div class="rail__glyph">SP</div>
+      <img class="rail__portrait" src="/icon.webp" alt="" width="36" height="36">
       <div class="rail__name">
         <strong>Selena-port</strong>
         <span>GM Console</span>
@@ -62,6 +63,7 @@
     </nav>
 
     <div class="rail__foot">
+      <div class="staff" aria-hidden="true"></div>
       <div class="status" id="connStatus" aria-live="polite">
         <span class="status__dot"></span>
         <span id="connText">Signed out</span>
@@ -80,28 +82,27 @@
     </div>
 
     <header class="topbar">
-      <div class="topbar__title" id="sectionTitle">Items</div>
-      <div class="topbar__crumb" id="sectionCrumb">Grant</div>
+      <h1 class="topbar__title" id="sectionTitle">Items</h1>
       <div class="topbar__spacer"></div>
-      <div class="topbar__hint">Run with <kbd>Ctrl</kbd> + <kbd>Enter</kbd></div>
+      <div class="topbar__hint">Perform with <kbd>Ctrl</kbd> + <kbd>Enter</kbd></div>
     </header>
 
     <div class="workspace">
       <section class="panel" aria-labelledby="formTitle">
         <div class="panel__head">
-          <div class="panel__title" id="formTitle">Action</div>
+          <div class="panel__title" id="formTitle">Score</div>
           <div class="panel__meta" id="catalogMeta">catalog: loading…</div>
         </div>
         <div class="panel__body">
           <form id="actionForm" autocomplete="off">
             <div id="formFields" style="display:flex;flex-direction:column;gap:14px"></div>
             <div class="field" style="margin-top:14px">
-              <span class="field__label">Command preview</span>
-              <div class="preview" id="preview" data-ready="false"><span class="preview__prompt">&gt;</span><span id="previewText">pick a target</span></div>
+              <span class="field__label">Score preview</span>
+              <div class="preview" id="preview" data-ready="false"><span class="preview__prompt">&gt;</span><span id="previewText">choose a target</span></div>
             </div>
             <div class="actions" style="margin-top:16px">
-              <button class="btn btn--primary" type="submit" id="runBtn" disabled>Execute</button>
-              <button class="btn btn--quiet" type="button" id="clearBtn">Clear console</button>
+              <button class="btn btn--primary" type="submit" id="runBtn" disabled>Perform</button>
+              <button class="btn btn--quiet" type="button" id="clearBtn">Silence</button>
               <span class="field__hint" id="runHint"></span>
             </div>
           </form>
@@ -110,12 +111,12 @@
 
       <section class="panel console" aria-labelledby="consoleTitle">
         <div class="panel__head">
-          <div class="panel__title" id="consoleTitle">Console</div>
+          <div class="panel__title" id="consoleTitle">Performance</div>
           <div class="panel__meta" id="consoleMeta">0 commands</div>
         </div>
         <div class="console__list" id="consoleList">
           <div class="console__empty">
-            <strong>Nothing executed yet</strong>
+            <strong>Nothing performed yet</strong>
             Choose a target, run the action, and the server response appears here.
           </div>
         </div>
