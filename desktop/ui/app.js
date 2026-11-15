@@ -96,6 +96,45 @@ const CONFIG_FIELDS = {
   mongoBinary: '#cfgMongoBinary',
 }
 
+// The setup block answers "what is missing" before the user hits a failure later.
+// Each row names the control that fixes it, so the button is next to the complaint.
+function renderSetup(result) {
+  const host = document.querySelector('#setupRows')
+  if (!host) return
+  host.textContent = ''
+
+  const labelFor = {
+    'clone-repo': 'Clone repository below',
+    'build-server': 'Build server below',
+    'install-mongo': 'Install MongoDB below',
+    'browse-game': 'Browse game directory below',
+  }
+
+  for (const check of result.checks) {
+    const row = document.createElement('div')
+    row.className = 'row'
+
+    const name = document.createElement('span')
+    name.textContent = check.label
+
+    const value = document.createElement('b')
+    value.textContent = check.ok ? 'ready' : (labelFor[check.fix] || check.detail)
+    if (!check.ok) value.className = 'bad'
+
+    row.appendChild(name)
+    row.appendChild(value)
+    host.appendChild(row)
+  }
+}
+
+async function refreshSetup() {
+  try {
+    renderSetup(await window.selena.verifySetup())
+  } catch (err) {
+    append('setup check failed: ' + err.message)
+  }
+}
+
 async function loadConfig() {
   settings = await window.selena.settings()
   for (const [key, selector] of Object.entries(CONFIG_FIELDS)) {
@@ -116,6 +155,7 @@ async function loadConfig() {
     : `will be installed into ${settings.mongoDir}`
 
   if (!settings.mongoExists) appendTo('configLog', 'mongod.exe not found at the configured path')
+  refreshSetup()
 }
 
 document.querySelectorAll('[data-browse]').forEach((button) => {
@@ -161,12 +201,24 @@ document.querySelector('#btnInstallMongo').addEventListener('click', async (even
     const result = await window.selena.installMongo()
     document.querySelector('#cfgMongoBinary').value = result.mongoBinary
     appendTo('configLog', 'installed: ' + result.mongoBinary)
+    refreshSetup()
   } catch (err) {
     appendTo('configLog', 'install failed: ' + err.message)
   } finally {
     button.disabled = false
   }
 })
+
+document.querySelector('#btnBackup').addEventListener('click', async () => {
+  try {
+    const result = await window.selena.backupNow()
+    appendTo('configLog', 'backup: ' + result.path)
+  } catch (err) {
+    appendTo('configLog', 'backup failed: ' + err.message)
+  }
+})
+
+document.querySelector('#btnOpenBackups').addEventListener('click', () => window.selena.openBackups())
 
 document.querySelector('#btnRebuild').addEventListener('click', async (event) => {
   const button = event.currentTarget
@@ -175,6 +227,7 @@ document.querySelector('#btnRebuild').addEventListener('click', async (event) =>
   try {
     const result = await window.selena.rebuildServer()
     appendTo('configLog', result.ok ? 'build finished' : 'build failed')
+    refreshSetup()
   } catch (err) {
     appendTo('configLog', 'build failed: ' + err.message)
   } finally {

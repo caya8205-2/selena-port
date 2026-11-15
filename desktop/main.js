@@ -16,6 +16,8 @@ const fs = require('fs')
 const path = require('path')
 const net = require('net')
 const { spawn } = require('child_process')
+const { buildChecks } = require('./verify')
+const { createBackup, listBackups } = require('./backup')
 
 // ---------------------------------------------------------------- settings
 
@@ -38,6 +40,10 @@ const defaults = {
   repoRoot: isPackaged ? '' : path.join(__dirname, '..'),
   repoUrl: '',
   repo: '',
+  // Where mongod keeps its files. The desktop app and the control-centre script must
+  // agree here, or "start" silently opens a different database than the one the user
+  // already has accounts in.
+  mongoDataDir: '',
 }
 
 function readConfig() {
@@ -56,7 +62,9 @@ if (!isPackaged && fs.existsSync(devPaths)) {
   try { Object.assign(config, JSON.parse(fs.readFileSync(devPaths, 'utf8'))) } catch { /* ignore */ }
 }
 
-const mongoDataDir = path.join(app.getPath('userData'), 'mongo-data')
+function mongoDataPath() {
+  return config.mongoDataDir || path.join(app.getPath('userData'), 'mongo-data')
+}
 const logDir = path.join(app.getPath('userData'), 'logs')
 
 // ---------------------------------------------------------------- services
@@ -117,6 +125,7 @@ async function startMongo() {
   if (await portOpen(config.mongoPort)) { log('mongod already listening'); return }
   if (!fs.existsSync(config.mongoBinary)) throw new Error(`mongod not found at ${config.mongoBinary}`)
 
+  const mongoDataDir = mongoDataPath()
   fs.mkdirSync(mongoDataDir, { recursive: true })
   running.mongo = spawnHidden(config.mongoBinary, [
     '--dbpath', mongoDataDir,
@@ -359,13 +368,14 @@ function startUiServer() {
 // ---------------------------------------------------------------- settings & tools
 
 const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json')
-const SETTINGS_KEYS = ['gameDir', 'serverDir', 'mongoBinary', 'repo', 'repoUrl', 'repoRoot']
+const SETTINGS_KEYS = ['gameDir', 'serverDir', 'mongoBinary', 'mongoDataDir', 'repo', 'repoUrl', 'repoRoot']
 
 function settingsSnapshot() {
   return {
     ...Object.fromEntries(SETTINGS_KEYS.map((key) => [key, config[key]])),
     mongoExists: Boolean(config.mongoBinary && fs.existsSync(config.mongoBinary)),
     mongoDir: config.mongoBinary ? path.dirname(config.mongoBinary) : path.join(app.getPath('userData'), 'mongo'),
+    mongoDataDir: mongoDataPath(),
     logsDir: logDir,
     repoRoot: config.repoRoot,
     repoUrl: config.repoUrl,
@@ -494,7 +504,41 @@ function cloneRepo(url) {
   })
 }
 
-function rebuildServer() {
+const backupRoot = path.join(app.getPath('userData'), 'backups')
+
+async function backupNow(reason) {
+  // mongod keeps its files locked, so the snapshot is taken with the stack down and
+  // the previous running state restored afterwards.
+  const wasRunning = await portOpen(config.mongoPort)
+  if (wasRunning) {
+    await stopAll()
+    log('database stopped for the snapshot')
+  }
+
+  let result
+  try {
+    result = createBackup({
+      dataDir: mongoDataPath(),
+      configsDir: path.join(config.serverDir || '', 'Configs'),
+      backupRoot,
+      reason,
+    })
+    log(`backup written to ${result}`)
+  } finally {
+    if (wasRunning) {
+      await startAll()
+      log('database started again')
+    }
+  }
+
+  return { path: result, backups: listBackups(backupRoot) }
+}
+
+async function rebuildServer() {
+  // Snapshot first: a rebuild that goes wrong should cost time, not data.
+  // The IPC layer awaits this; a failed snapshot must not stop the build.
+  await backupNow('rebuild').catch((err) => log(`backup skipped: ${err.message}`))
+
   const project = path.join(config.repoRoot || path.join(__dirname, '..'), 'AscNet', 'AscNet.csproj')
   if (!fs.existsSync(project)) throw new Error(`project not found: ${project}`)
 
@@ -578,6 +622,9 @@ app.whenReady().then(async () => {
   ipcMain.handle('update:check', (_event, repo) => checkUpdate(repo))
   ipcMain.handle('tools:clone', (_event, url) => cloneRepo(url))
   ipcMain.handle('shell:logs', () => shell.openPath(logDir))
+  ipcMain.handle('setup:verify', () => buildChecks(config))
+  ipcMain.handle('tools:backup', () => backupNow('manual'))
+  ipcMain.handle('tools:open-backups', () => shell.openPath(backupRoot))
   ipcMain.handle('stack:open', (_event, target) => shell.openExternal(target))
 
   await createWindow()

@@ -104,6 +104,7 @@ body {
 .row span { color: var(--text-dim); }
 .row b { font-weight: 500; }
 .dim { color: var(--text-faint); font-weight: 400; }
+.bad { color: var(--warn); font-weight: 500; }
 
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
 

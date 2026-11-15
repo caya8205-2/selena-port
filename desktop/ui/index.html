@@ -58,6 +58,10 @@
 
     <section class="view" data-view="config">
       <div class="form">
+        <div class="rows" id="setupRows">
+          <div class="row"><span>Setup</span><b class="dim">checking…</b></div>
+        </div>
+
       <label class="field">
         <span class="field__label">Repository <em>cloned once, then built locally</em></span>
         <span class="field__row">
@@ -95,6 +99,8 @@
         <div class="actions">
           <button class="btn btn--primary" id="btnSaveConfig">Save</button>
           <button class="btn" id="btnRebuild">Rebuild server</button>
+          <button class="btn" id="btnBackup">Backup now</button>
+          <button class="btn btn--quiet" id="btnOpenBackups">Open backups</button>
         </div>
 
         <pre class="log" id="configLog"></pre>
