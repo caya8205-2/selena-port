@@ -67,10 +67,15 @@ namespace AscNet.GameServer.Commands
                     // the difference is negative, and feeding that to Do() turned the
                     // bulk grant into a set-down-to-cap. Skip instead of reducing.
                     long room = targetCount - currentCount;
-                    if (room <= 0)
-                        continue;
 
-                    long grantAmount = useMaxCount ? room : Math.Min(amount, room);
+                    // Bulk add behaves like a single add: the requested amount is
+                    // handed to Do(), which clamps upward per item. A stack that is
+                    // already above the batch target is therefore topped up, not
+                    // dragged down to it - currencies such as Black Cards and Cogs
+                    // legitimately hold far more than the 999 stack cap.
+                    // 'max' means "fill the batch target", so it only applies while
+                    // there is room.
+                    long grantAmount = useMaxCount ? room : amount;
                     if (grantAmount <= 0)
                         continue;
 
