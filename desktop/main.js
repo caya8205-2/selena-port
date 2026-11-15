@@ -142,20 +142,38 @@ async function startMongo() {
   log('mongod ready')
 }
 
+// Where the .NET runtime actually lives: the directory of dotnet.exe, found the same way the
+// control centre finds it. An apphost cannot locate a runtime installed outside Program Files
+// without DOTNET_ROOT, and the user sees "You must install .NET" instead of a server.
+function dotnetRoot() {
+  if (process.env.DOTNET_ROOT) return process.env.DOTNET_ROOT
+
+  const candidates = []
+  for (const entry of (process.env.PATH || '').split(path.delimiter)) {
+    if (entry) candidates.push(path.join(entry, 'dotnet.exe'))
+  }
+  if (process.env.LOCALAPPDATA) candidates.push(path.join(process.env.LOCALAPPDATA, 'Microsoft', 'dotnet', 'dotnet.exe'))
+
+  const found = candidates.find((file) => fs.existsSync(file))
+  return found ? path.dirname(found) : ''
+}
+
 async function startServer() {
   if (await portOpen(config.sdkPort)) { log('server already listening'); return }
 
   const exe = path.join(config.serverDir, 'AscNet.exe')
   const dll = path.join(config.serverDir, 'AscNet.dll')
+  const root = dotnetRoot()
+  const env = root
+    ? { ...process.env, DOTNET_ROOT: root, PATH: `${root}${path.delimiter}${process.env.PATH || ''}` }
+    : process.env
   let child
 
   if (fs.existsSync(exe) && process.env.SELENA_FORCE_DLL !== '1') {
-    child = spawnHidden(exe, ['--urls', `http://127.0.0.1:${config.sdkPort}`], { cwd: config.serverDir })
+    child = spawnHidden(exe, ['--urls', `http://127.0.0.1:${config.sdkPort}`], { cwd: config.serverDir, env })
   } else if (fs.existsSync(dll)) {
-    const dotnet = process.env.DOTNET_ROOT
-      ? path.join(process.env.DOTNET_ROOT, 'dotnet.exe')
-      : 'dotnet'
-    child = spawnHidden(dotnet, ['AscNet.dll', '--urls', `http://127.0.0.1:${config.sdkPort}`], { cwd: config.serverDir })
+    const dotnet = root ? path.join(root, 'dotnet.exe') : 'dotnet'
+    child = spawnHidden(dotnet, ['AscNet.dll', '--urls', `http://127.0.0.1:${config.sdkPort}`], { cwd: config.serverDir, env })
   } else {
     throw new Error(`server build not found in ${config.serverDir}`)
   }
@@ -620,7 +638,8 @@ function buildServer() {
   const project = path.join(config.repoRoot || path.join(__dirname, '..'), 'AscNet', 'AscNet.csproj')
   if (!fs.existsSync(project)) throw new Error(`project not found: ${project}`)
 
-  const dotnet = process.env.DOTNET_ROOT ? path.join(process.env.DOTNET_ROOT, 'dotnet.exe') : 'dotnet'
+  const root = dotnetRoot()
+  const dotnet = root ? path.join(root, 'dotnet.exe') : 'dotnet'
   return new Promise((resolve, reject) => {
     const child = spawnHidden(dotnet, ['build', project, '-v', 'q', '--nologo'], { cwd: path.dirname(path.dirname(project)) })
     child.on('error', () => reject(new Error('dotnet was not found; install the .NET 8 SDK or build manually')))
