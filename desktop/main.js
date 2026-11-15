@@ -25,6 +25,20 @@ const isPackaged = app.isPackaged
 // Dev means running from the repo. In that case the renderer files are watched and the
 // window reloads itself on save, so a CSS or JS edit does not need a manual restart.
 const isDev = !isPackaged
+
+// One console at a time. A second launch focuses the window that is already open instead of
+// stacking another one, which used to leave two panels listening on two ports.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    const window = BrowserWindow.getAllWindows()[0]
+    if (!window) return
+    if (window.isMinimized()) window.restore()
+    window.focus()
+  })
+}
+
 const resources = isPackaged ? process.resourcesPath : path.join(__dirname, '..')
 
 const defaults = {
