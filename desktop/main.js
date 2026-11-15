@@ -517,6 +517,42 @@ function resonanceEntries(templateId, slot, characterId) {
     if (template) site = Number(template[siteAt] || 0)
   }
 
+  // Every weapon pool carries the same twelve resonance ids. Six of them are universal and keep
+  // their name in every class; the rest are named per class, and the class comes from the shipped
+  // resonance screens rather than from a table, so an unmapped construct keeps a neutral label
+  // instead of a wrong one.
+  // The game lists the twelve in the pool's own order, so the label follows the position rather
+  // than the id: the first six carry the same name in every class, the rest are class business.
+  const WEAPON_UNIVERSAL = [
+    'Incandescence',
+    'Dead Line Timing',
+    'Matrix Lightning',
+    'Shock Saturation',
+    'Nsec Transmission',
+    'Shock Echo',
+  ];
+  const WEAPON_CLASS_NAMES = {
+    breaker: [
+      'Glorious Afterglow',
+      'Resonant Echo',
+      'Domain Deconstruction',
+      "Boundary's Annihilation",
+      'Gravity Barrier',
+      'Absolute Defense',
+    ],
+    amplifier: [
+      'Glorious Spear',
+      'Superconducting Axial Ray',
+      'Honed Gel',
+      'Stellar Magnetic Rail',
+      'Peaceful Radiant',
+    ],
+  };
+  const CHARACTER_CLASS = {
+    1061004: 'breaker',
+    1381003: 'amplifier',
+  };
+
   // A weapon resonates from its class skill pool on all three slots.
   if (site === 0) {
     const poolId = Number(row[resonance.column('WeaponSkillPoolId', slot)] || 0)
@@ -534,7 +570,9 @@ function resonanceEntries(templateId, slot, characterId) {
         const skillId = at >= 0 ? Number(cells[at] || 0) : 0
         if (skillId <= 0 || seen.has(skillId)) continue
         seen.add(skillId)
-        entries.push({ kind: 'weapon', id: skillId, name: 'Weapon Skill ' + entries.length, meta: '' })
+        const classNames = WEAPON_CLASS_NAMES[CHARACTER_CLASS[characterId]] || [];
+        const name = WEAPON_UNIVERSAL[entries.length] || classNames[entries.length - WEAPON_UNIVERSAL.length] || 'Class Resonance';
+        entries.push({ kind: 'weapon', id: skillId, name: name, meta: '' })
       }
     }
     return entries
