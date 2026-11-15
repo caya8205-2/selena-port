@@ -158,18 +158,18 @@ body {
 }
 
 .brand { display: flex; align-items: center; gap: 10px; }
-.brand__icon { width: 30px; height: 30px; image-rendering: pixelated; }
+.brand__icon { width: 36px; height: 36px; image-rendering: pixelated; }
 
 .brand__text strong {
   display: block;
   font-family: var(--serif);
-  font-size: 13px;
-  letter-spacing: 1.4px;
+  font-size: 13.5px;
+  letter-spacing: 1.3px;
   text-transform: uppercase;
-  color: var(--gold);
+  color: var(--text);
 }
 
-.brand__text span { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-faint); }
+.brand__text span { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-faint); }
 
 .tabs { display: flex; gap: 2px; }
 
@@ -219,3 +219,22 @@ body {
 .input:focus { outline: none; border-color: var(--accent); }
 .frame { height: calc(100vh - 52px); }
 
+/* ------------------------------------------------------------ scrollbars */
+
+/* The shell page is its own scroll container, so it needs the same thin indigo
+ * scrollbar the panels use; otherwise the one visible edge of the window is the
+ * OS default. */
+* { scrollbar-width: thin; scrollbar-color: rgba(106, 127, 219, 0.34) transparent; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+::-webkit-scrollbar-thumb {
+  background: rgba(106, 127, 219, 0.34);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover { background: rgba(212, 175, 55, 0.5); background-clip: content-box; }
+::-webkit-scrollbar-corner { background: transparent; }
