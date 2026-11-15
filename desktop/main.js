@@ -36,6 +36,7 @@ const defaults = {
   tableDir: isPackaged ? path.join(resources, 'table') : path.join(__dirname, '..', 'Resources', 'table'),
   webUi: isPackaged ? path.join(__dirname, 'web-ui') : path.join(__dirname, '..', 'web-ui'),
   repoRoot: isPackaged ? '' : path.join(__dirname, '..'),
+  repoUrl: '',
   repo: '',
 }
 
@@ -358,12 +359,17 @@ function startUiServer() {
 // ---------------------------------------------------------------- settings & tools
 
 const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json')
-const SETTINGS_KEYS = ['gameDir', 'serverDir', 'mongoBinary', 'repo', 'repoRoot']
+const SETTINGS_KEYS = ['gameDir', 'serverDir', 'mongoBinary', 'repo', 'repoUrl', 'repoRoot']
 
 function settingsSnapshot() {
   return {
     ...Object.fromEntries(SETTINGS_KEYS.map((key) => [key, config[key]])),
     mongoExists: Boolean(config.mongoBinary && fs.existsSync(config.mongoBinary)),
+    mongoDir: config.mongoBinary ? path.dirname(config.mongoBinary) : path.join(app.getPath('userData'), 'mongo'),
+    logsDir: logDir,
+    repoRoot: config.repoRoot,
+    repoUrl: config.repoUrl,
+    repoCloned: Boolean(config.repoRoot && fs.existsSync(path.join(config.repoRoot, 'AscNet', 'AscNet.csproj'))),
     serverExists: Boolean(config.serverDir && fs.existsSync(path.join(config.serverDir, 'AscNet.dll'))),
     sdkPort: config.sdkPort,
   }
@@ -459,6 +465,35 @@ async function installMongo() {
   return { mongoBinary: mongod }
 }
 
+
+// Cloning is the first thing a non-programmer needs: the build button cannot work
+// until the source exists, and "find it on GitHub" is not an instruction they can
+// follow. The clone lands in repoRoot, which the build then uses.
+function cloneRepo(url) {
+  if (!url) throw new Error('enter the repository URL first')
+  const target = config.repoRoot || path.join(app.getPath('userData'), 'repo')
+
+  if (fs.existsSync(path.join(target, 'AscNet', 'AscNet.csproj'))) {
+    log('repository already cloned')
+    return { ok: true, already: true, target }
+  }
+
+  fs.mkdirSync(path.dirname(target), { recursive: true })
+  log(`cloning ${url} into ${target}`)
+
+  return new Promise((resolve, reject) => {
+    const child = spawnHidden('git', ['clone', '--depth', '1', url, target], {})
+    child.on('error', () => reject(new Error('git was not found; install Git or clone the repository manually')))
+    child.on('exit', (code) => {
+      if (code !== 0) return reject(new Error(`git clone exited with ${code}`))
+      config.repoRoot = target
+      persistSettings({ repoRoot: target, repoUrl: url })
+      log('repository cloned')
+      resolve({ ok: true, target })
+    })
+  })
+}
+
 function rebuildServer() {
   const project = path.join(config.repoRoot || path.join(__dirname, '..'), 'AscNet', 'AscNet.csproj')
   if (!fs.existsSync(project)) throw new Error(`project not found: ${project}`)
@@ -541,6 +576,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('tools:install-mongo', () => installMongo())
   ipcMain.handle('tools:rebuild', () => rebuildServer())
   ipcMain.handle('update:check', (_event, repo) => checkUpdate(repo))
+  ipcMain.handle('tools:clone', (_event, url) => cloneRepo(url))
+  ipcMain.handle('shell:logs', () => shell.openPath(logDir))
   ipcMain.handle('stack:open', (_event, target) => shell.openExternal(target))
 
   await createWindow()

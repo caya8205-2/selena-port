@@ -80,6 +80,8 @@ document.querySelector('#btnStop').addEventListener('click', async () => {
   try { paintStatus(await window.selena.stop()) } catch (err) { append('stop failed: ' + err.message) }
 })
 
+document.querySelector('#btnOpenLogs').addEventListener('click', () => window.selena.openLogs())
+
 document.querySelector('#btnLaunch').addEventListener('click', async () => {
   try { await window.selena.launch() } catch (err) { append('launch failed: ' + err.message) }
 })
@@ -100,8 +102,19 @@ async function loadConfig() {
     document.querySelector(selector).value = settings[key] || ''
   }
   document.querySelector('#cfgRepo').value = settings.repo || ''
+  document.querySelector('#cfgRepoUrl').value = settings.repoUrl || ''
 
-  const mongo = document.querySelector('#rowMongo')
+  // The button reports what it will do now, so the same control is "Build" the first
+  // time and "Rebuild" afterwards instead of asking the user to know which applies.
+  document.querySelector('#btnRebuild').textContent = settings.serverExists ? 'Rebuild server' : 'Build server'
+  document.querySelector('#btnInstallMongo').textContent = settings.mongoExists ? 'Reinstall MongoDB' : 'Install MongoDB'
+  document.querySelector('#btnCloneRepo').textContent = settings.repoCloned ? 'Repository cloned' : 'Clone repository'
+  document.querySelector('#btnCloneRepo').disabled = Boolean(settings.repoCloned)
+
+  document.querySelector('#mongoNote').textContent = settings.mongoExists
+    ? `mongod at ${settings.mongoBinary}`
+    : `will be installed into ${settings.mongoDir}`
+
   if (!settings.mongoExists) appendTo('configLog', 'mongod.exe not found at the configured path')
 }
 
@@ -112,6 +125,21 @@ document.querySelectorAll('[data-browse]').forEach((button) => {
     const picked = await window.selena.browse({ key, current: field.value })
     if (picked) field.value = picked
   })
+})
+
+document.querySelector('#btnCloneRepo').addEventListener('click', async (event) => {
+  const button = event.currentTarget
+  const url = document.querySelector('#cfgRepoUrl').value.trim()
+  button.disabled = true
+  appendTo('configLog', 'cloning repository…')
+  try {
+    const result = await window.selena.cloneRepo(url)
+    appendTo('configLog', result.already ? 'already cloned at ' + result.target : 'cloned into ' + result.target)
+    loadConfig()
+  } catch (err) {
+    appendTo('configLog', 'clone failed: ' + err.message)
+    button.disabled = false
+  }
 })
 
 document.querySelector('#btnSaveConfig').addEventListener('click', async () => {

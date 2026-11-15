@@ -39,9 +39,10 @@
       </div>
 
       <div class="actions">
-        <button class="btn btn--primary" id="btnStart">Start stack</button>
+        <button class="btn btn--primary" id="btnStart">Start private server</button>
         <button class="btn" id="btnStop">Stop</button>
-        <button class="btn" id="btnLaunch">Launch client</button>
+        <button class="btn" id="btnLaunch">Launch game</button>
+      <button class="btn btn--quiet" id="btnOpenLogs">Open logs</button>
       </div>
 
       <pre class="log" id="log"></pre>
@@ -57,6 +58,14 @@
 
     <section class="view" data-view="config">
       <div class="form">
+      <label class="field">
+        <span class="field__label">Repository <em>cloned once, then built locally</em></span>
+        <span class="field__row">
+          <input class="input" id="cfgRepoUrl" type="text" placeholder="https://github.com/owner/name.git" spellcheck="false">
+          <button class="btn" id="btnCloneRepo">Clone repository</button>
+        </span>
+      </label>
+
         <label class="field">
           <span class="field__label">Game directory <em>folder that contains PGR.exe</em></span>
           <span class="field__row">
@@ -78,8 +87,9 @@
           <span class="field__row">
             <input class="input" id="cfgMongoBinary" type="text" spellcheck="false">
             <button class="btn" data-browse="mongoBinary">Browse</button>
-            <button class="btn" id="btnInstallMongo">Install if missing</button>
+            <button class="btn" id="btnInstallMongo">Install MongoDB</button>
           </span>
+        <span class="field__note" id="mongoNote"></span>
         </label>
 
         <div class="actions">
