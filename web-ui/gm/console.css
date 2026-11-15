@@ -281,14 +281,3 @@
 }
 .topbar__account select:hover { border-color: var(--accent); }
 .topbar__account select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-/* The tab is the only scroller, so the action row follows the eye instead of sitting at
-   the bottom of a long catalog. */
-.actions--sticky {
-  position: sticky;
-  bottom: 0;
-  z-index: 6;
-  margin: 14px -2px 0;
-  padding: 12px 2px;
-  background: var(--surface-2);
-  border-top: 1px solid var(--line);
-}

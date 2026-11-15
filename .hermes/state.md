@@ -106,7 +106,8 @@ Containers never grow with their content. Which of them show a bar is a separate
   `.frame { height: 100% }`; padded views (console/accounts/config/update) scroll inside
 - wardrobe: `.grid__cards { max-height: 300px; overflow-y: auto }`, a short first page of 48
   cards, exact total printed next to "Show all N"
-- the action row is sticky at the bottom of the form, so Perform never scrolls away
+- the action row sits in normal flow: sticky was tried and reverted, it covered the
+  catalog status line without buying anything, since the wardrobe box keeps it close
 - **visible bars**: only the wardrobe's thin one. `.rail__nav`, `.workspace` and `.view` set
   `scrollbar-width: none` and zero width webkit bars: they still scroll by wheel, drag and
   keyboard, they just draw nothing. Two grooves next to the wardrobe bar was noise.
