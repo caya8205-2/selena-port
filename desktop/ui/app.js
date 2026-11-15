@@ -29,7 +29,9 @@ function show(view) {
   if (view === 'mail') loadMailRecipients()
   if (view === 'config') loadConfig()
   if (view === 'update') {
-    document.querySelector('#cfgRepo').value = settings.repo || ''
+    // Keep what the user typed: only fill the field when it is still empty.
+    const field = document.querySelector('#cfgRepo')
+    if (!field.value) field.value = settings.repo || ''
     loadUpdateState()
   }
 }
@@ -709,6 +711,8 @@ document.querySelector('#btnCheckUpdate').addEventListener('click', async (event
   try {
     const status = await window.selena.updateStatus(repo)
     paintUpdate(status)
+    // The tracked repository is a setting, so a checked repo survives a reload.
+    if (repo !== settings.repo) settings = await window.selena.saveSettings({ repo })
     if (!status.ok) appendTo('updateLog', status.reason)
     else if (status.remoteError) appendTo('updateLog', 'GitHub: ' + status.remoteError)
     else appendTo('updateLog', status.upToDate ? 'local HEAD matches the newest commit' : 'the local HEAD differs from GitHub')
