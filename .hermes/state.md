@@ -335,3 +335,135 @@ A, B, C, E and F are done.
   `WeaponSkillPool.tsv`. Generic sets carry four attrib entries on both slots.
 - An admin `equip add` leaves a memory unbound (`CharacterId` 0); the game binds it when the client
   equips it. The panel marks those rows `spare`, so a build made of grants reads honestly.
+
+
+## 10. PGR domain model, in the game's own words
+
+Written down because the panel is for players, and every internal name here has a
+player-facing name that must be used in copy, in labels and in this file.
+
+### Rank, promotion, level
+
+- `CharacterData.Quality` 1..6 is **Rank**: 1 B, 2 A, 3 S, 4 SS, 5 SSS, 6 SSS+.
+  Inside a rank there are 10 star steps (`CharacterData.Star` 0..10), so the ladder
+  runs S0..S10, then SS0..SS10, then SSS0..SSS10, then SSS+. Star is an internal
+  step marker with no fan name; never show "Quality" or "star" to a player.
+- Quality 6 (SSS+) has no star step. A star carried into it is dropped, not invented.
+- `CharacterData.Grade` 1..14 is **Promotion**: Private I, Sergeant I, Sergeant II,
+  Elite I-III, Task Force I-III, Ace I-IV, Hero. Cogs buy each step
+  (`CharacterGrade.UseItemKey`/`UseItemCount`). It raises stats and is the level
+  ladder the player recognises.
+- Base rank is the gacha rank: `CharacterQuality.tsv` row per CharacterId, min
+  Quality wins. A tuned rank never goes below it. An A-rank construct pushed to
+  SSS+ is still an A-rank construct: base rank decides how strong it is, never the
+  rank label alone. Players get tricked by exactly that.
+- Tuning writes state directly. It does not replay the upgrade curve and spends no
+  shard, cog or item: the cost per step differs (3 shards S0 to SS0, 9 after that,
+  and so on), so charging would make the builder unusable and the numbers would
+  never match.
+
+### Memory resonance (two slots per memory)
+
+Both slots offer the same four stat picks, the "Ex -" entries from
+`AttribPool.tsv` (`EquipResonance.AttribPoolId[slot]`). The skill list differs:
+
+- Upper, slot 1: red orb level, yellow orb level, blue orb level, basic attack
+  level. These are `CharacterSkillType.Type` 5, 6, 7 and 9.
+- Lower, slot 2: signature move level, QTE level, core passive, class skill level.
+  These are types 1, 2, 3 and 4.
+
+The pools live in `EquipResonance.CharacterSkillPoolId[1..2]`, but the game's own
+validator (`EquipModule.EquipResonanceRequestHandler`) checks a pick against the
+pool at `slot - 1` and the character's skill groups, so a writer must accept the
+type pairing rather than only that pool index. Skill display names are client
+localisation and are not in any table this server ships: label by type, which is
+identical for every construct.
+
+Storage: an attrib resonance keeps `ResonanceInfo.CharacterId = 0`; a skill
+resonance carries the construct id. `EquipData.AwakeSlotList` holds the slot
+numbers themselves (1 and 2), not slot + 1, and Hypertune means both are present.
+
+### Weapon resonance (three slots) and harmony
+
+Every weapon pool (`WeaponSkillPool`, keyed by CharacterId, 16 columns) carries the
+same twelve ids in the same order: `101, 102, 103, 201, 202, 203, 500, 506, 511,
+512, 513, 514`. The pool order is the in-game screen order, so names are assigned
+by position, and the names differ per class:
+
+- Positions 1-3 are named by frame kind. Omniframe: Incandescence, Dead Line
+  Timing, Matrix Lightning. Uniframe (Vanguard only): Matrix Outburst, Overload
+  Signal, Limit Break.
+- Positions 4-6 are the same everywhere: Shock Saturation, Nsec Transmission,
+  Shock Echo.
+- 7 onward is the class block:
+  - Attacker, Annihilator: Glorious Afterglow only (Annihilator is an Attacker
+    with extra mechanics, same generation, not an evolution).
+  - Tank: Resonant Echo, Domain Deconstruction, Boundary's Annihilation, Gravity
+    Barrier, Absolute Defense.
+  - Breaker: Glorious Afterglow plus the five tank entries.
+  - Support, Amplifier, Overlinker: Glorious Spear, Superconducting Axial Ray,
+    Honed Gel, Stellar Magnetic Rail, Peaceful Radiant.
+  - Observer (Ishmael): the amplifier five then the tank five, 16 entries. The
+    squad screen picks which class Ishmael plays; the weapon resonance screen
+    always offers both, so it is not gated by the squad class.
+  - Vanguard: no class block at all, only the six frame entries.
+- Dead Line Timing is the one every rotation depends on: 2 orbs on deploy, then 3
+  orbs every 45 seconds. Without it many constructs are unusable because their
+  rotation is too short to cycle switch cooldowns. Matrix Lightning is the other
+  universal must-have (movement speed, 10% less enemy damage reduction inside a
+  matrix).
+
+Rarity gates the feature, not the class: 6 star weapons take custom resonance and
+harmony, 5 star resonates flat attack only with no custom pick and no harmony, and
+4 star is the default weapon that gets nothing custom.
+
+Harmony is `WeaponOverrunData`: `ChoseSuit` is the memory set id, `ActiveSuits` the
+sets it can borrow, `Level` the overrun level. The player picks a **set**, never a
+memory: an active harmony counts as two pieces of that set, so four signature
+memories plus harmony already complete a four piece bonus. The table text says
+"Piece count for Memory Set effects +2" for the same reason.
+
+### Class mapping
+
+`Character.tsv.Career` (column 25) indexes `CharacterCareer.tsv`
+(`Type` -> `Name`). It is the only source; `Character.tsv.Type` is the exp
+template and is 1 for almost everyone.
+
+| Career | Class | Weapon resonance block |
+|---|---|---|
+| 1 | Attacker | Glorious Afterglow |
+| 2 | Tank | tank five |
+| 3 | Support | amplifier five |
+| 4 | Vanguard | none (Uniframe) |
+| 5 | Amplifier | amplifier five |
+| 6 | Annihilator | Glorious Afterglow |
+| 7 | Observer | amplifier five + tank five |
+| 8 | Breaker | Glorious Afterglow + tank five |
+| 9 | Overlinker | amplifier five |
+
+Verified one construct per career: Lee Palefire 1, Nanami Storm 2, Liv Eclipse 3,
+Camu Crocotta 4, Liv Empyrea 5, Luna Oblivion 6, Ishmael Parhelion 7, Rosetta Arete
+8, Adelyde Anabasis 9.
+
+Vanguard exists only for Uniframes, four of 96 constructs, and an all-burst kit
+that cannot be mixed into an Omniframe team. The owner considers the whole frame
+type abandoned; it stays mapped for completeness, not as a target.
+
+### Naming rules for the panel
+
+Player vocabulary only, English, no internal ids in copy, no em dashes, one
+tooltip per control. Rank, Promotion, Memory, Resonance, Hypertune, Harmony,
+Weapon, Construct. Never "quality 3" for S, never "awaken" for Hypertune, never
+"skill 101217". State is not the same as power: show base rank next to tuned rank.
+
+### Operational lessons
+
+- The running `AscNet.exe` executes the code it was started with. A C# fix is not
+  live until the process is stopped, rebuilt and started again. Verifying a write
+  against a stale process measures the old behaviour.
+- `AscNet.exe` and stray `.NET Host` processes lock `AscNet/bin`: kill them before
+  `dotnet build AscNet/AscNet.csproj`, or the build fails on copy after a clean
+  compile.
+- Health probes must not open a TCP connection to the game port: the server treats
+  it as a client, opens a session, saves state and disconnects, which floods its
+  log and can race a real login. Read the process instead.
