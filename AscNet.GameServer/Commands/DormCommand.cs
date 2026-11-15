@@ -32,16 +32,16 @@ namespace AscNet.GameServer.Commands
         public DormCommand(Session session, string[] args, bool validate = true) : base(session, args, validate) { }
 
         public override string Help =>
-            "Dorm: info [room|all], fill <room|all>. A room is a DormTemplate.tsv room template (20, 201-233) " +
-            "or a Dormitory.tsv room id (21001-21030); fill grants the furniture the tables name and the account " +
-            "does not own yet, and leaves placement to the game.";
+            "Dorm: info, fill <room|all>. A room is a DormTemplate.tsv room template (the themed presets such as " +
+            "Cafe) or a Dormitory.tsv room id; fill grants the furniture the tables name and the account does not " +
+            "own yet, and leaves placement to the game.";
 
         public override object? Payload => payload;
 
         [Argument(0, @"^info$|^fill$", "The operation selected (info, fill)", ArgumentFlags.IgnoreCase)]
         string Op { get; set; } = string.Empty;
 
-        [Argument(1, @"^[0-9]+$|^all$", "A room template id, a dormitory id, or 'all'", ArgumentFlags.IgnoreCase | ArgumentFlags.Optional)]
+        [Argument(1, @"^[0-9]+$|^all$", "For fill: a room template id, a dormitory id, or 'all'", ArgumentFlags.IgnoreCase | ArgumentFlags.Optional)]
         string Target { get; set; } = string.Empty;
 
         public override void Execute()
@@ -180,7 +180,7 @@ namespace AscNet.GameServer.Commands
                     granted = Array.Empty<object>(),
                     grantedCount = 0,
                     alreadyOwned,
-                    unpurchasable = unpurchasable.Select(id => rowsById[id].Name).ToList(),
+                    unpurchasable = unpurchasable.Select(id => new { configId = id, name = rowsById[id].Name }).ToList(),
                     unknown,
                     note = unpurchasable.Count > 0
                         ? "every piece the tables name is owned or comes with the room itself; nothing is grantable."
@@ -213,12 +213,12 @@ namespace AscNet.GameServer.Commands
                 scope,
                 target,
                 pieces = known.Count,
-                granted = grantable.Select(id => new { configId = id, rowsById[id].Name, rewardId = rewardByConfig[id] }).ToList(),
+                granted = grantable.Select(id => new { configId = id, name = rowsById[id].Name, rewardId = rewardByConfig[id] }).ToList(),
                 grantedCount = grantable.Count,
                 alreadyOwned,
-                unpurchasable = unpurchasable.Select(id => rowsById[id].Name).ToList(),
+                unpurchasable = unpurchasable.Select(id => new { configId = id, name = rowsById[id].Name }).ToList(),
                 unknown,
-                held,
+                held = session.player.Dorm.Furniture.Count,
                 cap,
             };
             return payload;

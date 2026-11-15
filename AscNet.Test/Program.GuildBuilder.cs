@@ -4,6 +4,7 @@ using AscNet.Common.MsgPack;
 using AscNet.Common.Util;
 using AscNet.GameServer;
 using AscNet.GameServer.Handlers;
+using AscNet.Table.V2.share.config;
 using AscNet.Table.V2.share.guild;
 using MessagePack;
 using MongoDB.Driver;
@@ -183,7 +184,8 @@ namespace AscNet.Test
 
                 Console.WriteLine(
                     $"guild builder: {guild.Name} at level {levelRow.Level} took build 1000 and pool 27 "
-                    + $"(member total 27), tourist and outsider refused, grant above {dailyLimit} needs confirm");
+                    + $"(member total 27), level {lastLevel.Level} turned {interval} build into {pointsPerInterval} talent points, "
+                    + $"tourist and outsider refused, grant above {dailyLimit} needs confirm");
             }
             finally
             {
