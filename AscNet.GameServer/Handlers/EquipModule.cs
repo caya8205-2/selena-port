@@ -1567,7 +1567,8 @@ namespace AscNet.GameServer.Handlers
                 {
                     Slot = slot,
                     Type = request.SelectType!.Value,
-                    CharacterId = request.CharacterId!.Value,
+                    // A stat resonance belongs to no construct; only a skill resonance does.
+                    CharacterId = request.SelectType!.Value == EquipResonanceType.Attrib ? 0 : request.CharacterId!.Value,
                     TemplateId = selectedId,
                     UseItemId = request.UseItemId
                 });

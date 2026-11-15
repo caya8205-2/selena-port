@@ -139,6 +139,9 @@ namespace AscNet.Test
                 AssertEqual(6, storedMemories.Count, "tune memory count");
                 AssertEqual(6, storedMemories.Count(equip => equip.CharacterId == character.Id), "tune memory binding");
                 AssertEqual(6, storedMemories.Count(equip => equip.ResonanceInfo.Count == 2), "tune memory resonance");
+                // a stat resonance belongs to no construct, only a skill resonance does
+                AssertEqual(0, storedMemories[0].ResonanceInfo.Single(info => info.Slot == 1).CharacterId, "tune attrib resonance carries no character");
+                AssertEqual(character.Id, storedMemories[0].ResonanceInfo.Single(info => info.Slot == 2).CharacterId, "tune skill resonance carries the construct");
                 AssertEqual(6, storedMemories.Count(equip => equip.AwakeSlotList.Count == 2), "tune hypertune");
 
                 // the weapon carries three resonances and the harmony suit of the named memory

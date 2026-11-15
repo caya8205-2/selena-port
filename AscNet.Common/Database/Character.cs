@@ -1521,11 +1521,13 @@ namespace AscNet.Common.Database
 
         public void Save()
         {
+            Normalize();
             collection.ReplaceOne(Builders<Character>.Filter.Eq(x => x.Id, Id), this);
         }
 
         public void SaveChecked()
         {
+            Normalize();
             ReplaceOneResult result = collection.ReplaceOne(
                 Builders<Character>.Filter.Eq(x => x.Id, Id),
                 this);
@@ -1533,6 +1535,20 @@ namespace AscNet.Common.Database
             {
                 string matchCount = result.IsAcknowledged ? result.MatchedCount.ToString() : "unacknowledged";
                 throw new MongoException($"Character save for uid {Uid} matched {matchCount} documents.");
+            }
+        }
+
+        private void Normalize()
+        {
+            // A stat resonance belongs to no construct. Write paths can carry the owner id in
+            // anyway, and the client reads it back, so the invariant is enforced where it lands.
+            foreach (EquipData equip in Equips)
+            {
+                foreach (ResonanceInfo resonance in equip.ResonanceInfo ?? [])
+                {
+                    if (resonance.Type == EquipResonanceType.Attrib)
+                        resonance.CharacterId = 0;
+                }
             }
         }
 
