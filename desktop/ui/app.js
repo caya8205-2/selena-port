@@ -9,6 +9,7 @@ const SUBTITLES = {
   console: 'Console',
   gm: 'GM console',
   player: 'Player console',
+  accounts: 'Accounts',
   config: 'Configuration',
   update: 'Updates',
 }
@@ -23,6 +24,7 @@ function show(view) {
   // Frames load lazily so a panel only runs once it is actually opened.
   if (view === 'gm' && !document.querySelector('#frameGm').src) document.querySelector('#frameGm').src = '/gm/index.html'
   if (view === 'player' && !document.querySelector('#framePlayer').src) document.querySelector('#framePlayer').src = '/player/index.html'
+  if (view === 'accounts') loadAccounts()
   if (view === 'config') loadConfig()
   if (view === 'update') document.querySelector('#cfgRepo').value = settings.repo || ''
 }
@@ -85,6 +87,106 @@ document.querySelector('#btnOpenLogs').addEventListener('click', () => window.se
 document.querySelector('#btnLaunch').addEventListener('click', async () => {
   try { await window.selena.launch() } catch (err) { append('launch failed: ' + err.message) }
 })
+
+
+// ------------------------------------------------------------------- accounts
+
+// Same origin as the panels, so the session they store is readable here; commands are
+// authorised with the player token the game minted at login.
+function sessionCredential() {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem('selena.account') || 'null')
+    return stored && (stored.playerToken || stored.token)
+  } catch {
+    return null
+  }
+}
+
+async function accountCommand(args) {
+  const credential = sessionCredential()
+  if (!credential) throw new Error('sign in from the GM panel first')
+
+  const response = await fetch('/api/AscNet/command/account', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: credential },
+    body: JSON.stringify({ args: args.map(String) }),
+  })
+
+  const data = await response.json().catch(() => null)
+  if (!response.ok) throw new Error((data && (data.err || data.msg)) || `HTTP ${response.status}`)
+  return data && data.data
+}
+
+async function loadAccounts() {
+  const body = document.querySelector('#accountsTable tbody')
+  const note = document.querySelector('#accountsNote')
+  body.textContent = ''
+  note.textContent = 'loading…'
+
+  try {
+    const payload = await accountCommand(['list'])
+    note.textContent = `${payload.total} account${payload.total === 1 ? '' : 's'}`
+
+    for (const account of payload.accounts) {
+      const row = document.createElement('tr')
+
+      const name = document.createElement('td')
+      name.textContent = account.username
+
+      const uid = document.createElement('td')
+      uid.textContent = account.uid
+
+      const player = document.createElement('td')
+      player.textContent = account.playerPresent ? (account.playerName || 'yes') : 'none'
+      if (!account.playerPresent) player.className = 'dim'
+
+      const level = document.createElement('td')
+      level.textContent = account.playerPresent ? account.level : '—'
+
+      const actions = document.createElement('td')
+      actions.className = 'table__actions'
+
+      const reset = document.createElement('button')
+      reset.className = 'btn btn--quiet'
+      reset.textContent = 'Reset'
+      reset.addEventListener('click', () => runAccountAction('reset', account))
+
+      const remove = document.createElement('button')
+      remove.className = 'btn btn--quiet'
+      remove.textContent = 'Delete'
+      remove.addEventListener('click', () => runAccountAction('delete', account))
+
+      actions.appendChild(reset)
+      actions.appendChild(remove)
+
+      row.append(name, uid, player, level, actions)
+      body.appendChild(row)
+    }
+  } catch (err) {
+    note.textContent = ''
+    appendTo('accountsLog', 'could not list accounts: ' + err.message)
+  }
+}
+
+async function runAccountAction(kind, account) {
+  // Destructive actions ask for the username, so a mis-click cannot wipe an account.
+  const typed = window.prompt(`Type ${account.username} to ${kind} UID ${account.uid}`)
+  if (typed === null) return
+  if (typed.trim() !== account.username) {
+    appendTo('accountsLog', `${kind} cancelled: the username did not match`)
+    return
+  }
+
+  try {
+    await accountCommand([kind, account.uid, 'confirm'])
+    appendTo('accountsLog', `${kind} ${account.username} (uid ${account.uid}) done`)
+    loadAccounts()
+  } catch (err) {
+    appendTo('accountsLog', `${kind} failed: ` + err.message)
+  }
+}
+
+document.querySelector('#btnRefreshAccounts').addEventListener('click', loadAccounts)
 
 // ------------------------------------------------------------------- config
 

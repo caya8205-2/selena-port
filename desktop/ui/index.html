@@ -19,6 +19,7 @@
     <button class="tab is-active" data-view="console">Console</button>
     <button class="tab" data-view="gm">GM</button>
     <button class="tab" data-view="player">Player</button>
+    <button class="tab" data-view="accounts">Accounts</button>
     <button class="tab" data-view="config">Config</button>
     <button class="tab" data-view="update">Update</button>
   </nav>
@@ -56,7 +57,25 @@
       <iframe class="frame" id="framePlayer" title="Player panel"></iframe>
     </section>
 
-    <section class="view" data-view="config">
+    <section class="view" data-view="accounts">
+    <div class="form">
+      <div class="actions">
+        <button class="btn btn--primary" id="btnRefreshAccounts">Refresh</button>
+        <span class="field__note" id="accountsNote"></span>
+      </div>
+
+      <table class="table" id="accountsTable">
+        <thead>
+          <tr><th>Account</th><th>UID</th><th>Player</th><th>Level</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <pre class="log" id="accountsLog"></pre>
+    </div>
+  </section>
+
+  <section class="view" data-view="config">
       <div class="form">
         <div class="rows" id="setupRows">
           <div class="row"><span>Setup</span><b class="dim">checking…</b></div>
