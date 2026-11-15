@@ -186,9 +186,13 @@
   /* ---------------------------------------------------------------- account */
 
   function renderAccount() {
-    var acc = window.SelenaAPI.account;
+    // Nothing to paint: the sign-in footer is gone and the acting account is chosen from the
+    // database picker instead.
     var status = $("#connStatus");
     var text = $("#connText");
+    if (!status || !text) return;
+
+    var acc = window.SelenaAPI.account;
     var label = $("#accountLabel");
     var btn = $("#accountBtn");
 
