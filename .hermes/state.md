@@ -10,7 +10,7 @@ moment they cost time. A stale note is worse than no note, because it is trusted
 session starts without its earlier context, read this file first, then `git log -5`, then the
 files it names. Do not rely on memory for ports, paths or column names.
 
-Last updated: wardrobe scrolls internally, rail and tab bars hidden.
+Last updated: wardrobe scrolls internally, rail and tab bars hidden, static assets no-store.
 
 ---
 
@@ -164,6 +164,9 @@ override and every height reads short (a 764 window measured 429 and looked like
 - Nested scroll containers add up fast: a page-height `.app`, an `overflow: auto` view in the
   shell and a `max-height` card grid produced four bars on one screen. Fix the container
   heights, not the scrollbar styling.
+- The app serves its own CSS/JS, and Chromium cached them: a stylesheet fix looked like it had
+  no effect while the old layout kept rendering. `serveFile` now sends `Cache-Control: no-store`.
+  If a layout change seems ignored, check the served headers before editing the CSS again.
 - A wrong filter direction fails quietly: `catalog/memories` returned 252 weapons and looked
   plausible until the names were read. Check a catalog by a known row, not by length alone.
 

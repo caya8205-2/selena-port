@@ -369,7 +369,12 @@ function serveFile(res, file) {
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
     res.writeHead(404); res.end('not found'); return
   }
-  res.writeHead(200, { 'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' })
+  // no-store: these files are edited while the app runs, and a cached stylesheet silently
+  // kept an older layout alive through several rounds of fixes.
+  res.writeHead(200, {
+    'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream',
+    'Cache-Control': 'no-store',
+  })
   fs.createReadStream(file).pipe(res)
 }
 
