@@ -1332,7 +1332,7 @@ async function createWindow() {
     backgroundColor: '#0c0e16',
     autoHideMenuBar: true,
     title: 'Selena-port',
-    icon: path.join(__dirname, '..', 'web-ui', 'icon.webp'),
+    icon: path.join(__dirname, '..', 'web-ui', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
