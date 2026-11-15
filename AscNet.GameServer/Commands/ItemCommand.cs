@@ -61,11 +61,21 @@ namespace AscNet.GameServer.Commands
                     Item? existingItem = session.inventory.Items.FirstOrDefault(x => x.Id == itemTable.Id);
                     long currentCount = existingItem?.Count ?? 0;
                     long targetCount = GetBatchAddMaxTargetCount(itemTable);
-                    long grantAmount = useMaxCount
-                        ? targetCount - currentCount
-                        : Math.Min(amount, targetCount - currentCount);
+
+                    // "add" must never subtract: when the stack already sits at or
+                    // above the batch target (a stock of millions against a cap of 999)
+                    // the difference is negative, and feeding that to Do() turned the
+                    // bulk grant into a set-down-to-cap. Skip instead of reducing.
+                    long room = targetCount - currentCount;
+                    if (room <= 0)
+                        continue;
+
+                    long grantAmount = useMaxCount ? room : Math.Min(amount, room);
+                    if (grantAmount <= 0)
+                        continue;
+
                     notifyItemData.ItemDataList.Add(
-                        session.inventory.Do(itemTable.Id, (int)Math.Clamp(grantAmount, int.MinValue, int.MaxValue)));
+                        session.inventory.Do(itemTable.Id, (int)Math.Clamp(grantAmount, 0, int.MaxValue)));
                 }
             }
             else
