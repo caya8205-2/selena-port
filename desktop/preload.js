@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('selena', {
   installMongo: () => ipcRenderer.invoke('tools:install-mongo'),
   rebuildServer: () => ipcRenderer.invoke('tools:rebuild'),
   checkUpdate: (repo) => ipcRenderer.invoke('update:check', repo),
+  updateStatus: (repo) => ipcRenderer.invoke('update:status', repo),
+  applyUpdate: () => ipcRenderer.invoke('update:apply'),
   cloneRepo: (url) => ipcRenderer.invoke('tools:clone', url),
   verifySetup: () => ipcRenderer.invoke('setup:verify'),
   adminToken: () => ipcRenderer.invoke('admin:token'),

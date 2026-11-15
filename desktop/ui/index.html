@@ -203,14 +203,20 @@
         </label>
 
         <div class="rows">
-          <div class="row"><span>Latest commit</span><b id="updSha" class="dim">—</b></div>
+          <div class="row"><span>Local HEAD</span><b id="updLocal" class="dim">—</b></div>
+          <div class="row"><span>Branch</span><b id="updBranch" class="dim">—</b></div>
+          <div class="row"><span>Working tree</span><b id="updTree" class="dim">—</b></div>
+          <div class="row"><span>Latest on GitHub</span><b id="updSha" class="dim">—</b></div>
           <div class="row"><span>Message</span><b id="updMsg" class="dim">—</b></div>
           <div class="row"><span>Date</span><b id="updDate" class="dim">—</b></div>
+          <div class="row"><span>Status</span><b id="updState" class="dim">—</b></div>
         </div>
 
         <div class="actions">
-          <button class="btn" id="btnOpenRepo">Open on GitHub</button>
+          <button class="btn btn--primary" id="btnUpdateNow" disabled>Update now</button>
+          <button class="btn btn--quiet" id="btnOpenRepo">Open on GitHub</button>
         </div>
+        <span class="field__note" id="updNote">Update snapshots the database, stops the stack, pulls fast-forward only, rebuilds and starts it again.</span>
         <pre class="log" id="updateLog"></pre>
       </div>
     </section>

@@ -28,7 +28,10 @@ function show(view) {
   if (view === 'accounts') loadAccounts()
   if (view === 'mail') loadMailRecipients()
   if (view === 'config') loadConfig()
-  if (view === 'update') document.querySelector('#cfgRepo').value = settings.repo || ''
+  if (view === 'update') {
+    document.querySelector('#cfgRepo').value = settings.repo || ''
+    loadUpdateState()
+  }
 }
 
 tabs.forEach((tab) => tab.addEventListener('click', () => show(tab.dataset.view)))
@@ -643,6 +646,59 @@ document.querySelector('#btnRebuild').addEventListener('click', async (event) =>
 
 // ------------------------------------------------------------------- update
 
+// "Update now" is offered only when the local HEAD differs from GitHub and the tree is clean:
+// the pull is fast-forward only, so uncommitted work would stop it anyway.
+function updateRow(id, text, state) {
+  const node = document.querySelector('#' + id)
+  if (!node) return
+  node.textContent = text
+  node.className = state === undefined ? 'dim' : (state ? '' : 'bad')
+}
+
+function paintUpdate(status) {
+  const button = document.querySelector('#btnUpdateNow')
+
+  if (!status.ok) {
+    for (const id of ['updLocal', 'updBranch', 'updSha', 'updMsg', 'updDate']) updateRow(id, '—')
+    updateRow('updTree', status.reason, false)
+    updateRow('updState', status.reason, false)
+    button.disabled = true
+    return
+  }
+
+  updateRow('updLocal', status.local.sha, true)
+  updateRow('updBranch', status.local.branch, true)
+  updateRow('updTree', status.dirty ? `${status.dirtyFiles} changed file${status.dirtyFiles === 1 ? '' : 's'}` : 'clean', !status.dirty)
+
+  if (status.remote) {
+    updateRow('updSha', status.remote.sha, true)
+    updateRow('updMsg', status.remote.message, true)
+    updateRow('updDate', new Date(status.remote.date).toLocaleString(), true)
+  } else {
+    for (const id of ['updSha', 'updMsg', 'updDate']) updateRow(id, '—')
+  }
+
+  const state = !status.remote
+    ? status.remoteError
+    : status.upToDate
+      ? 'up to date'
+      : status.dirty
+        ? 'differs from GitHub, but the tree has local changes'
+        : 'update available'
+  updateRow('updState', state, Boolean(status.remote && (status.upToDate || status.canUpdate)))
+
+  button.disabled = !status.canUpdate
+}
+
+async function loadUpdateState() {
+  const repo = document.querySelector('#cfgRepo').value.trim() || settings.repo || ''
+  try {
+    paintUpdate(await window.selena.updateStatus(repo))
+  } catch (err) {
+    appendTo('updateLog', 'could not read the repository state: ' + err.message)
+  }
+}
+
 document.querySelector('#btnCheckUpdate').addEventListener('click', async (event) => {
   const button = event.currentTarget
   const repo = document.querySelector('#cfgRepo').value.trim()
@@ -651,17 +707,35 @@ document.querySelector('#btnCheckUpdate').addEventListener('click', async (event
   button.disabled = true
   appendTo('updateLog', `checking ${repo}…`)
   try {
-    const commit = await window.selena.checkUpdate(repo)
-    document.querySelector('#updSha').textContent = commit.sha
-    document.querySelector('#updSha').className = ''
-    document.querySelector('#updMsg').textContent = commit.message
-    document.querySelector('#updMsg').className = ''
-    document.querySelector('#updDate').textContent = new Date(commit.date).toLocaleString()
-    document.querySelector('#updDate').className = ''
+    const status = await window.selena.updateStatus(repo)
+    paintUpdate(status)
+    if (!status.ok) appendTo('updateLog', status.reason)
+    else if (status.remoteError) appendTo('updateLog', 'GitHub: ' + status.remoteError)
+    else appendTo('updateLog', status.upToDate ? 'local HEAD matches the newest commit' : 'the local HEAD differs from GitHub')
   } catch (err) {
     appendTo('updateLog', 'check failed: ' + err.message)
   } finally {
     button.disabled = false
+  }
+})
+
+document.querySelector('#btnUpdateNow').addEventListener('click', async (event) => {
+  const button = event.currentTarget
+  button.disabled = true
+  appendTo('updateLog', 'applying the update…')
+
+  try {
+    const result = await window.selena.applyUpdate()
+    for (const step of result.steps) {
+      appendTo('updateLog', `  ${step.ok ? 'ok    ' : 'FAILED'}  ${step.name}${step.detail ? ': ' + step.detail : ''}`)
+    }
+    appendTo('updateLog', result.ok ? 'update applied' : 'update stopped at the step marked FAILED')
+  } catch (err) {
+    appendTo('updateLog', 'update failed: ' + err.message)
+  } finally {
+    button.disabled = false
+    refresh()
+    loadUpdateState()
   }
 })
 

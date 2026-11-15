@@ -610,19 +610,59 @@ async function backupNow(reason) {
   return { path: result, backups: listBackups(backupRoot) }
 }
 
+// ---------------------------------------------------------------- build and update
+
+// The build writes over the dlls the running server has loaded, so every build path has to
+// take the stack down first; otherwise dotnet retries MSB3026/MSB3021 and gives up.
+function buildServer() {
+  const project = path.join(config.repoRoot || path.join(__dirname, '..'), 'AscNet', 'AscNet.csproj')
+  if (!fs.existsSync(project)) throw new Error(`project not found: ${project}`)
+
+  const dotnet = process.env.DOTNET_ROOT ? path.join(process.env.DOTNET_ROOT, 'dotnet.exe') : 'dotnet'
+  return new Promise((resolve, reject) => {
+    const child = spawnHidden(dotnet, ['build', project, '-v', 'q', '--nologo'], { cwd: path.dirname(path.dirname(project)) })
+    child.on('error', () => reject(new Error('dotnet was not found; install the .NET 8 SDK or build manually')))
+    child.on('exit', (code) => resolve({ ok: code === 0 }))
+  })
+}
+
+// This app only owns the processes it spawned itself. A stack started from tools/ belongs to
+// the control centre, and the port - not the child list - is what tells us it is gone.
+async function stopStackFor(seconds = 25) {
+  await stopAll()
+
+  if (await portOpen(config.sdkPort)) {
+    const script = path.join(config.repoRoot || path.join(__dirname, '..'), 'tools', 'SelenaPort-ControlCenter.ps1')
+    if (fs.existsSync(script)) {
+      await new Promise((resolve) => {
+        const child = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Action', 'stop'], { windowsHide: true, stdio: 'ignore' })
+        child.on('error', resolve)
+        child.on('exit', resolve)
+      })
+      log('stack stopped through the control centre')
+    }
+  }
+
+  const deadline = Date.now() + seconds * 1000
+  while (Date.now() < deadline && await portOpen(config.sdkPort))
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+  return !(await portOpen(config.sdkPort))
+}
+
 async function rebuildServer() {
   // Snapshot first: a rebuild that goes wrong should cost time, not data.
   // The IPC layer awaits this; a failed snapshot must not stop the build.
   await backupNow('rebuild').catch((err) => log(`backup skipped: ${err.message}`))
 
-  const project = path.join(config.repoRoot || path.join(__dirname, '..'), 'AscNet', 'AscNet.csproj')
-  if (!fs.existsSync(project)) throw new Error(`project not found: ${project}`)
+  if (!(await stopStackFor())) {
+    log('the server is still listening after a stop request; the build would hit its own files')
+    return { ok: false, reason: 'the server is still listening - stop the stack, then build again' }
+  }
 
-  const dotnet = process.env.DOTNET_ROOT ? path.join(process.env.DOTNET_ROOT, 'dotnet.exe') : 'dotnet'
-  return new Promise((resolve) => {
-    const child = spawnHidden(dotnet, ['build', project, '-v', 'q', '--nologo'], { cwd: path.dirname(path.dirname(project)) })
-    child.on('exit', (code) => resolve({ ok: code === 0 }))
-  })
+  const result = await buildServer()
+  await startAll().catch((err) => log(`restart failed: ${err.message}`))
+  return result
 }
 
 function checkUpdate(repo) {
@@ -638,6 +678,7 @@ function checkUpdate(repo) {
           if (!Array.isArray(commits) || commits.length === 0) return reject(new Error('no commits returned'))
           resolve({
             sha: commits[0].sha.slice(0, 10),
+            full: commits[0].sha,
             message: commits[0].commit.message.split('\n')[0],
             date: commits[0].commit.committer.date,
           })
@@ -647,6 +688,138 @@ function checkUpdate(repo) {
       })
     }).on('error', reject)
   })
+}
+
+// Git answers for the update tab. A spawn that fails is a result, not an exception, so the
+// caller can report which step failed instead of a stack trace.
+function gitCapture(root, args) {
+  return new Promise((resolve) => {
+    const child = spawn('git', ['-C', root, ...args], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    let out = ''
+    let err = ''
+    child.stdout.on('data', (chunk) => { out += chunk })
+    child.stderr.on('data', (chunk) => { err += chunk })
+    child.on('error', () => resolve({ code: -1, stdout: '', stderr: 'git was not found; install Git to update from here' }))
+    child.on('exit', (code) => resolve({ code, stdout: out.trim(), stderr: err.trim() }))
+  })
+}
+
+// What the update tab shows: the local HEAD and branch, whether the tree is clean, and where
+// the tracked GitHub repository stands. Update is offered only when the two differ and the
+// tree is clean, because the pull is fast-forward only.
+async function updateStatus(repo) {
+  const root = config.repoRoot
+  if (!root || !fs.existsSync(path.join(root, 'AscNet', 'AscNet.csproj')))
+    return { ok: false, canUpdate: false, reason: 'the repository is not cloned - clone it from Configuration first' }
+
+  const head = await gitCapture(root, ['rev-parse', 'HEAD'])
+  if (head.code !== 0)
+    return { ok: false, canUpdate: false, reason: head.stderr || 'git could not read HEAD' }
+
+  const branch = await gitCapture(root, ['rev-parse', '--abbrev-ref', 'HEAD'])
+  const dirty = await gitCapture(root, ['status', '--porcelain'])
+
+  let remote = null
+  let remoteError = null
+  if (repo) {
+    try {
+      const commit = await checkUpdate(repo)
+      remote = { sha: commit.sha, full: commit.full, message: commit.message, date: commit.date }
+    } catch (err) {
+      remoteError = err.message
+    }
+  } else {
+    remoteError = 'enter owner/name first'
+  }
+
+  const upToDate = Boolean(remote && remote.full === head.stdout)
+  return {
+    ok: true,
+    local: { sha: head.stdout.slice(0, 10), full: head.stdout, branch: branch.stdout },
+    remote,
+    remoteError,
+    dirty: dirty.stdout.length > 0,
+    dirtyFiles: dirty.stdout ? dirty.stdout.split('\n').length : 0,
+    upToDate,
+    canUpdate: Boolean(remote && !upToDate && !dirty.stdout),
+  }
+}
+
+// Apply means: snapshot, stop the stack, pull fast-forward only, build, start again. Each
+// step is reported, so a failure names the step instead of "update failed".
+async function applyUpdate() {
+  const steps = []
+  const finish = (ok) => ({ ok, steps })
+  const step = (name, ok, detail) => {
+    steps.push({ name, ok, detail: detail || '' })
+    log(`[update] ${name}: ${ok ? 'ok' : 'failed'}${detail ? ' - ' + detail : ''}`)
+  }
+
+  const root = config.repoRoot
+  if (!root || !fs.existsSync(path.join(root, 'AscNet', 'AscNet.csproj'))) {
+    step('repository', false, 'not cloned')
+    return finish(false)
+  }
+
+  const dirty = await gitCapture(root, ['status', '--porcelain'])
+  if (dirty.code !== 0) {
+    step('working tree', false, dirty.stderr)
+    return finish(false)
+  }
+  if (dirty.stdout) {
+    step('working tree', false, 'local changes; commit or discard them first')
+    return finish(false)
+  }
+  step('working tree', true, 'clean')
+
+  const branch = await gitCapture(root, ['rev-parse', '--abbrev-ref', 'HEAD'])
+  step('branch', branch.code === 0, branch.stdout)
+
+  try {
+    const backup = await backupNow('update')
+    step('backup', true, backup.path)
+  } catch (err) {
+    step('backup', false, err.message)
+    return finish(false)
+  }
+
+  if (!(await stopStackFor())) {
+    step('stack', false, 'still listening after a stop request')
+    return finish(false)
+  }
+  step('stack', true, 'stopped')
+
+  const pull = await gitCapture(root, ['pull', '--ff-only'])
+  if (pull.code !== 0) {
+    step('pull', false, pull.stderr || `git pull exited with ${pull.code}`)
+    await startAll().catch((err) => log(`restart failed: ${err.message}`))
+    return finish(false)
+  }
+  step('pull', true, pull.stdout.split('\n').filter(Boolean).pop() || 'already up to date')
+
+  let build
+  try {
+    build = await buildServer()
+  } catch (err) {
+    step('build', false, err.message)
+    await startAll().catch((restartError) => log(`restart failed: ${restartError.message}`))
+    return finish(false)
+  }
+  if (!build.ok) {
+    step('build', false, 'dotnet build failed; the log has the compiler output')
+    await startAll().catch((err) => log(`restart failed: ${err.message}`))
+    return finish(false)
+  }
+  step('build', true, '')
+
+  try {
+    const started = await startAll()
+    step('restart', Boolean(started.sdk), started.sdk ? `server listening on ${started.sdkPort}` : 'server did not come up')
+  } catch (err) {
+    step('restart', false, err.message)
+  }
+
+  return finish(steps.every((entry) => entry.ok))
 }
 
 // ---------------------------------------------------------------- window
@@ -740,6 +913,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('tools:install-mongo', () => installMongo())
   ipcMain.handle('tools:rebuild', () => rebuildServer())
   ipcMain.handle('update:check', (_event, repo) => checkUpdate(repo))
+  ipcMain.handle('update:status', (_event, repo) => updateStatus(repo))
+  ipcMain.handle('update:apply', () => applyUpdate())
   ipcMain.handle('tools:clone', (_event, url) => cloneRepo(url))
   ipcMain.handle('shell:logs', () => shell.openPath(logDir))
   ipcMain.handle('setup:verify', () => buildChecks(config))
