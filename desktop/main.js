@@ -623,6 +623,12 @@ app.whenReady().then(async () => {
   ipcMain.handle('tools:clone', (_event, url) => cloneRepo(url))
   ipcMain.handle('shell:logs', () => shell.openPath(logDir))
   ipcMain.handle('setup:verify', () => buildChecks(config))
+  ipcMain.handle('admin:token', () => {
+    // The server generates it beside its build; reading it here keeps the token out of
+    // the page and out of any URL.
+    const file = path.join(config.serverDir || '', 'admin-token.txt')
+    return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim() : ''
+  })
   ipcMain.handle('tools:backup', () => backupNow('manual'))
   ipcMain.handle('tools:open-backups', () => shell.openPath(backupRoot))
   ipcMain.handle('stack:open', (_event, target) => shell.openExternal(target))

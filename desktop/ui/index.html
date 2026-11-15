@@ -61,7 +61,13 @@
     <div class="form">
       <div class="actions">
         <button class="btn btn--primary" id="btnRefreshAccounts">Refresh</button>
-        <span class="field__note" id="accountsNote"></span>
+        <span class="field__note" id="accountsNote">no sign-in needed</span>
+      </div>
+
+      <div class="field__row">
+        <input class="input" id="newUsername" type="text" placeholder="new account username" spellcheck="false">
+        <input class="input" id="newPassword" type="password" placeholder="password">
+        <button class="btn btn--primary" id="btnCreateAccount">Create account</button>
       </div>
 
       <table class="table" id="accountsTable">

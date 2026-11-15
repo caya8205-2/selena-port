@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('selena', {
   checkUpdate: (repo) => ipcRenderer.invoke('update:check', repo),
   cloneRepo: (url) => ipcRenderer.invoke('tools:clone', url),
   verifySetup: () => ipcRenderer.invoke('setup:verify'),
+  adminToken: () => ipcRenderer.invoke('admin:token'),
   backupNow: () => ipcRenderer.invoke('tools:backup'),
   openBackups: () => ipcRenderer.invoke('tools:open-backups'),
   openLogs: () => ipcRenderer.invoke('shell:logs'),

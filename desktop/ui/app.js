@@ -91,30 +91,22 @@ document.querySelector('#btnLaunch').addEventListener('click', async () => {
 
 // ------------------------------------------------------------------- accounts
 
-// Same origin as the panels, so the session they store is readable here; commands are
-// authorised with the player token the game minted at login.
-function sessionCredential() {
-  try {
-    const stored = JSON.parse(window.localStorage.getItem('selena.account') || 'null')
-    return stored && (stored.playerToken || stored.token)
-  } catch {
-    return null
-  }
-}
+// Administration goes through the server's admin endpoints: they work whenever the
+// server is up, which is what "no sign-in needed" means. The token is read by the main
+// process from beside the server build and never travels in a URL.
+async function adminRequest(path, body) {
+  const token = await window.selena.adminToken()
+  if (!token) throw new Error('admin token not found - start the server once so it can create it')
 
-async function accountCommand(args) {
-  const credential = sessionCredential()
-  if (!credential) throw new Error('sign in from the GM panel first')
-
-  const response = await fetch('/api/AscNet/command/account', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: credential },
-    body: JSON.stringify({ args: args.map(String) }),
+  const response = await fetch(path, {
+    method: body ? 'POST' : 'GET',
+    headers: { 'X-Admin-Token': token, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
   })
 
   const data = await response.json().catch(() => null)
-  if (!response.ok) throw new Error((data && (data.err || data.msg)) || `HTTP ${response.status}`)
-  return data && data.data
+  if (!response.ok) throw new Error((data && data.msg) || `HTTP ${response.status}`)
+  return data
 }
 
 async function loadAccounts() {
@@ -124,8 +116,8 @@ async function loadAccounts() {
   note.textContent = 'loading…'
 
   try {
-    const payload = await accountCommand(['list'])
-    note.textContent = `${payload.total} account${payload.total === 1 ? '' : 's'}`
+    const payload = await adminRequest('/api/admin/accounts')
+    note.textContent = `${payload.total} account${payload.total === 1 ? '' : 's'} · no sign-in needed`
 
     for (const account of payload.accounts) {
       const row = document.createElement('tr')
@@ -146,19 +138,24 @@ async function loadAccounts() {
       const actions = document.createElement('td')
       actions.className = 'table__actions'
 
+      const edit = document.createElement('button')
+      edit.className = 'btn btn--quiet'
+      edit.textContent = 'Edit'
+      edit.disabled = !account.playerPresent
+      edit.title = account.playerPresent ? '' : 'this account has not logged in yet'
+      edit.addEventListener('click', () => editAccount(account))
+
       const reset = document.createElement('button')
       reset.className = 'btn btn--quiet'
       reset.textContent = 'Reset'
-      reset.addEventListener('click', () => runAccountAction('reset', account))
+      reset.addEventListener('click', () => confirmAccountAction('reset', account))
 
       const remove = document.createElement('button')
       remove.className = 'btn btn--quiet'
       remove.textContent = 'Delete'
-      remove.addEventListener('click', () => runAccountAction('delete', account))
+      remove.addEventListener('click', () => confirmAccountAction('delete', account))
 
-      actions.appendChild(reset)
-      actions.appendChild(remove)
-
+      actions.append(edit, reset, remove)
       row.append(name, uid, player, level, actions)
       body.appendChild(row)
     }
@@ -168,8 +165,25 @@ async function loadAccounts() {
   }
 }
 
-async function runAccountAction(kind, account) {
-  // Destructive actions ask for the username, so a mis-click cannot wipe an account.
+async function editAccount(account) {
+  const name = window.prompt('Commandant name', account.playerName || '')
+  if (name === null) return
+  const level = window.prompt('Level', String(account.level || 1))
+  if (level === null) return
+
+  try {
+    await adminRequest(`/api/admin/accounts/${account.uid}/player`, {
+      Name: name.trim() || null,
+      Level: Number(level) > 0 ? Number(level) : null,
+    })
+    appendTo('accountsLog', `updated ${account.username}`)
+    loadAccounts()
+  } catch (err) {
+    appendTo('accountsLog', 'update failed: ' + err.message)
+  }
+}
+
+async function confirmAccountAction(kind, account) {
   const typed = window.prompt(`Type ${account.username} to ${kind} UID ${account.uid}`)
   if (typed === null) return
   if (typed.trim() !== account.username) {
@@ -178,13 +192,29 @@ async function runAccountAction(kind, account) {
   }
 
   try {
-    await accountCommand([kind, account.uid, 'confirm'])
-    appendTo('accountsLog', `${kind} ${account.username} (uid ${account.uid}) done`)
+    await adminRequest(`/api/admin/accounts/${account.uid}/${kind}`)
+    appendTo('accountsLog', `${kind} ${account.username} done`)
     loadAccounts()
   } catch (err) {
     appendTo('accountsLog', `${kind} failed: ` + err.message)
   }
 }
+
+document.querySelector('#btnCreateAccount').addEventListener('click', async () => {
+  const username = document.querySelector('#newUsername').value.trim()
+  const password = document.querySelector('#newPassword').value
+  if (!username || !password) { appendTo('accountsLog', 'username and password are required'); return }
+
+  try {
+    await adminRequest('/api/admin/accounts', { Username: username, Password: password })
+    appendTo('accountsLog', `created ${username}`)
+    document.querySelector('#newUsername').value = ''
+    document.querySelector('#newPassword').value = ''
+    loadAccounts()
+  } catch (err) {
+    appendTo('accountsLog', 'create failed: ' + err.message)
+  }
+})
 
 document.querySelector('#btnRefreshAccounts').addEventListener('click', loadAccounts)
 
