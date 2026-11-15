@@ -109,6 +109,42 @@
     osc.stop(now + 0.36);
   }
 
+
+  /* Two short notes in sequence, the same instrument as the pluck: rising means
+   * "standing by", falling means "stood down". The pair is what distinguishes the
+   * arming press from the confirming one, so a bulk action never sounds the same
+   * twice in a row. */
+  function pair(first, second, gainPeak) {
+    if (!enabled) return;
+    var c = context();
+    if (!c) return;
+
+    [first, second].forEach(function (freq, index) {
+      var now = c.currentTime + index * 0.075;
+      var osc = c.createOscillator();
+      var filter = c.createBiquadFilter();
+      var gain = c.createGain();
+
+      osc.type = "triangle";
+      osc.frequency.value = freq;
+      filter.type = "lowpass";
+      filter.frequency.value = 1600;
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(gainPeak, now + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(master);
+      osc.start(now);
+      osc.stop(now + 0.18);
+    });
+  }
+
+  function arm() { pair(659.25, 830.61, 0.5); }
+  function standDown() { pair(622.25, 466.16, 0.32); }
+
   function setEnabled(value) {
     enabled = Boolean(value);
     localStorage.setItem(KEY, enabled ? "on" : "off");
@@ -120,6 +156,8 @@
     pluck: pluck,
     chord: chord,
     low: low,
+    arm: arm,
+    standDown: standDown,
     setEnabled: setEnabled,
     isEnabled: function () { return enabled; }
   };

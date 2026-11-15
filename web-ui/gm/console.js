@@ -420,7 +420,7 @@
     allBtn.classList.remove("is-armed");
     disarmAll();
     if (hasAll) {
-      allBtn.setAttribute("data-tip", "Tutti — from the score: every instrument at once. Runs this command in its all form: every character, equipment or stage in the catalog, or items up to the current amount. Press twice to confirm.");
+      allBtn.setAttribute("data-tip", "Tutti: every entry at once. Press twice to confirm.");
       allBtn.setAttribute("aria-label", "Tutti: run this command for every entry (press twice)");
     }
 
@@ -500,7 +500,7 @@
   var allArmed = false;
   var allTimer = null;
 
-  function disarmAll() {
+  function disarmAll(reason) {
     allArmed = false;
     clearTimeout(allTimer);
     var button = $("#allBtn");
@@ -508,6 +508,8 @@
       button.classList.remove("is-armed");
       button.textContent = "Tutti · all";
     }
+    /* Only a timeout is a real event worth a sound; changing section is not. */
+    if (reason === "timeout" && window.SelenaAudio) window.SelenaAudio.standDown();
   }
 
   async function performAll() {
@@ -520,11 +522,12 @@
       allArmed = true;
       button.classList.add("is-armed");
       button.textContent = "Tutti · press again";
-      allTimer = setTimeout(disarmAll, 5000);
+      window.SelenaAudio.arm();
+      allTimer = setTimeout(function () { disarmAll("timeout"); }, 5000);
       return;
     }
 
-    disarmAll();
+    disarmAll("confirm");
 
     if (!window.SelenaAPI.account) {
       await signIn();
