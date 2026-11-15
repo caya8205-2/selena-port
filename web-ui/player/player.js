@@ -1054,40 +1054,70 @@
       return wrap;
     }
 
+    function slider(labelText, min, max, value, format, onChange) {
+      const row = document.createElement("div");
+      row.className = "tune__slider";
+      const label = document.createElement("span");
+      label.className = "tune__label";
+      label.textContent = labelText;
+      const control = window.SelenaUI.slider({
+        min: min,
+        max: max,
+        value: value,
+        format: format,
+        onChange: onChange,
+        tip: labelText + ". Drag it or use the arrow keys.",
+      });
+      row.append(label, control.node);
+      return row;
+    }
+
     function openTune() {
       const modal = $("#tuneModal");
       const body = $("#tuneBody");
-      $("#tuneTitle").textContent = "Tune · " + state.identity.name;
+      $("#tuneTitle").textContent = "Tune " + state.identity.name;
       body.textContent = "";
 
       const design = state.template.design;
       state.modalDesign = design;
 
-      // progression
-      const progression = document.createElement("section");
-      progression.className = "tune";
-      const progressionHead = document.createElement("div");
-      progressionHead.className = "tune__head";
-      const progressionLabel = document.createElement("span");
-      progressionLabel.className = "tune__label";
-      progressionLabel.textContent = "Progression";
-      const progressionValue = document.createElement("span");
-      progressionValue.className = "tune__value";
-      progressionHead.append(progressionLabel, progressionValue);
-      progression.appendChild(progressionHead);
+      const section = function (title, note) {
+        const node = document.createElement("section");
+        node.className = "tune";
+        const head = document.createElement("div");
+        head.className = "tune__head";
+        const label = document.createElement("span");
+        label.className = "tune__label";
+        label.textContent = title;
+        head.appendChild(label);
+        if (note) {
+          const value = document.createElement("span");
+          value.className = "tune__value";
+          value.textContent = note;
+          head.appendChild(value);
+        }
+        node.appendChild(head);
+        return node;
+      };
 
+      // progression: level, rank and promotion, each a slider over the table's own ladder
+      const progression = section("Progression");
       const steps = rankSteps();
       let rankIndex = steps.findIndex((step) => step.quality === design.quality && step.star === design.star);
       if (rankIndex < 0) rankIndex = 0;
       let promotionIndex = Math.max(0, state.template.promotions.findIndex((promotion) => promotion.grade === design.grade));
-
+      const progressionValue = document.createElement("span");
+      progressionValue.className = "tune__value";
+      progression.querySelector(".tune__head").appendChild(progressionValue);
       const paintProgression = function () {
         progressionValue.textContent = steps[rankIndex].label
           + " · " + state.template.promotions[promotionIndex].name
           + " · Lv " + design.level;
       };
-
-      progression.appendChild(slider("Level", 1, state.template.levels.max, design.level, (value) => "Lv " + value, (value) => { design.level = value; paintProgression(); }));
+      progression.appendChild(slider("Level", 1, state.template.levels.max, design.level, (value) => "Lv " + value, (value) => {
+        design.level = value;
+        paintProgression();
+      }));
       progression.appendChild(slider("Rank", 0, steps.length - 1, rankIndex, (value) => steps[value].label, (value) => {
         rankIndex = value;
         design.quality = steps[value].quality;
@@ -1102,62 +1132,41 @@
       paintProgression();
       body.appendChild(progression);
 
-      // memories: one cell per grid slot, each carrying that slot's catalogue
-      const memories = document.createElement("section");
-      memories.className = "tune";
-      const memoryHead = document.createElement("div");
-      memoryHead.className = "tune__head";
-      const memoryLabel = document.createElement("span");
-      memoryLabel.className = "tune__label";
-      memoryLabel.textContent = "Memory slots";
-      const memoryValue = document.createElement("span");
-      memoryValue.className = "tune__value";
-      memoryValue.textContent = "one memory per slot";
-      memoryHead.append(memoryLabel, memoryValue);
-      memories.appendChild(memoryHead);
-
+      // one memory per grid slot, each list filtered to that slot
+      const memories = section("Memory slots", "one memory per slot");
       const memoryGrid = document.createElement("div");
       memoryGrid.className = "tune__grid";
-      const selects = {};
       for (let slot = 1; slot <= 6; slot += 1) {
         const cell = document.createElement("div");
         cell.className = "tune__cell";
         const slotLabel = document.createElement("span");
         slotLabel.className = "tune__slot";
         slotLabel.textContent = "Slot " + slot;
-        const select = document.createElement("select");
-        select.className = "input";
-        select.setAttribute("data-tip", "Memory for slot " + slot + ". The list holds every memory the tables put in this slot.");
-        const options = [{ value: 0, label: "— empty —" }].concat(memoryOptions(slot).map((memory) => ({ value: memory.id, label: memory.name + " · " + memory.star + "★" })));
-        fillSelect(select, options, design.slots[slot]);
-        select.addEventListener("change", function () {
-          design.slots[slot] = Number(select.value);
-          design.resonances[slot] = { top: 0, bottom: 0 };
-          if (design.harmonyMemoryId === 0) design.harmonyMemoryId = Number(select.value);
-          cell.classList.toggle("is-empty", Number(select.value) === 0);
-          paintResonances();
+        const list = [{ value: 0, label: "empty" }].concat(memoryOptions(slot).map((memory) => ({
+          value: memory.id,
+          label: memory.name + " · " + memory.star + "★",
+        })));
+        const picker = window.SelenaUI.select(list, {
+          value: design.slots[slot],
+          search: "Filter memories",
+          tip: "Memory for slot " + slot + ". Every memory the tables put in this slot is listed.",
+          onChange: function (value) {
+            design.slots[slot] = Number(value);
+            design.resonances[slot] = { top: 0, bottom: 0 };
+            if (!design.weapon.harmonyMemoryId) design.weapon.harmonyMemoryId = Number(value);
+            cell.classList.toggle("is-empty", Number(value) === 0);
+            paintResonances();
+          },
         });
-        cell.classList.toggle("is-empty", design.slots[slot] === 0);
-        cell.append(slotLabel, select);
+        cell.classList.toggle("is-empty", !design.slots[slot]);
+        cell.append(slotLabel, picker.node);
         memoryGrid.appendChild(cell);
-        selects[slot] = select;
       }
       memories.appendChild(memoryGrid);
       body.appendChild(memories);
 
-      // resonance: two picks per memory, stat on top and the construct's skill below
-      const resonanceSection = document.createElement("section");
-      resonanceSection.className = "tune";
-      const resonanceHead = document.createElement("div");
-      resonanceHead.className = "tune__head";
-      const resonanceLabel = document.createElement("span");
-      resonanceLabel.className = "tune__label";
-      resonanceLabel.textContent = "Memory resonance";
-      const resonanceValue = document.createElement("span");
-      resonanceValue.className = "tune__value";
-      resonanceValue.textContent = "top: stat · bottom: skill";
-      resonanceHead.append(resonanceLabel, resonanceValue);
-      resonanceSection.appendChild(resonanceHead);
+      // two resonances per memory: the stat pool on slot 1, the construct's skill on slot 2
+      const resonanceSection = section("Memory resonance", "top: stat, bottom: skill");
       const resonanceGrid = document.createElement("div");
       resonanceGrid.className = "tune__grid";
       resonanceSection.appendChild(resonanceGrid);
@@ -1183,77 +1192,67 @@
             continue;
           }
 
-          const top = document.createElement("select");
-          top.className = "input";
-          top.setAttribute("data-tip", "Resonance slot 1 of this memory: the stat pool the tables give it.");
-          const bottom = document.createElement("select");
-          bottom.className = "input";
-          bottom.setAttribute("data-tip", "Resonance slot 2 of this memory: the construct's own skill pool.");
-          fillSelect(top, [{ value: 0, label: "stat — none —" }], design.resonances[slot].top);
-          fillSelect(bottom, [{ value: 0, label: "skill — none —" }], design.resonances[slot].bottom);
+          const top = window.SelenaUI.select([{ value: 0, label: "stat: none" }], {
+            value: design.resonances[slot].top,
+            search: "Filter stats",
+            tip: "Resonance slot 1 of this memory: the stat pool the tables give it.",
+            onChange: function (value) { design.resonances[slot].top = Number(value); },
+          });
+          const bottom = window.SelenaUI.select([{ value: 0, label: "skill: none" }], {
+            value: design.resonances[slot].bottom,
+            search: "Filter skills",
+            tip: "Resonance slot 2 of this memory: the construct's own skill pool.",
+            onChange: function (value) { design.resonances[slot].bottom = Number(value); },
+          });
 
-          const load = (slotNumber, select, key) => {
-            fetch(`/api/panel/resonance/${templateId}/${slotNumber}`)
+          const load = function (slotNumber, control, key, noneLabel) {
+            const query = "/api/panel/resonance/" + templateId + "/" + slotNumber + "?character=" + state.characterId;
+            fetch(query)
               .then((response) => (response.ok ? response.json() : { entries: [] }))
               .then((payload) => {
                 const entries = (payload && payload.entries) || [];
-                const label = key === "top" ? "stat — none —" : "skill — none —";
-                fillSelect(select, [{ value: 0, label }].concat(entries.map((entry) => ({
+                control.setOptions([{ value: 0, label: noneLabel }].concat(entries.map((entry) => ({
                   value: entry.id,
                   label: entry.name + (entry.meta ? " · " + entry.meta : ""),
                 }))), design.resonances[slot][key]);
               })
               .catch(() => {});
           };
-          load(1, top, "top");
-          load(2, bottom, "bottom");
+          load(1, top, "top", "stat: none");
+          load(2, bottom, "bottom", "skill: none");
 
-          top.addEventListener("change", function () { design.resonances[slot].top = Number(top.value); });
-          bottom.addEventListener("change", function () { design.resonances[slot].bottom = Number(bottom.value); });
-          cell.append(top, bottom);
+          cell.append(top.node, bottom.node);
           resonanceGrid.appendChild(cell);
         }
       };
       paintResonances();
 
-      // hypertune
-      const hypertune = document.createElement("label");
-      hypertune.className = "tune__toggle";
-      hypertune.setAttribute("data-tip", "Hypertune every memory: both resonance slots of all six count as awakened.");
-      const hypertuneInput = document.createElement("input");
-      hypertuneInput.type = "checkbox";
-      hypertuneInput.checked = design.hypertune;
-      hypertuneInput.addEventListener("change", function () { design.hypertune = hypertuneInput.checked; });
-      const hypertuneText = document.createElement("span");
-      hypertuneText.textContent = "Hypertune all six memories";
-      hypertune.append(hypertuneInput, hypertuneText);
-      body.appendChild(hypertune);
+      const hypertune = window.SelenaUI.toggle({
+        label: "Hypertune all six memories",
+        checked: design.hypertune,
+        tip: "Hypertune every memory: both resonance slots of all six count as awakened.",
+        onChange: function (checked) { design.hypertune = checked; },
+      });
+      body.appendChild(hypertune.node);
 
       // weapon, its three resonances and its harmony
-      const weaponSection = document.createElement("section");
-      weaponSection.className = "tune";
-      const weaponHead = document.createElement("div");
-      weaponHead.className = "tune__head";
-      const weaponLabel = document.createElement("span");
-      weaponLabel.className = "tune__label";
-      weaponLabel.textContent = "Weapon";
-      weaponHead.appendChild(weaponLabel);
-      weaponSection.appendChild(weaponHead);
-
-      const weaponSelect = document.createElement("select");
-      weaponSelect.className = "input";
-      weaponSelect.setAttribute("data-tip", "Weapon this construct carries.");
-      fillSelect(weaponSelect, [{ value: 0, label: "— empty —" }].concat((state.catalog.weapons || [])
+      const weaponSection = section("Weapon");
+      const weaponPicker = window.SelenaUI.select([{ value: 0, label: "empty" }].concat((state.catalog.weapons || [])
         .sort((left, right) => String(left.name).localeCompare(String(right.name)))
-        .map((weapon) => ({ value: weapon.id, label: weapon.name + " · " + weapon.star + "★" }))), design.weapon.templateId);
-      weaponSection.appendChild(weaponSelect);
-      weaponSection.appendChild(slider("Weapon level", 1, WEAPON_LEVEL_CAP, design.weapon.level, (value) => "Lv " + value, (value) => { design.weapon.level = value; }));
-
-      weaponSelect.addEventListener("change", function () {
-        design.weapon.templateId = Number(weaponSelect.value);
-        design.weaponResonances = [];
-        paintWeaponResonances();
+        .map((weapon) => ({ value: weapon.id, label: weapon.name + " · " + weapon.star + "★" }))), {
+        value: design.weapon.templateId,
+        search: "Filter weapons",
+        tip: "Weapon this construct carries.",
+        onChange: function (value) {
+          design.weapon.templateId = Number(value);
+          design.weaponResonances = [];
+          paintWeaponResonances();
+        },
       });
+      weaponSection.appendChild(weaponPicker.node);
+      weaponSection.appendChild(slider("Weapon level", 1, WEAPON_LEVEL_CAP, design.weapon.level, (value) => "Lv " + value, (value) => {
+        design.weapon.level = value;
+      }));
 
       const weaponGrid = document.createElement("div");
       weaponGrid.className = "tune__grid";
@@ -1269,54 +1268,51 @@
           const slotLabel = document.createElement("span");
           slotLabel.className = "tune__slot";
           slotLabel.textContent = "Resonance " + slot;
-          const select = document.createElement("select");
-          select.className = "input";
-          select.setAttribute("data-tip", `Weapon resonance ${slot}: the class skill pool the tables give this weapon.`);
-          cell.append(slotLabel, select);
+          cell.appendChild(slotLabel);
           if (!templateId) {
-            select.disabled = true;
-            fillSelect(select, [{ value: 0, label: "no weapon" }], 0);
-          } else {
-            fetch(`/api/panel/resonance/${templateId}/${slot}`)
-              .then((response) => (response.ok ? response.json() : { entries: [] }))
-              .then((payload) => {
-                const entries = (payload && payload.entries) || [];
-                fillSelect(select, [{ value: 0, label: "— none —" }].concat(entries.map((entry) => ({
-                  value: entry.id,
-                  label: entry.name + (entry.meta ? " · " + entry.meta : ""),
-                }))), design.weaponResonances[slot - 1] || 0);
-              })
-              .catch(() => {});
-            select.addEventListener("change", function () { design.weaponResonances[slot - 1] = Number(select.value); });
+            const empty = document.createElement("span");
+            empty.className = "tune__pick";
+            empty.textContent = "no weapon";
+            cell.appendChild(empty);
+            weaponGrid.appendChild(cell);
+            continue;
           }
+          const picker = window.SelenaUI.select([{ value: 0, label: "none" }], {
+            value: design.weaponResonances[slot - 1] || 0,
+            search: "Filter skills",
+            tip: "Weapon resonance " + slot + ": the class skill pool the tables give this weapon.",
+            onChange: function (value) { design.weaponResonances[slot - 1] = Number(value); },
+          });
+          fetch("/api/panel/resonance/" + templateId + "/" + slot + "?character=" + state.characterId)
+            .then((response) => (response.ok ? response.json() : { entries: [] }))
+            .then((payload) => {
+              const entries = (payload && payload.entries) || [];
+              picker.setOptions([{ value: 0, label: "none" }].concat(entries.map((entry) => ({
+                value: entry.id,
+                label: entry.name + (entry.meta ? " · " + entry.meta : ""),
+              }))), design.weaponResonances[slot - 1] || 0);
+            })
+            .catch(() => {});
+          cell.appendChild(picker.node);
           weaponGrid.appendChild(cell);
         }
       }
       paintWeaponResonances();
 
-      // harmony borrows a memory set
-      const harmony = document.createElement("section");
-      harmony.className = "tune";
-      const harmonyHead = document.createElement("div");
-      harmonyHead.className = "tune__head";
-      const harmonyLabel = document.createElement("span");
-      harmonyLabel.className = "tune__label";
-      harmonyLabel.textContent = "Harmony";
-      harmonyHead.appendChild(harmonyLabel);
-      harmony.appendChild(harmonyHead);
-      const harmonySelect = document.createElement("select");
-      harmonySelect.className = "input";
-      harmonySelect.setAttribute("data-tip", "Harmony takes the set of the memory you name, so the weapon counts as a piece of that set.");
-      const harmonyOptions = [{ value: 0, label: "— none —" }].concat((state.catalog.memories || [])
+      const harmony = section("Harmony");
+      const harmonyPicker = window.SelenaUI.select([{ value: 0, label: "none" }].concat((state.catalog.memories || [])
         .slice()
         .sort((left, right) => String(left.name).localeCompare(String(right.name)))
-        .map((memory) => ({ value: memory.id, label: memory.name + " · slot " + memory.site })));
-      fillSelect(harmonySelect, harmonyOptions, design.weapon.harmonyMemoryId);
-      harmonySelect.addEventListener("change", function () { design.weapon.harmonyMemoryId = Number(harmonySelect.value); });
-      harmony.appendChild(harmonySelect);
+        .map((memory) => ({ value: memory.id, label: memory.name + " · slot " + memory.site }))), {
+        value: design.weapon.harmonyMemoryId,
+        search: "Filter harmonies",
+        tip: "Harmony takes the set of the memory you name, so the weapon counts as a piece of that set.",
+        onChange: function (value) { design.weapon.harmonyMemoryId = Number(value); },
+      });
+      harmony.appendChild(harmonyPicker.node);
       body.appendChild(harmony);
 
-      $("#tuneNote").textContent = "Nothing is spent from the account; Perform writes the build.";
+      $("#tuneNote").textContent = "Nothing is spent from the account. Perform writes the build.";
       modal.hidden = false;
       window.SelenaUI.initTooltips();
     }

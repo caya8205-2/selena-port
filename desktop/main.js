@@ -431,7 +431,36 @@ function tuneCharacter(characterId) {
 
 // Which resonances a slot can hold, from the game's own pools: a memory takes a stat on slot 1
 // and one of its construct's skills on slot 2, a weapon takes a class skill.
-function resonanceEntries(templateId, slot) {
+// A construct's own skills: its skill groups point at skill rows, and a memory's slot 2 may only
+// offer those. Without this filter the pool hands the player another construct's kit.
+function characterSkills(characterId) {
+  const skills = tableRows('share/character/skill/CharacterSkill.tsv')
+  const groups = tableRows('share/character/skill/CharacterSkillGroup.tsv')
+  if (!skills || !groups || characterId <= 0) return null
+
+  const whoAt = skills.header.indexOf('CharacterId')
+  const groupIds = new Set()
+  for (const cells of skills.rows) {
+    if (Number(cells[whoAt]) !== characterId) continue
+    for (let ordinal = 1; ordinal <= 16; ordinal += 1) {
+      const at = skills.column('SkillGroupId', ordinal)
+      if (at >= 0 && Number(cells[at] || 0) > 0) groupIds.add(Number(cells[at]))
+    }
+  }
+
+  const idAt = groups.header.indexOf('Id')
+  const kept = new Set()
+  for (const cells of groups.rows) {
+    if (!groupIds.has(Number(cells[idAt]))) continue
+    for (let ordinal = 0; ordinal <= 2; ordinal += 1) {
+      const at = groups.column('SkillId', ordinal)
+      if (at >= 0 && Number(cells[at] || 0) > 0) kept.add(Number(cells[at]))
+    }
+  }
+  return kept
+}
+
+function resonanceEntries(templateId, slot, characterId) {
   const resonance = tableRows('share/equip/EquipResonance.tsv')
   if (!resonance) return null
 
@@ -475,11 +504,13 @@ function resonanceEntries(templateId, slot) {
   if (skillPoolId > 0) {
     const skills = tableRows('share/character/skill/CharacterSkillPool.tsv')
     if (!skills) return []
+    const allowed = characterSkills(characterId)
     const poolAt = skills.header.indexOf('PoolId')
     const skillAt = skills.header.indexOf('SkillId')
     const seen = new Set()
     return skills.rows
       .filter((cells) => Number(cells[poolAt]) === skillPoolId)
+      .filter((cells) => allowed === null || allowed.size === 0 || allowed.has(Number(cells[skillAt])))
       .filter((cells) => Number(cells[skillAt]) > 0 && !seen.has(Number(cells[skillAt])) && seen.add(Number(cells[skillAt])))
       .map((cells) => ({ kind: 'skill', id: Number(cells[skillAt]), name: `skill ${cells[skillAt]}`, meta: `pool ${skillPoolId}` }))
   }
@@ -493,6 +524,7 @@ function resonanceEntries(templateId, slot) {
     for (const cells of pools.rows) {
       if (Number(cells[poolAt]) !== weaponPoolId) continue
       const classAt = pools.header.indexOf('CharacterId')
+      if (characterId > 0 && Number(cells[classAt]) !== characterId) continue
       for (let ordinal = 1; ordinal <= 16; ordinal += 1) {
         const at = pools.column('SkillId', ordinal)
         const skillId = at >= 0 ? Number(cells[at]) : 0
@@ -712,7 +744,8 @@ function startUiServer() {
         const parts = url.pathname.split('/')
         const templateId = Number(parts[4])
         const slot = Number(parts[5])
-        const entries = resonanceEntries(templateId, slot)
+        const characterId = Number(url.searchParams.get('character') || 0)
+        const entries = resonanceEntries(templateId, slot, characterId)
         if (entries === null) return sendJson(res, { code: -1, msg: 'resonance tables not found' }, 404)
         // The pool alone is not enough: without a select item row the server refuses the request,
         // so the panel says so instead of offering a button that cannot work.

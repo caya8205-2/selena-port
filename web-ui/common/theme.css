@@ -715,3 +715,118 @@ a { color: inherit; text-decoration: none; }
   gap: 12px;
 }
 .field__row > .stepper { flex: 0 0 auto; width: 118px; }
+
+/* ------------------------------------------------------------ custom controls */
+
+/* The panel draws its own dropdown, switch and slider. A native popup, checkbox or range thumb is
+ * the OS talking, and it drops the one typing and accent the rest of the console keeps. */
+
+.sel { position: relative; }
+.sel__button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.sel__button:hover { border-color: var(--line-strong); }
+.sel__button:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.sel__button:disabled { color: var(--text-faint); cursor: not-allowed; }
+.sel__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel__caret { font-family: var(--mono); font-size: 9px; color: var(--text-faint); }
+.sel__pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  max-height: 264px;
+  overflow: hidden;
+  background: var(--surface-3);
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.38);
+}
+.sel__pop[hidden] { display: none; }
+.sel__search {
+  width: 100%;
+  padding: 5px 7px;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11.5px;
+}
+.sel__search:focus { outline: none; border-color: var(--accent); }
+.sel__list { display: grid; gap: 1px; flex: 1 1 auto; min-height: 0; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.sel__option { padding: 6px 8px; border-radius: 2px; font-size: 12px; color: var(--text-dim); cursor: pointer; }
+.sel__option:hover, .sel__option.is-active { background: var(--surface-2); color: var(--text); }
+.sel__option[aria-selected="true"] { background: var(--accent-soft); color: var(--silver); }
+.sel__option--empty { color: var(--text-faint); cursor: default; }
+
+.switch { display: inline-flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }
+.switch__input { position: absolute; width: 0; height: 0; opacity: 0; }
+.switch__track {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--ink);
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+.switch__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  transition: transform 0.16s ease, background 0.16s ease;
+}
+.switch__input:checked + .switch__track { border-color: var(--accent); background: var(--accent-soft); }
+.switch__input:checked + .switch__track .switch__knob { transform: translateX(16px); background: var(--accent-hover); }
+.switch__input:focus-visible + .switch__track { box-shadow: 0 0 0 2px var(--accent-soft); }
+
+.slider { display: flex; align-items: center; gap: 12px; }
+.slider__track {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  cursor: pointer;
+  touch-action: none;
+}
+/* The fill shows how far the value sits between its bounds, which is the only thing a slider says. */
+.slider__fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--accent); }
+.slider__knob {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  transform: translateY(-50%);
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  background: var(--silver);
+  box-shadow: 0 0 0 3px rgba(106, 127, 219, 0.18);
+}
+.slider__track:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-soft); }
+.slider__value { min-width: 64px; font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); text-align: right; }
+

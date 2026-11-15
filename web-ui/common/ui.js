@@ -518,7 +518,245 @@
   }
 
 
-  window.SelenaUI = { combo: combo, stepper: stepper, entry: entry, resetLog: resetLog, initTooltips: initTooltips, hideTip: hideTip, grid: grid };
+
+  /* The three controls the OS draws for us are replaced here: a dropdown, a switch and a slider.
+   * The panel is a game console with its own language, and a native popup or thumb breaks it. */
+
+  function select(options, settings) {
+    settings = settings || {};
+    var state = { options: [], value: settings.value, onChange: settings.onChange, open: false };
+    var wrap = document.createElement("div");
+    wrap.className = "sel";
+
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "sel__button";
+    button.setAttribute("role", "combobox");
+    button.setAttribute("aria-expanded", "false");
+    if (settings.tip) button.setAttribute("data-tip", settings.tip);
+
+    var label = document.createElement("span");
+    label.className = "sel__label";
+    var caret = document.createElement("span");
+    caret.className = "sel__caret";
+    caret.setAttribute("aria-hidden", "true");
+    button.append(label, caret);
+
+    var pop = document.createElement("div");
+    pop.className = "sel__pop";
+    pop.hidden = true;
+    var search = document.createElement("input");
+    search.className = "sel__search";
+    search.type = "search";
+    search.placeholder = settings.search || "Filter";
+    var list = document.createElement("ul");
+    list.className = "sel__list";
+    list.setAttribute("role", "listbox");
+    pop.append(search, list);
+    wrap.append(button, pop);
+
+    function picked() {
+      return state.options.filter(function (option) { return String(option.value) === String(state.value); })[0] || null;
+    }
+
+    function paintButton() {
+      var hit = picked();
+      label.textContent = hit ? hit.label : (settings.placeholder || "nothing to pick");
+      button.disabled = settings.disabled === true;
+    }
+
+    function shownOptions() {
+      var needle = (search.value || "").trim().toLowerCase();
+      return state.options.filter(function (option) {
+        return !needle || String(option.label).toLowerCase().indexOf(needle) >= 0;
+      });
+    }
+
+    function paintList() {
+      var shown = shownOptions();
+      list.textContent = "";
+      shown.forEach(function (option) {
+        var item = document.createElement("li");
+        item.className = "sel__option";
+        item.setAttribute("role", "option");
+        item.setAttribute("aria-selected", String(option.value) === String(state.value) ? "true" : "false");
+        item.textContent = option.label;
+        item.addEventListener("mousedown", function (event) {
+          event.preventDefault();
+          choose(option);
+        });
+        list.appendChild(item);
+      });
+      if (shown.length === 0) {
+        var none = document.createElement("li");
+        none.className = "sel__option sel__option--empty";
+        none.textContent = "no match";
+        list.appendChild(none);
+      }
+    }
+
+    function open() {
+      if (settings.disabled) return;
+      state.open = true;
+      pop.hidden = false;
+      button.setAttribute("aria-expanded", "true");
+      search.value = "";
+      paintList();
+      search.focus();
+    }
+
+    function close() {
+      state.open = false;
+      pop.hidden = true;
+      button.setAttribute("aria-expanded", "false");
+      button.focus();
+    }
+
+    function choose(option) {
+      state.value = option.value;
+      paintButton();
+      if (state.onChange) state.onChange(option.value, option);
+      if (state.open) close();
+    }
+
+    button.addEventListener("click", function () { if (state.open) close(); else open(); });
+    button.addEventListener("keydown", function (event) {
+      if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        open();
+      }
+    });
+    search.addEventListener("input", paintList);
+    pop.addEventListener("keydown", function (event) {
+      var items = [].slice.call(list.querySelectorAll(".sel__option:not(.sel__option--empty)"));
+      if (event.key === "Escape") { event.preventDefault(); close(); return; }
+      if (event.key === "Enter" && items.length > 0) {
+        event.preventDefault();
+        var hit = shownOptions()[0];
+        if (hit) choose(hit);
+      }
+    });
+    document.addEventListener("mousedown", function (event) {
+      if (state.open && !wrap.contains(event.target)) close();
+    });
+
+    function setOptions(next, value) {
+      state.options = next || [];
+      if (value !== undefined) state.value = value;
+      paintButton();
+      if (state.open) paintList();
+    }
+
+    setOptions(options || [], settings.value);
+
+    return {
+      node: wrap,
+      value: function () { return state.value; },
+      setOptions: setOptions,
+      setValue: function (value) { state.value = value; paintButton(); },
+      setDisabled: function (disabled) { settings.disabled = disabled; paintButton(); },
+    };
+  }
+
+  function toggle(settings) {
+    settings = settings || {};
+    var wrap = document.createElement("label");
+    wrap.className = "switch";
+    if (settings.tip) wrap.setAttribute("data-tip", settings.tip);
+    var input = document.createElement("input");
+    input.type = "checkbox";
+    input.className = "switch__input";
+    input.checked = settings.checked === true;
+    var track = document.createElement("span");
+    track.className = "switch__track";
+    var knob = document.createElement("span");
+    knob.className = "switch__knob";
+    track.appendChild(knob);
+    var text = document.createElement("span");
+    text.className = "switch__text";
+    text.textContent = settings.label || "";
+    input.addEventListener("change", function () {
+      if (settings.onChange) settings.onChange(input.checked);
+    });
+    wrap.append(input, track, text);
+    return { node: wrap, value: function () { return input.checked; } };
+  }
+
+  /* A slider with a filled track and a ring knob, driven by pointer and by keyboard: the native
+   * range thumb is the other control the OS draws, and it cannot follow this palette. */
+  function slider(settings) {
+    settings = settings || {};
+    var min = Number(settings.min || 0);
+    var max = Number(settings.max || 100);
+    var value = Number(settings.value === undefined ? min : settings.value);
+    var wrap = document.createElement("div");
+    wrap.className = "slider";
+    if (settings.tip) wrap.setAttribute("data-tip", settings.tip);
+
+    var track = document.createElement("div");
+    track.className = "slider__track";
+    track.tabIndex = 0;
+    track.setAttribute("role", "slider");
+    track.setAttribute("aria-valuemin", String(min));
+    track.setAttribute("aria-valuemax", String(max));
+    var fill = document.createElement("span");
+    fill.className = "slider__fill";
+    var knob = document.createElement("span");
+    knob.className = "slider__knob";
+    track.append(fill, knob);
+    wrap.appendChild(track);
+
+    function paint() {
+      var ratio = max === min ? 0 : (value - min) / (max - min);
+      fill.style.width = (ratio * 100) + "%";
+      knob.style.left = (ratio * 100) + "%";
+      track.setAttribute("aria-valuenow", String(value));
+      if (settings.format) {
+        var out = wrap.querySelector(".slider__value");
+        if (out) out.textContent = settings.format(value);
+      }
+    }
+
+    function set(next) {
+      var clamped = Math.max(min, Math.min(max, Math.round(next)));
+      if (clamped === value) return;
+      value = clamped;
+      paint();
+      if (settings.onChange) settings.onChange(value);
+    }
+
+    if (settings.format) {
+      var out = document.createElement("output");
+      out.className = "slider__value";
+      wrap.appendChild(out);
+    }
+
+    function fromPointer(event) {
+      var box = track.getBoundingClientRect();
+      var ratio = box.width === 0 ? 0 : (event.clientX - box.left) / box.width;
+      set(min + ratio * (max - min));
+    }
+
+    track.addEventListener("pointerdown", function (event) {
+      track.setPointerCapture(event.pointerId);
+      fromPointer(event);
+    });
+    track.addEventListener("pointermove", function (event) {
+      if (track.hasPointerCapture(event.pointerId)) fromPointer(event);
+    });
+    track.addEventListener("keydown", function (event) {
+      if (event.key === "ArrowRight" || event.key === "ArrowUp") { event.preventDefault(); set(value + 1); }
+      else if (event.key === "ArrowLeft" || event.key === "ArrowDown") { event.preventDefault(); set(value - 1); }
+      else if (event.key === "Home") { event.preventDefault(); set(min); }
+      else if (event.key === "End") { event.preventDefault(); set(max); }
+    });
+
+    paint();
+
+    return { node: wrap, value: function () { return value; }, set: set };
+  }
+
+  window.SelenaUI = { combo: combo, stepper: stepper, entry: entry, resetLog: resetLog, initTooltips: initTooltips, hideTip: hideTip, grid: grid, select: select, toggle: toggle, slider: slider };
 })();
 
 window.SelenaUI.initTooltips();
