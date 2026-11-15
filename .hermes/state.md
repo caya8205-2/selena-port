@@ -10,7 +10,7 @@ moment they cost time. A stale note is worse than no note, because it is trusted
 session starts without its earlier context, read this file first, then `git log -5`, then the
 files it names. Do not rely on memory for ports, paths or column names.
 
-Last updated: dev hot reload for the desktop shell.
+Last updated: duplicated section buttons fixed.
 
 ---
 
@@ -107,6 +107,9 @@ Containers never grow with their content. Which of them show a bar is a separate
   `.frame { height: 100% }`; padded views (console/accounts/config/update) scroll inside
 - wardrobe: `.grid__cards { max-height: 300px; overflow-y: auto }`, a short first page of 48
   cards, exact total printed next to "Show all N"
+- **the action row is cleared on every section render** (`sectionActions.clear()` runs before
+  any fields are built). Clearing only inside the custom renderers left "Unlock coating" sitting
+  on Stages and Memories until a custom section happened to run again
 - **one action row per tab**: section-specific buttons (unlock coating, unlock every coating)
   are inserted into `#sectionActions` through `sectionActions.slot()`, in front of
   Tutti/Perform/Silence. Custom sections hide the default bulk button so there is never a twin.

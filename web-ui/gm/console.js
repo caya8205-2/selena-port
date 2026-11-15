@@ -288,6 +288,15 @@
    * sends "coating unlock <characterId> <coatingId>"; the per-character bulk stays
    * available for when the whole wardrobe is wanted. */
   var sectionActions = {
+    // Every section render clears the previous section's buttons, not just the next custom
+    // renderer: leaving them behind put "Unlock coating" on Stages and Memories.
+    clear: function () {
+      var row = $("#sectionActions");
+      if (!row) return;
+      [...row.querySelectorAll("[data-section-action]")].forEach(function (button) { button.remove(); });
+      var holder = row.querySelector("[data-section-holder]");
+      if (holder) holder.textContent = "";
+    },
     slot: function () {
       var row = $("#sectionActions");
       var holder = row.querySelector("[data-section-holder]");
@@ -483,6 +492,7 @@
     });
 
     $("#sectionTitle").textContent = section.title;
+    sectionActions.clear();
 
     var host = $("#formFields");
     host.textContent = "";
