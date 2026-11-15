@@ -195,6 +195,7 @@ body {
 
 .view[data-view="console"],
 .view[data-view="accounts"],
+.view[data-view="mail"],
 .view[data-view="config"],
 .view[data-view="update"] { padding: 26px 28px; overflow-y: auto; }
 
@@ -220,6 +221,20 @@ body {
 }
 
 .input:focus { outline: none; border-color: var(--accent); }
+
+/* A message body needs room and a resize grip; a count needs a narrow box. */
+.input--area { flex: none; height: auto; min-height: 84px; padding: 8px 10px; font: inherit; font-size: 12.5px; line-height: 1.6; resize: vertical; }
+.input--count { flex: 0 0 84px; width: 84px; text-align: right; }
+
+/* Filter results sit under the field as a short list, never as a floating menu. */
+.hits { margin: 0; padding: 0; list-style: none; display: grid; gap: 1px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden auto; max-height: 214px; }
+.hits:empty { display: none; }
+.hits li { background: var(--surface); }
+.hit { display: flex; gap: 6px; align-items: baseline; width: 100%; padding: 9px 12px; font: inherit; font-size: 12.5px; color: var(--text-dim); text-align: left; background: none; border: 0; cursor: pointer; }
+.hit b { color: var(--text); font-weight: 500; }
+.hit span { color: var(--text-faint); font-size: 11.5px; }
+.hit:hover { background: var(--surface-2); color: var(--text); }
+.hits__empty { padding: 9px 12px; font-size: 12px; color: var(--text-faint); }
 .frame { height: 100%; }
 
 /* ------------------------------------------------------------ scrollbars */

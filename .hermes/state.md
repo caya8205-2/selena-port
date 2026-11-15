@@ -10,7 +10,7 @@ moment they cost time. A stale note is worse than no note, because it is trusted
 session starts without its earlier context, read this file first, then `git log -5`, then the
 files it names. Do not rely on memory for ports, paths or column names.
 
-Last updated: per-construct coatings, memories through Perform with an amount.
+Last updated: Phase E mail - send from the panel or the mail command, offline included.
 
 ---
 
@@ -81,6 +81,13 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
   Weapons or Memories section grants every equip of both kinds. Say so in the tooltip.
 - Catalog endpoints: Node `desktop/main.js` (`/api/panel/catalog/<kind>`, `/api/panel/accounts`,
   now `/api/panel/memory-sets`) and, for parity, `AscNet.WebPanel/Catalog.cs`.
+- A mail is a `PlayerMail` with `Type` 0 and `GroupId` 0, exactly like `Configs/system_mails.json`;
+  `ExpireTime` 0 never expires and the claim key falls back to `mail:{id}`. An online player gets
+  `NotifyMails` pushed at delivery, an offline one gets the row at the next login.
+- Attachments are validated at creation by `MailModule.CreateAttachment`, which runs the same
+  `TryProjectReward` the claim runs: equip/character/fashion ids must be count 1, item ids must be
+  a client item id. Item ids that exist only in `BigWorldItem.tsv` are accepted (`999999`
+  Babylonia Test Item), so "it is in Item.tsv" is not the test.
 
 ## 5. What is done and verified
 
@@ -97,6 +104,14 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
 - Weapons/Memories split in both panel catalogs; GM rail is exactly eight entries; the
   acting-account picker reads the admin list on both panels; rail nav scrolls at 1024x720
   (client 598 vs scroll 743) while the status foot stays pinned.
+- Phase E mail: `mail send <uid|all> <itemId|0> <count|0> <subject> [body]` and
+  `POST /api/admin/mail` (send) / `GET /api/admin/mail?uid=` (read one mailbox) both run
+  `AscNet.GameServer/MailDelivery.cs`, so a panel send and an in-game send produce the same row.
+  Verified by curl: single UID, `all` (2 accounts), item + equip in one mail, equip with count 2
+  refused, unknown UID refused, impossible id refused, missing token 401, missing subject 400,
+  and the read-back listed the mails. Verified in the shell page with a stubbed bridge:
+  recipients, item search, attachment count, send, mailbox refresh.
+  **Outstanding**: the in-game claim, one click with uid 2 logged in.
 
 
 ### Scroll containers (one rule, keep it)
@@ -195,12 +210,25 @@ override and every height reads short (a 764 window measured 429 and looked like
   If a layout change seems ignored, check the served headers before editing the CSS again.
 - A wrong filter direction fails quietly: `catalog/memories` returned 252 weapons and looked
   plausible until the names were read. Check a catalog by a known row, not by length alone.
+- In an async DOM handler `event.currentTarget` is null after the first `await`; read the value
+  into a local first. The mail item search looked dead because of exactly that.
+- Mongo naming: the collection is `players`, `PlayerData.Id` is stored as the nested `_id`, and a
+  mail's `Id` is stored as `_id` too. A `$pull` keyed on `id` matches nothing and still reports
+  success, so print the document before and after.
+- `uv run --with pymongo python -` reads or patches the database with nothing installed into the
+  project; no mongosh ships with the MongoDB zip.
+- The shell page served over HTTP has no `window.selena` (the bridge is Electron IPC), so a
+  layout or flow test needs `Page.addScriptToEvaluateOnNewDocument` with a stub that returns the
+  real token from `admin-token.txt`. That worked for the whole Mail tab, send included.
 
 ## 8. Next after this feature
 
-Plan order is A, B, C, E, F, D (see `plans/2026-11-15_112155-inventory-ops-dashboard.md`):
+Plan order is A, B, C, E, F, D (see `plans/2026-11-15_112155-inventory-ops-dashboard.md`);
+A, B, C and E are done.
 
-- E mail, F updates (backup, pull, rebuild, restart), D character builder last.
+- F updates next (backup, pull, rebuild, restart), D character builder last.
+- Mail left open by design: the in-game claim check, and no delete/unread management in the
+  panel (the plan scoped sending only).
 - Accounts still needs currency, unlock character and max character through the admin channel.
 - Character builder needs the rank and resonance model (S0-S10, SS, PPC skulls, memory
   resonance presets per construct) before any UI is worth building.

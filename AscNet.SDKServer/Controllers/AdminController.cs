@@ -1,4 +1,5 @@
 using AscNet.Common.Database;
+using AscNet.GameServer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -80,6 +81,75 @@ namespace AscNet.SDKServer.Controllers
                 DeleteDocuments(uid, removeAccount: false);
                 return Json(new { ok = true, uid, reset = true });
             });
+
+            // Mail is an administration action, not only a chat command: the command layer needs
+            // a live session, and mailing an account that is not logged in is the normal case.
+            app.MapPost("/api/admin/mail", (HttpContext ctx, [FromBody] SendMailRequest request) =>
+            {
+                if (!Authorised(ctx)) return Unauthorised(ctx);
+
+                try
+                {
+                    MailDeliveryReport report = MailDelivery.Send(
+                        request.Recipient ?? string.Empty,
+                        request.Sender ?? string.Empty,
+                        request.Subject ?? string.Empty,
+                        request.Body ?? string.Empty,
+                        request.Attachments ?? []);
+                    return Json(new
+                    {
+                        ok = report.Ok,
+                        delivered = report.Delivered,
+                        skipped = report.Skipped,
+                        results = report.Results.Select(result => new
+                        {
+                            uid = result.Uid,
+                            ok = result.Ok,
+                            mailId = result.MailId,
+                            reason = result.Reason,
+                        }).ToList(),
+                    });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return Json(new { ok = false, msg = ex.Message }, 400);
+                }
+            });
+
+            // Read-back for the panel: what is in one account's mailbox right now. Newest first,
+            // live session when the player is online, database otherwise.
+            app.MapGet("/api/admin/mail", (HttpContext ctx, long uid) =>
+            {
+                if (!Authorised(ctx)) return Unauthorised(ctx);
+                if (Find(uid) is null) return Json(new { ok = false, msg = "no such account" }, 404);
+
+                List<PlayerMail>? mails = MailDelivery.Read(uid);
+                if (mails is null)
+                    return Json(new { ok = false, msg = "this account has no player yet - log in once from the game" }, 409);
+
+                return Json(new
+                {
+                    ok = true,
+                    uid,
+                    total = mails.Count,
+                    mails = mails.Select(mail => new
+                    {
+                        id = mail.Id,
+                        title = mail.Title,
+                        sendName = mail.SendName,
+                        content = mail.Content,
+                        status = mail.Status,
+                        createTime = mail.CreateTime,
+                        expireTime = mail.ExpireTime,
+                        attachments = mail.RewardGoodsList?.Select(goods => new
+                        {
+                            templateId = (int)goods.TemplateId,
+                            count = goods.Count,
+                            rewardType = goods.RewardType,
+                        }).ToList(),
+                    }).ToList(),
+                });
+            });
         }
 
         private static Account? Find(long uid) =>
@@ -128,6 +198,15 @@ namespace AscNet.SDKServer.Controllers
     {
         public string? Name { get; set; }
         public long? Level { get; set; }
+    }
+
+    public sealed class SendMailRequest
+    {
+        public string? Recipient { get; set; }
+        public string? Sender { get; set; }
+        public string? Subject { get; set; }
+        public string? Body { get; set; }
+        public List<MailAttachmentRequest>? Attachments { get; set; }
     }
 
     /// <summary>

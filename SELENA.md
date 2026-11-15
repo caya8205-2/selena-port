@@ -30,6 +30,8 @@ verified against `AscNet.Launcher/supported-client.json`: the SHA-256 of
 1. **Web panel** (`web-ui/`, English) - GM console and player self-service in a
    browser: grant items/characters/equipment/coatings/scene backgrounds, set
    level, clear stages, guild resources, dorm blueprint fill, inventory cleanup.
+   The desktop control centre adds setup checks, backups, account administration
+   and mail (subject, message, item attachments) that also reach offline accounts.
 2. **Two upstream-panel bug fixes** carried over from our Android-side work:
    the player panel referenced `/gm/panel.css` and `/gm/panel.js` (both 404),
    so it rendered unstyled and ran no JavaScript.

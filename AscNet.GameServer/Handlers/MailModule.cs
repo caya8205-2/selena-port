@@ -307,6 +307,28 @@ namespace AscNet.GameServer.Handlers
             return snapshot.Count == 0 ? null : snapshot;
         }
 
+        /// <summary>
+        /// Build one attachment snapshot from an id and a count, validated exactly as a claim
+        /// would validate it. Ids the claim path would later refuse (an unknown id, an equip with
+        /// a count above one) are refused here instead, so a delivered mail is always claimable.
+        /// </summary>
+        internal static PlayerMailRewardGoods? CreateAttachment(int templateId, int count)
+        {
+            if (templateId <= 0 || count <= 0)
+                return null;
+            RewardGoodsTable candidate = new() { TemplateId = templateId, Count = count };
+            RewardType? type = RewardHandler.GetRewardType(candidate);
+            if (type is null)
+                return null;
+            PlayerMailRewardGoods snapshot = new()
+            {
+                RewardType = (int)type,
+                TemplateId = (uint)templateId,
+                Count = count
+            };
+            return TryProjectReward(snapshot, out _) ? snapshot : null;
+        }
+
         private static bool TryProjectReward(PlayerMailRewardGoods snapshot, out RewardGoodsTable? table)
         {
             table = null;

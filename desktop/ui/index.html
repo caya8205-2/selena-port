@@ -20,6 +20,7 @@
     <button class="tab" data-view="gm">GM</button>
     <button class="tab" data-view="player">Player</button>
     <button class="tab" data-view="accounts">Accounts</button>
+    <button class="tab" data-view="mail">Mail</button>
     <button class="tab" data-view="config">Config</button>
     <button class="tab" data-view="update">Update</button>
   </nav>
@@ -78,6 +79,65 @@
       </table>
 
       <pre class="log" id="accountsLog"></pre>
+    </div>
+  </section>
+
+  <section class="view" data-view="mail">
+    <div class="form">
+      <label class="field">
+        <span class="field__label">Recipient <em>offline accounts receive it at their next login</em></span>
+        <span class="field__row">
+          <select class="input" id="mailRecipient"></select>
+          <button class="btn btn--quiet" id="btnRefreshMail">Refresh</button>
+        </span>
+      </label>
+
+      <label class="field">
+        <span class="field__label">Sender <em>the name the mail is signed with</em></span>
+        <input class="input" id="mailSender" type="text" value="Selena" spellcheck="false">
+      </label>
+
+      <label class="field">
+        <span class="field__label">Subject</span>
+        <input class="input" id="mailSubject" type="text">
+      </label>
+
+      <label class="field">
+        <span class="field__label">Message</span>
+        <textarea class="input input--area" id="mailBody" rows="4" spellcheck="false"></textarea>
+      </label>
+
+      <div class="field">
+        <span class="field__label">Attachment <em>one stack, claimed like any mail reward</em></span>
+        <span class="field__row">
+          <input class="input" id="mailItemSearch" type="text" placeholder="search an item by name or id" spellcheck="false">
+          <input class="input input--count" id="mailItemCount" type="text" value="1" inputmode="numeric">
+          <button class="btn" id="btnAddAttachment">Add</button>
+        </span>
+        <span class="field__note" id="mailItemNote"></span>
+        <ul class="hits" id="mailItemHits"></ul>
+      </div>
+
+      <table class="table" id="mailAttachmentTable">
+        <thead>
+          <tr><th>Attachment</th><th>Count</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <div class="actions">
+        <button class="btn btn--primary" id="btnSendMail">Send</button>
+        <span class="field__note" id="mailNote"></span>
+      </div>
+
+      <table class="table" id="mailRecentTable">
+        <thead>
+          <tr><th>Mailbox - newest first</th><th>From</th><th>Received</th><th>Items</th><th>Status</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <pre class="log" id="mailLog"></pre>
     </div>
   </section>
 

@@ -10,6 +10,7 @@ const SUBTITLES = {
   gm: 'GM console',
   player: 'Player console',
   accounts: 'Accounts',
+  mail: 'Mail',
   config: 'Configuration',
   update: 'Updates',
 }
@@ -25,6 +26,7 @@ function show(view) {
   if (view === 'gm' && !document.querySelector('#frameGm').src) document.querySelector('#frameGm').src = '/gm/index.html'
   if (view === 'player' && !document.querySelector('#framePlayer').src) document.querySelector('#framePlayer').src = '/player/index.html'
   if (view === 'accounts') loadAccounts()
+  if (view === 'mail') loadMailRecipients()
   if (view === 'config') loadConfig()
   if (view === 'update') document.querySelector('#cfgRepo').value = settings.repo || ''
 }
@@ -217,6 +219,278 @@ document.querySelector('#btnCreateAccount').addEventListener('click', async () =
 })
 
 document.querySelector('#btnRefreshAccounts').addEventListener('click', loadAccounts)
+
+// ------------------------------------------------------------------- mail
+
+// Mail is delivered through the admin endpoint, not the command layer: that layer needs a
+// live session, and mailing an account that is not logged in is the normal case. An online
+// player gets the mailbox push straight away; the row is durable either way.
+
+let mailItems = null
+const mailAttachments = []
+
+// PlayerMail.Status as MailModule reads it: 0 unread, 1 read, 3 claimed, 4 deleted.
+const MAIL_STATUS = ['unread', 'read', 'unread', 'claimed', 'deleted']
+
+async function loadMailItems() {
+  if (mailItems) return mailItems
+  const response = await fetch('/api/panel/catalog/items')
+  const payload = await response.json()
+  mailItems = payload.entries || []
+  return mailItems
+}
+
+function itemLabel(id) {
+  const entry = (mailItems || []).find((candidate) => candidate.id === Number(id))
+  return entry ? `${entry.name} · ${entry.id}` : `item ${id}`
+}
+
+function renderAttachments() {
+  const body = document.querySelector('#mailAttachmentTable tbody')
+  body.textContent = ''
+
+  for (const entry of mailAttachments) {
+    const row = document.createElement('tr')
+
+    const name = document.createElement('td')
+    name.textContent = itemLabel(entry.id)
+
+    const count = document.createElement('td')
+    const input = document.createElement('input')
+    input.className = 'input input--count'
+    input.inputMode = 'numeric'
+    input.value = String(entry.count)
+    input.addEventListener('change', () => {
+      const next = Math.floor(Number(input.value))
+      if (!Number.isFinite(next) || next <= 0) { input.value = String(entry.count); return }
+      entry.count = next
+      input.value = String(entry.count)
+    })
+    count.appendChild(input)
+
+    const actions = document.createElement('td')
+    actions.className = 'table__actions'
+    const remove = document.createElement('button')
+    remove.className = 'btn btn--quiet'
+    remove.textContent = 'Remove'
+    remove.addEventListener('click', () => {
+      mailAttachments.splice(mailAttachments.indexOf(entry), 1)
+      renderAttachments()
+    })
+    actions.appendChild(remove)
+
+    row.append(name, count, actions)
+    body.appendChild(row)
+  }
+
+  document.querySelector('#mailAttachmentTable').style.display = mailAttachments.length === 0 ? 'none' : ''
+
+  const note = document.querySelector('#mailItemNote')
+  if (note) note.textContent = mailAttachments.length === 0
+    ? 'no attachment - the mail is information only'
+    : `${mailAttachments.length} attachment${mailAttachments.length === 1 ? '' : 's'}`
+}
+
+function renderItemHits(query) {
+  const hits = document.querySelector('#mailItemHits')
+  hits.textContent = ''
+  const needle = query.trim().toLowerCase()
+  if (needle.length < 2) return
+
+  const matches = (mailItems || [])
+    .filter((entry) => String(entry.id).startsWith(needle) || entry.name.toLowerCase().includes(needle))
+    .slice(0, 8)
+
+  if (matches.length === 0) {
+    const empty = document.createElement('li')
+    empty.className = 'hits__empty'
+    empty.textContent = 'no item matches that'
+    hits.appendChild(empty)
+    return
+  }
+
+  for (const entry of matches) {
+    const item = document.createElement('li')
+    const button = document.createElement('button')
+    button.className = 'hit'
+    button.type = 'button'
+
+    const name = document.createElement('b')
+    name.textContent = entry.name
+    const meta = document.createElement('span')
+    meta.textContent = entry.meta ? ` · ${entry.id} · ${entry.meta}` : ` · ${entry.id}`
+
+    button.append(name, meta)
+    button.addEventListener('click', () => addAttachment(entry))
+    item.appendChild(button)
+    hits.appendChild(item)
+  }
+}
+
+function addAttachment(entry) {
+  const countField = document.querySelector('#mailItemCount')
+  const count = Math.floor(Number(countField.value)) || 1
+  const existing = mailAttachments.find((candidate) => candidate.id === entry.id)
+  if (existing) existing.count += count
+  else mailAttachments.push({ id: entry.id, count })
+
+  document.querySelector('#mailItemSearch').value = ''
+  document.querySelector('#mailItemHits').textContent = ''
+  countField.value = '1'
+  renderAttachments()
+}
+
+async function loadMailRecipients() {
+  const select = document.querySelector('#mailRecipient')
+  const previous = select.value
+  select.textContent = ''
+
+  try {
+    const payload = await adminRequest('/api/admin/accounts')
+    const all = document.createElement('option')
+    all.value = 'all'
+    all.textContent = `All accounts (${payload.total})`
+    select.appendChild(all)
+
+    for (const account of payload.accounts) {
+      const option = document.createElement('option')
+      option.value = String(account.uid)
+      option.textContent = `${account.uid} · ${account.username}${account.playerPresent ? ' · ' + (account.playerName || 'player') : ' · no player yet'}`
+      select.appendChild(option)
+    }
+
+    // Keep the account the user was looking at instead of jumping back to "all".
+    if (previous && select.querySelector(`option[value="${previous}"]`)) select.value = previous
+  } catch (err) {
+    appendTo('mailLog', 'could not list accounts: ' + err.message)
+  }
+
+  renderAttachments()
+  // Warm the catalog the picker filters, so the first keystroke is instant.
+  loadMailItems()
+  loadRecentMail()
+}
+
+async function loadRecentMail() {
+  const body = document.querySelector('#mailRecentTable tbody')
+  const recipient = document.querySelector('#mailRecipient').value
+  body.textContent = ''
+
+  if (!recipient || recipient === 'all') {
+    const row = document.createElement('tr')
+    const cell = document.createElement('td')
+    cell.colSpan = 5
+    cell.className = 'dim'
+    cell.textContent = 'pick a single account to read its mailbox'
+    row.appendChild(cell)
+    body.appendChild(row)
+    return
+  }
+
+  try {
+    const payload = await adminRequest(`/api/admin/mail?uid=${encodeURIComponent(recipient)}`)
+    if (payload.mails.length === 0) {
+      const row = document.createElement('tr')
+      const cell = document.createElement('td')
+      cell.colSpan = 5
+      cell.className = 'dim'
+      cell.textContent = 'the mailbox is empty'
+      row.appendChild(cell)
+      body.appendChild(row)
+      return
+    }
+
+    for (const mail of payload.mails.slice(0, 20)) {
+      const row = document.createElement('tr')
+
+      // Shipped mails carry client markup in the subject and the sender name.
+      const subject = document.createElement('td')
+      subject.textContent = mail.title.replace(/<[^>]*>/g, '')
+      if (mail.content) subject.title = mail.content.replace(/<[^>]*>/g, '')
+
+      const from = document.createElement('td')
+      from.textContent = mail.sendName.replace(/<[^>]*>/g, '')
+
+      const received = document.createElement('td')
+      received.textContent = new Date(mail.createTime * 1000).toLocaleString()
+
+      const items = document.createElement('td')
+      items.textContent = mail.attachments ? String(mail.attachments.length) : 'none'
+      if (!mail.attachments) items.className = 'dim'
+
+      const status = document.createElement('td')
+      status.textContent = MAIL_STATUS[mail.status] || String(mail.status)
+
+      row.append(subject, from, received, items, status)
+      body.appendChild(row)
+    }
+  } catch (err) {
+    appendTo('mailLog', 'could not read the mailbox: ' + err.message)
+  }
+}
+
+document.querySelector('#btnRefreshMail').addEventListener('click', loadMailRecipients)
+
+document.querySelector('#mailRecipient').addEventListener('change', loadRecentMail)
+
+document.querySelector('#mailItemSearch').addEventListener('input', async () => {
+  // Read the field after the await, not event.currentTarget before it: that is null once the
+  // handler awaits, and a captured value can be a keystroke behind the field by then.
+  await loadMailItems()
+  renderItemHits(document.querySelector('#mailItemSearch').value)
+})
+
+document.querySelector('#btnAddAttachment').addEventListener('click', async () => {
+  await loadMailItems()
+  const needle = document.querySelector('#mailItemSearch').value.trim()
+  const entry = (mailItems || []).find((candidate) => String(candidate.id) === needle)
+    || (mailItems || []).find((candidate) => candidate.name.toLowerCase() === needle.toLowerCase())
+  if (!entry) { appendTo('mailLog', 'add the item from the search results, or type its exact id'); return }
+  addAttachment(entry)
+})
+
+document.querySelector('#btnSendMail').addEventListener('click', async (event) => {
+  const button = event.currentTarget
+  const recipient = document.querySelector('#mailRecipient').value
+  const subject = document.querySelector('#mailSubject').value.trim()
+  const sender = document.querySelector('#mailSender').value.trim()
+
+  if (!recipient) { appendTo('mailLog', 'pick a recipient first'); return }
+  if (!subject) { appendTo('mailLog', 'a subject is required'); return }
+
+  button.disabled = true
+  document.querySelector('#mailNote').textContent = 'sending…'
+  try {
+    const report = await adminRequest('/api/admin/mail', {
+      Recipient: recipient,
+      Sender: sender,
+      Subject: subject,
+      Body: document.querySelector('#mailBody').value,
+      Attachments: mailAttachments.map((entry) => ({ TemplateId: entry.id, Count: entry.count })),
+    })
+
+    const total = report.delivered + report.skipped
+    const line = `sent to ${report.delivered} of ${total} account${total === 1 ? '' : 's'}`
+    document.querySelector('#mailNote').textContent = line
+    appendTo('mailLog', line)
+    for (const result of report.results) {
+      if (!result.ok) appendTo('mailLog', `  uid ${result.uid}: ${result.reason}`)
+    }
+
+    if (report.delivered > 0) {
+      document.querySelector('#mailSubject').value = ''
+      document.querySelector('#mailBody').value = ''
+      mailAttachments.length = 0
+      renderAttachments()
+    }
+    loadRecentMail()
+  } catch (err) {
+    document.querySelector('#mailNote').textContent = 'send failed'
+    appendTo('mailLog', 'send failed: ' + err.message)
+  } finally {
+    button.disabled = false
+  }
+})
 
 // ------------------------------------------------------------------- config
 
