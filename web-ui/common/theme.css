@@ -540,3 +540,132 @@ a { color: inherit; text-decoration: none; }
 }
 
 .credit span { color: var(--text-faint); }
+
+/* ------------------------------------------------------------ tooltips */
+
+.tip {
+  position: fixed;
+  z-index: 200;
+  max-width: 248px;
+  padding: 7px 9px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  background: var(--surface-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-xs);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  opacity: 0;
+  animation: tip-in 120ms ease-out forwards;
+}
+
+.tip[hidden] { display: none; }
+
+.tip[data-place="bottom"] { animation-name: tip-in-down; }
+
+@keyframes tip-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+@keyframes tip-in-down { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
+
+/* Sound toggle: a plain control that states its own state. */
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms;
+}
+
+.icon-btn:hover { color: var(--silver); border-color: var(--gold-soft); }
+.icon-btn[aria-pressed="true"] { color: var(--accent); border-color: var(--accent-soft); }
+.icon-btn svg { width: 14px; height: 14px; }
+
+/* ------------------------------------------------------------ card grid */
+
+.grid { display: grid; gap: 8px; }
+
+.grid__search {
+  height: 34px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+}
+
+.grid__searchwrap { position: relative; display: grid; }
+
+/* The browser's own search decoration is inconsistent across platforms, so the
+ * field is plain text and the clear affordance is ours. */
+.grid__search::-webkit-search-cancel-button,
+.grid__search::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+
+.grid__clear {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--text-faint);
+  background: none;
+  border: 0;
+  border-radius: var(--r-xs);
+  cursor: pointer;
+}
+
+.grid__clear:hover { color: var(--silver); }
+.grid__clear svg { width: 12px; height: 12px; }
+
+.grid__search::placeholder { color: var(--text-faint); }
+.grid__search:focus { outline: none; border-color: var(--accent); }
+
+.grid__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
+  gap: 6px;
+  max-height: 268px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 6px 2px 2px;
+}
+
+.card {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms;
+}
+
+.card:hover { border-color: var(--gold-soft); }
+.card.is-active { border-color: var(--line-strong); }
+.card[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft); }
+
+.card__name { font-size: 12.5px; line-height: 1.35; }
+
+.card__meta {
+  font-size: 10.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.grid__status { margin: 0; font-size: 11px; color: var(--text-faint); }
+.grid__empty { margin: 0; font-size: 11.5px; color: var(--text-faint); }

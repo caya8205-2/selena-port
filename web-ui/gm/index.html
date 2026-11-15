@@ -40,11 +40,11 @@
       <div class="rail__group">
         <div class="rail__label">Appearance</div>
         <button class="rail__item" data-section="coatings">
-          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 5v6"/><path d="M8 6.6C6.8 4.3 3.4 4 3.4 6.3c0 2.2 2.6 2.4 4.6 1.4"/><path d="M8 6.6c1.2-2.3 4.6-2.6 4.6-.3 0 2.2-2.6 2.4-4.6 1.4"/><path d="M8 10.2c-.9 1.5-3.2 1.9-3.2.2 0-1.2 1.6-1.7 3.2-1.1"/><path d="M8 10.2c.9 1.5 3.2 1.9 3.2.2 0-1.2-1.6-1.7-3.2-1.1"/></svg></span>
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 3.6v8.8"/><path d="M7.4 7.2C5.4 4.2 2.4 4.8 2.6 7.2c.2 2 2.4 2.8 4.8 2"/><path d="M8.6 7.2c2-3 5-2.4 4.8 0-.2 2-2.4 2.8-4.8 2"/></svg></span>
           Coatings
         </button>
         <button class="rail__item" data-section="scenes">
-          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.6 3.6h10.8"/><path d="M4.6 3.6c0 3.2 1 5.4 1 8.8"/><path d="M11.4 3.6c0 3.2-1 5.4-1 8.8"/><path d="M2.6 12.4h10.8"/></svg></span>
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8.2 2.4a4.6 4.6 0 006.2 6.2 5.6 5.6 0 11-6.2-6.2z"/></svg></span>
           Scenes
         </button>
       </div>
@@ -84,6 +84,9 @@
     <header class="topbar">
       <h1 class="topbar__title" id="sectionTitle">Items</h1>
       <div class="topbar__spacer"></div>
+      <button class="icon-btn" id="soundBtn" type="button" aria-pressed="false" data-tip="Sound cues: a string pluck when you change sections, a short chord on success, a low note when you clear the log.">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 6.4h2.2L8.4 3.8v8.4L5.2 9.6H3z"/><path class="soundBtn__wave" d="M10.6 6.2a2.6 2.6 0 010 3.6"/><path class="soundBtn__wave" d="M12.2 4.8a4.8 4.8 0 010 6.4"/></svg>
+      </button>
       <div class="topbar__hint">Perform with <kbd>Ctrl</kbd> + <kbd>Enter</kbd></div>
     </header>
     <div class="staff topbar__staff" aria-hidden="true"></div>
@@ -139,6 +142,7 @@
 
 <script src="/common/api.js"></script>
 <script src="/common/ui.js"></script>
+  <script src="/common/sound.js"></script>
 <script src="console.js"></script>
 </body>
 </html>

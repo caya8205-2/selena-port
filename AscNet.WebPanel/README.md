@@ -93,3 +93,18 @@ timestamp. Nothing is written back.
 Features the command layer cannot serve yet (inventory cleanup, dorm blueprints,
 guild resources) are visibly labelled *stage B* in the UI and specified in
 `docs/stage-b.md`.
+
+Interactions shared by both pages, all in `web-ui/common/`:
+
+- **Tooltips** - any element with `data-tip` opens one tooltip on hover or
+  keyboard focus, flipping above/below by available room. The rail, Perform,
+  Silence, sign-in, the connection status and the stage B rows all explain
+  themselves.
+- **Sound** (`sound.js`) - three synthesised cues: a pluck on section change, a
+  short chord on success, a low note when the log is cleared. Off by default, one
+  toggle in the top bar, remembered in `localStorage`; no audio files ship.
+- **Card gallery** (`ui.js` grid) - Characters, Equipment and Coatings are card
+  grids rather than dropdowns, because their entries are worth seeing at once.
+  The second line of a card is a real column from the server table (construct
+  trade name, equip star rating), never invented; the grid caps at 60 cards and
+  says so.

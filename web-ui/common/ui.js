@@ -248,5 +248,249 @@
     container.appendChild(empty);
   }
 
-  window.SelenaUI = { combo: combo, stepper: stepper, entry: entry, resetLog: resetLog };
+
+  /* ---------------------------------------------------------------- tooltips */
+
+  /* One tooltip element for the whole page, driven by [data-tip]. Hover and
+   * keyboard focus both open it; Escape closes it. Position flips above/below
+   * depending on the room available, and it is clamped to the viewport. */
+  var tipEl = null;
+
+  function ensureTip() {
+    if (tipEl) return tipEl;
+    tipEl = document.createElement("div");
+    tipEl.className = "tip";
+    tipEl.id = "selenaTip";
+    tipEl.setAttribute("role", "tooltip");
+    tipEl.hidden = true;
+    document.body.appendChild(tipEl);
+    return tipEl;
+  }
+
+  function showTip(target) {
+    var text = target.getAttribute("data-tip");
+    if (!text) return;
+
+    var tip = ensureTip();
+    tip.textContent = text;
+    tip.hidden = false;
+
+    var rect = target.getBoundingClientRect();
+    var box = tip.getBoundingClientRect();
+    var gap = 8;
+
+    var top = rect.top - box.height - gap;
+    var place = "top";
+    if (top < 8) {
+      top = rect.bottom + gap;
+      place = "bottom";
+    }
+
+    var left = rect.left + rect.width / 2 - box.width / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - box.width - 8));
+
+    tip.style.top = Math.round(top) + "px";
+    tip.style.left = Math.round(left) + "px";
+    tip.dataset.place = place;
+    target.setAttribute("aria-describedby", "selenaTip");
+  }
+
+  function hideTip(target) {
+    if (tipEl) tipEl.hidden = true;
+    if (target) target.removeAttribute("aria-describedby");
+  }
+
+  function initTooltips() {
+    document.addEventListener("mouseover", function (event) {
+      var target = event.target.closest("[data-tip]");
+      if (target) showTip(target);
+    });
+
+    document.addEventListener("mouseout", function (event) {
+      var target = event.target.closest("[data-tip]");
+      if (target && !target.contains(event.relatedTarget)) hideTip(target);
+    });
+
+    document.addEventListener("focusin", function (event) {
+      var target = event.target.closest("[data-tip]");
+      if (target) showTip(target);
+    });
+
+    document.addEventListener("focusout", function (event) {
+      var target = event.target.closest("[data-tip]");
+      if (target) hideTip(target);
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") hideTip(null);
+    });
+
+    window.addEventListener("scroll", function () { hideTip(null); }, true);
+  }
+
+
+  /* ---------------------------------------------------------------- card grid */
+
+  /* A gallery for sections whose entries are worth seeing at once: a search box
+   * over a grid of cards. Each card carries the entry's real second line (trade
+   * name, star rating) or nothing at all, and the grid caps what it draws so a
+   * 3000 row table does not become a 3000 node page. */
+  function grid(field, load, onChange) {
+    var wrap = document.createElement("div");
+    wrap.className = "grid";
+
+    var search = document.createElement("input");
+    search.className = "grid__search";
+    search.type = "text";
+    search.autocomplete = "off";
+    search.placeholder = field.placeholder || "Search";
+    search.setAttribute("aria-label", field.label || "Search");
+
+    var cards = document.createElement("div");
+    cards.className = "grid__cards";
+    cards.setAttribute("role", "listbox");
+    cards.setAttribute("aria-label", field.label || "Entries");
+
+    var searchWrap = document.createElement("div");
+    searchWrap.className = "grid__searchwrap";
+    searchWrap.appendChild(search);
+
+    var clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "grid__clear";
+    clear.setAttribute("aria-label", "Clear the search");
+    clear.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4.4 4.4l7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>';
+    clear.hidden = true;
+    clear.addEventListener("click", function () {
+      search.value = "";
+      clear.hidden = true;
+      filter();
+      search.focus();
+    });
+    searchWrap.appendChild(clear);
+
+    var status = document.createElement("p");
+    status.className = "grid__status";
+
+    wrap.appendChild(searchWrap);
+    wrap.appendChild(cards);
+    wrap.appendChild(status);
+
+    var LIMIT = 60;
+    var entries = [];
+    var selected = null;
+    var active = -1;
+    var shown = [];
+    var hits = 0;
+
+    function matches(entry, query) {
+      if (!query) return true;
+      return (entry.name + " " + (entry.meta || "") + " " + entry.id).toLowerCase().indexOf(query) >= 0;
+    }
+
+    function paint() {
+      cards.textContent = "";
+      shown.forEach(function (entry, index) {
+        var card = document.createElement("button");
+        card.type = "button";
+        card.className = "card";
+        card.setAttribute("role", "option");
+        card.setAttribute("aria-selected", selected && selected.id === entry.id ? "true" : "false");
+        if (index === active) card.classList.add("is-active");
+
+        var name = document.createElement("span");
+        name.className = "card__name";
+        name.textContent = entry.name;
+
+        var meta = document.createElement("span");
+        meta.className = "card__meta";
+        meta.textContent = entry.meta && entry.meta.length
+          ? entry.meta
+          : String(entry.id);
+
+        card.appendChild(name);
+        card.appendChild(meta);
+
+        card.addEventListener("click", function () {
+          selected = entry;
+          active = index;
+          paint();
+          onChange();
+        });
+
+        cards.appendChild(card);
+      });
+
+      if (shown.length === 0) {
+        var empty = document.createElement("p");
+        empty.className = "grid__empty";
+        empty.textContent = "Nothing matches that search.";
+        cards.appendChild(empty);
+      }
+
+      status.textContent = hits > LIMIT
+        ? "Showing " + shown.length + " of " + hits + " matching entries — refine the search to narrow it."
+        : hits + (hits === 1 ? " entry" : " entries");
+
+      window.SelenaUI.hideTip(null);
+    }
+
+    function filter() {
+      var query = search.value.trim().toLowerCase();
+      var found = entries.filter(function (entry) { return matches(entry, query); });
+      hits = found.length;
+      shown = found.slice(0, LIMIT);
+      if (selected && found.indexOf(selected) < 0) selected = null;
+      paint();
+    }
+
+    search.addEventListener("input", function () {
+      clear.hidden = search.value.length === 0;
+      filter();
+    });
+
+    search.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && search.value.length) {
+        event.stopPropagation();
+        search.value = "";
+        clear.hidden = true;
+        filter();
+      }
+    });
+
+    search.addEventListener("keydown", function (event) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        if (shown.length === 0) return;
+        active = event.key === "ArrowDown"
+          ? Math.min(active + 1, shown.length - 1)
+          : Math.max(active - 1, 0);
+        paint();
+        var node = cards.children[active];
+        if (node && node.scrollIntoView) node.scrollIntoView({ block: "nearest" });
+      } else if (event.key === "Enter" && active >= 0 && shown[active]) {
+        event.preventDefault();
+        selected = shown[active];
+        paint();
+        onChange();
+      }
+    });
+
+    load().then(function (data) {
+      entries = data || [];
+      filter();
+    }).catch(function () {
+      entries = [];
+      filter();
+    });
+
+    return {
+      node: wrap,
+      value: function () { return selected; }
+    };
+  }
+
+  window.SelenaUI = { combo: combo, stepper: stepper, entry: entry, resetLog: resetLog, initTooltips: initTooltips, hideTip: hideTip, grid: grid };
 })();
+
+window.SelenaUI.initTooltips();

@@ -22,19 +22,19 @@
     characters: {
       title: "Characters",
       command: "character",
-      fields: [{ key: "character", type: "combo", catalog: "characters", label: "Character", placeholder: "Search character name or ID", required: true }],
+      fields: [{ key: "character", type: "grid", catalog: "characters", label: "Character", placeholder: "Search construct, trade name or ID", required: true }],
       build: function (v) { return ["add", v.character.id]; }
     },
     equipment: {
       title: "Equipment",
       command: "equip",
-      fields: [{ key: "equip", type: "combo", catalog: "equips", label: "Equipment", placeholder: "Search equipment name or ID", required: true }],
+      fields: [{ key: "equip", type: "grid", catalog: "equips", label: "Equipment", placeholder: "Search weapon or memory, or filter by star", required: true }],
       build: function (v) { return ["add", v.equip.id]; }
     },
     coatings: {
       title: "Coatings",
       command: "coating",
-      fields: [{ key: "owner", type: "combo", catalog: "characters", label: "Character", placeholder: "Search owned character name or ID", required: true, hint: "unlocks every coating of that character" }],
+      fields: [{ key: "owner", type: "grid", catalog: "characters", label: "Character", placeholder: "Search construct, trade name or ID", required: true, hint: "unlocks every coating of that character" }],
       build: function (v) { return ["unlock", v.owner.id]; }
     },
     scenes: {
@@ -62,6 +62,55 @@
   var current = "items";
   var values = {};
   var picks = {};
+
+  /* One line per section, shown as a tooltip on the rail: the sidebar is where
+   * people guess, so each entry states what it actually does. */
+  var SECTION_TIPS = {
+    items: "Grant items to the selected account. The amount is the stack size the server receives.",
+    characters: "Unlock a construct. The server grants it at the level it decides, not a copy of someone else's.",
+    equipment: "Grant weapons and memories by star. Equipped slots stay untouched.",
+    coatings: "Unlock every coating that belongs to the chosen construct.",
+    scenes: "Unlock scene backgrounds and lobby views for the account.",
+    stages: "Unlock stages and bosses so they can be selected in game.",
+    commandant: "Set the Commandant level, the account-wide progression value shown in your profile.",
+    bc: "Send a broadcast payload to the account's in-game mailbox."
+  };
+
+  var RAIL_SCALE = [523.25, 587.33, 659.25, 783.99];
+
+  function initRailTips() {
+    var items = document.querySelectorAll(".rail__item[data-section]");
+    Array.prototype.forEach.call(items, function (el, index) {
+      var key = el.getAttribute("data-section");
+      if (key && SECTION_TIPS[key]) el.setAttribute("data-tip", SECTION_TIPS[key]);
+      el.dataset.railIndex = index;
+    });
+  }
+
+  /* The sound switch states its own state; the label changes with it. */
+  function initSound() {
+    var button = document.querySelector("#soundBtn");
+    if (!button || !window.SelenaAudio) return;
+
+    function paint() {
+      var on = window.SelenaAudio.isEnabled();
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+      button.setAttribute("data-tip", on
+        ? "Sound cues are on: pluck on section change, chord on success, low note on clear. Click to mute."
+        : "Sound cues are off. Click to enable a pluck on section change, a chord on success and a low note on clear.");
+      Array.prototype.forEach.call(button.querySelectorAll(".soundBtn__wave"), function (wave) {
+        wave.style.opacity = on ? "1" : "0.25";
+      });
+    }
+
+    button.addEventListener("click", function () {
+      window.SelenaAudio.setEnabled(!window.SelenaAudio.isEnabled());
+      paint();
+    });
+
+    paint();
+  }
+
   var performed = 0;
   var opus = 1;
 
@@ -131,10 +180,12 @@
       status.classList.add("is-online");
       status.classList.remove("is-offline");
       text.textContent = "In game";
+      if (status) status.setAttribute("data-tip", "Live session: the server accepted a save probe for this account.");
     } else if (result.state === "not-in-game") {
       status.classList.remove("is-online");
       status.classList.add("is-offline");
       text.textContent = "Not in game";
+      if (status) status.setAttribute("data-tip", "No live session: the game is not connected, so commands will fail until you log in there.");
     }
   }
 
@@ -211,6 +262,10 @@
         var picker = window.SelenaUI.combo(field, function () { return catalog(field.catalog); }, updatePreview);
         picks[field.key] = picker;
         wrap.appendChild(picker.node);
+      } else if (field.type === "grid") {
+        var gallery = window.SelenaUI.grid(field, function () { return catalog(field.catalog); }, updatePreview);
+        picks[field.key] = gallery;
+        wrap.appendChild(gallery.node);
       } else {
         var input = document.createElement("input");
         input.className = "input" + (field.type === "number" ? " input--mono" : "");
@@ -240,7 +295,7 @@
     }
 
     var meta = $("#catalogMeta");
-    var comboField = section.fields.filter(function (f) { return f.type === "combo"; })[0];
+    var comboField = section.fields.filter(function (f) { return f.type === "combo" || f.type === "grid"; })[0];
     if (comboField) {
       meta.textContent = "catalog: loading…";
       catalog(comboField.catalog).then(function (data) {
@@ -264,7 +319,7 @@
       var field = section.fields[i];
       if (!field.required) continue;
       var pick = picks[field.key] && picks[field.key].value();
-      if (field.type === "combo") {
+      if (field.type === "combo" || field.type === "grid") {
         if (!pick) return null;
         values[field.key] = pick;
       } else if (values[field.key] === undefined || values[field.key] === "") {
@@ -323,6 +378,7 @@
       window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, true, JSON.stringify(response, null, 2));
       $("#consoleMeta").textContent = opusLabel(performed);
       celebrate(run);
+      window.SelenaAudio.chord();
     } catch (err) {
       performed += 1;
       var detail = (err && (err.message || String(err))) || "Request failed";
@@ -370,6 +426,7 @@
   $("#clearBtn").addEventListener("click", function () {
     performed = 0;
     opus += 1;
+    window.SelenaAudio.low();
     $("#consoleMeta").textContent = opusLabel(0);
     window.SelenaUI.resetLog($("#consoleList"), "The stage is quiet",
       "Commandant, write the first note of our duet: choose a target and perform.");
@@ -381,6 +438,40 @@
 
   renderAccount();
   renderSection("items");
+  /* One delegated listener: rail clicks are re-rendered often, so binding per
+   * element would stack handlers and play several plucks at once. */
+  var railSoundBound = true;
+  document.addEventListener("click", function (event) {
+    var item = event.target.closest(".rail__item[data-section]");
+    if (!item) return;
+    var index = Number(item.dataset.railIndex || 0);
+    window.SelenaAudio.pluck(RAIL_SCALE[index % RAIL_SCALE.length]);
+  });
+
+  initRailTips();
+  initSound();
+
+  /* Static controls get their own explanation, because these are exactly the
+   * buttons people guess at. */
+  var CONTROLS = {
+    runBtn: "Send this command to the server. Ctrl + Enter does the same.",
+    clearBtn: "Clear the performance log and start a new opus. Nothing is sent to the server.",
+    accountBtn: "Sign in with a local server account, or sign out of this panel."
+  };
+
+  Object.keys(CONTROLS).forEach(function (id) {
+    var el = document.querySelector("#" + id);
+    if (el) el.setAttribute("data-tip", CONTROLS[id]);
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".rail__item[data-state='unavailable']"), function (el) {
+    el.setAttribute("data-tip", "No command backs this yet: it needs a server-side handler, specified in docs/stage-b.md.");
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".unavailable__row"), function (row) {
+    row.setAttribute("data-tip", "No command backs this yet: it needs a server-side handler, specified in docs/stage-b.md.");
+  });
+
   $("#consoleMeta").textContent = opusLabel(0);
   if (window.SelenaAPI.account) refreshStatus();
 })();
