@@ -294,6 +294,24 @@
     if (!host || !native) return;
 
     if (!accountMirror) {
+      // The first control on a real page that uses the bundled element. It wraps the same factory,
+      // so the fallback path below stays for anything that loads without the bundle.
+      if (window.customElements && customElements.get("sel-select")) {
+        var element = document.createElement("sel-select");
+        element.search = "Filter accounts";
+        element.addEventListener("change", function (event) {
+          native.value = event.detail.value;
+          native.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+        host.appendChild(element);
+        native.classList.add("is-mirrored");
+        native.tabIndex = -1;
+        native.setAttribute("aria-hidden", "true");
+        accountMirror = {
+          setOptions: function (list, value) { element.options = list; element.value = value; },
+          setValue: function (value) { element.value = value; },
+        };
+      } else {
       accountMirror = window.SelenaUI.select([], {
         value: native.value,
         search: "Filter accounts",
@@ -306,6 +324,7 @@
       native.classList.add("is-mirrored");
       native.tabIndex = -1;
       native.setAttribute("aria-hidden", "true");
+      }
     }
 
     accountMirror.setOptions(Array.from(native.options).map(function (option) {
