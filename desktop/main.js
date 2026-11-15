@@ -531,25 +531,39 @@ function resonanceEntries(templateId, slot, characterId) {
     'Nsec Transmission',
     'Shock Echo',
   ];
+  const AMPLIFIER_SET = [
+    'Glorious Spear',
+    'Superconducting Axial Ray',
+    'Honed Gel',
+    'Stellar Magnetic Rail',
+    'Peaceful Radiant',
+  ];
+  const TANK_SET = [
+    'Resonant Echo',
+    'Domain Deconstruction',
+    "Boundary's Annihilation",
+    'Gravity Barrier',
+    'Absolute Defense',
+  ];
+
+  // Each class owns the block after the six universal entries, in the order the game shows it.
+  // Attacker and Annihilator share one pick, Breaker is that pick plus the tank block, Observer
+  // offers the amplifier block and then the tank block, and the three support classes are the same.
   const WEAPON_CLASS_NAMES = {
-    breaker: [
-      'Glorious Afterglow',
-      'Resonant Echo',
-      'Domain Deconstruction',
-      "Boundary's Annihilation",
-      'Gravity Barrier',
-      'Absolute Defense',
-    ],
-    amplifier: [
-      'Glorious Spear',
-      'Superconducting Axial Ray',
-      'Honed Gel',
-      'Stellar Magnetic Rail',
-      'Peaceful Radiant',
-    ],
+    attacker: ['Glorious Afterglow'],
+    annihilator: ['Glorious Afterglow'],
+    breaker: ['Glorious Afterglow', ...TANK_SET],
+    tank: TANK_SET,
+    support: AMPLIFIER_SET,
+    amplifier: AMPLIFIER_SET,
+    overlinker: AMPLIFIER_SET,
+    observer: [...AMPLIFIER_SET, ...TANK_SET],
   };
+
+  // Class is not in the server tables, so each construct is registered from its in-game screen.
   const CHARACTER_CLASS = {
     1061004: 'breaker',
+    1321003: 'observer',
     1381003: 'amplifier',
   };
 
