@@ -300,16 +300,43 @@ namespace AscNet.GameServer
                     .ToList();
 
             if (type == EquipResonanceType.CharacterSkill)
+            {
+                // A memory shows the same stat list on both slots but a different skill list: the
+                // upper slot carries the orb and basic attack levels, the lower slot the signature,
+                // QTE, core and class skills. The skill type is what separates them, 5/6/7/9 against
+                // 1/2/3/4, and it is the same for every construct.
+                if (row.Site <= 0)
+                    return TableReaderV2.Parse<CharacterSkillPoolTable>()
+                        .Where(candidate => candidate.PoolId == poolId)
+                        .Select(candidate => candidate.SkillId)
+                        .ToList();
+
+                HashSet<int> wanted = slot == 1 ? [5, 6, 7, 9] : [1, 2, 3, 4];
+                Dictionary<int, int> skillTypes = TableReaderV2.Parse<CharacterSkillTypeTable>()
+                    .ToDictionary(candidate => candidate.Id, candidate => candidate.Type);
+                List<int> poolIds = [.. CollectSkillPools(resonance)];
                 return TableReaderV2.Parse<CharacterSkillPoolTable>()
-                    .Where(candidate => candidate.PoolId == poolId)
+                    .Where(candidate => poolIds.Contains(candidate.PoolId))
                     .Select(candidate => candidate.SkillId)
+                    .Where(skillId => skillTypes.TryGetValue(skillId, out int skillType) && wanted.Contains(skillType))
+                    .Distinct()
                     .ToList();
+            }
 
             return TableReaderV2.Parse<WeaponSkillPoolTable>()
                 .Where(candidate => candidate.PoolId == poolId)
                 .SelectMany(candidate => candidate.SkillId)
                 .Where(skillId => skillId > 0)
                 .ToList();
+        }
+
+        private static IEnumerable<int> CollectSkillPools(EquipResonanceTable resonance)
+        {
+            foreach (int poolId in resonance.CharacterSkillPoolId)
+            {
+                if (poolId > 0)
+                    yield return poolId;
+            }
         }
 
         private static int At(List<int> values, int index) => index >= 0 && index < values.Count ? values[index] : 0;

@@ -99,8 +99,9 @@ namespace AscNet.Test
             {
                 EquipResonanceTable pools = resonanceRows.First(resonance => resonance.Id == memory.Id);
                 int attribId = attribPools.First(row => row.PoolId == pools.AttribPoolId[0]).Id;
-                // slot 2 of a memory is the construct's skill, and the table keeps one pool per slot
-                int skillPoolId = pools.CharacterSkillPoolId.Count > 1 ? pools.CharacterSkillPoolId[1] : pools.CharacterSkillPoolId[0];
+                // slot 2 of a memory carries the signature, QTE, core and class skills, which is the
+                // first pool; the orb and basic attack skills of slot 1 live in the second one
+                int skillPoolId = pools.CharacterSkillPoolId.Count > 0 ? pools.CharacterSkillPoolId[0] : 0;
                 int skillId = skillPools.First(row => row.PoolId == skillPoolId && row.SkillId > 0).SkillId;
                 request.Memories.Add(new TuneMemorySlot
                 {

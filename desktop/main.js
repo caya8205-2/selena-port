@@ -475,6 +475,10 @@ function characterSkills(characterId) {
 // a table column and it is the same for every construct: type 5 is the red orb, 6 yellow, 7 blue,
 // and 9 the basic attack. That is what the resonance list needs to say.
 const SKILL_TYPE_LABELS = {
+  1: 'Signature Move Level',
+  2: 'QTE Level',
+  3: 'Core Passive',
+  4: 'Class Skill Level',
   5: 'Red Orb Level',
   6: 'Yellow Orb Level',
   7: 'Blue Orb Level',
@@ -504,8 +508,6 @@ function resonanceEntries(templateId, slot, characterId) {
   const row = resonance.rows.find((cells) => Number(cells[idAt]) === templateId)
   if (!row) return []
 
-  // Which pool a slot draws from is the game's rule, not a guess: a memory takes the stat pool on
-  // slot 1 and the construct's skill pool on slot 2, a weapon takes its class skill pool.
   const equipTable = tableRows('share/equip/Equip.tsv')
   let site = -1
   if (equipTable) {
@@ -515,68 +517,77 @@ function resonanceEntries(templateId, slot, characterId) {
     if (template) site = Number(template[siteAt] || 0)
   }
 
-  const isWeapon = site === 0
-  const attribPoolId = !isWeapon && slot === 1 ? Number(row[resonance.column('AttribPoolId', slot)] || 0) : 0
-  const skillPoolId = !isWeapon && slot > 1 ? Number(row[resonance.column('CharacterSkillPoolId', slot)] || 0) : 0
-  const weaponPoolId = isWeapon ? Number(row[resonance.column('WeaponSkillPoolId', slot)] || 0) : 0
-
-  if (attribPoolId > 0) {
-    const attribs = tableRows('share/attrib/AttribPool.tsv')
-    if (!attribs) return []
-    const poolAt = attribs.header.indexOf('PoolId')
-    const idIndex = attribs.header.indexOf('Id')
-    const nameIndex = attribs.header.indexOf('Name')
-    const descIndex = attribs.header.indexOf('Description')
-    return attribs.rows
-      .filter((cells) => Number(cells[poolAt]) === attribPoolId)
-      .map((cells) => ({
-        kind: 'attrib',
-        id: Number(cells[idIndex]),
-        name: (cells[nameIndex] || '').trim() || `stat ${cells[idIndex]}`,
-        meta: (cells[descIndex] || '').trim(),
-      }))
-  }
-
-  if (skillPoolId > 0) {
-    const skills = tableRows('share/character/skill/CharacterSkillPool.tsv')
-    if (!skills) return []
-    const allowed = characterSkills(characterId)
-    const poolAt = skills.header.indexOf('PoolId')
-    const skillAt = skills.header.indexOf('SkillId')
-    const seen = new Set()
-    return skills.rows
-      .filter((cells) => Number(cells[poolAt]) === skillPoolId)
-      .filter((cells) => allowed === null || allowed.size === 0 || allowed.has(Number(cells[skillAt])))
-      .filter((cells) => Number(cells[skillAt]) > 0 && !seen.has(Number(cells[skillAt])) && seen.add(Number(cells[skillAt])))
-      .map((cells) => {
-        const skillId = Number(cells[skillAt])
-        return { kind: 'skill', id: skillId, name: skillTypeLabel(skillId) || 'Skill', meta: '', order: skillTypeOf(skillId) }
-      })
-      .sort((left, right) => left.order - right.order)
-  }
-
-  if (weaponPoolId > 0) {
+  // A weapon resonates from its class skill pool on all three slots.
+  if (site === 0) {
+    const poolId = Number(row[resonance.column('WeaponSkillPoolId', slot)] || 0)
     const pools = tableRows('share/equip/WeaponSkillPool.tsv')
-    if (!pools) return []
+    if (poolId <= 0 || !pools) return []
     const poolAt = pools.header.indexOf('PoolId')
+    const classAt = pools.header.indexOf('CharacterId')
     const entries = []
     const seen = new Set()
     for (const cells of pools.rows) {
-      if (Number(cells[poolAt]) !== weaponPoolId) continue
-      const classAt = pools.header.indexOf('CharacterId')
+      if (Number(cells[poolAt]) !== poolId) continue
       if (characterId > 0 && Number(cells[classAt]) !== characterId) continue
       for (let ordinal = 1; ordinal <= 16; ordinal += 1) {
         const at = pools.column('SkillId', ordinal)
-        const skillId = at >= 0 ? Number(cells[at]) : 0
+        const skillId = at >= 0 ? Number(cells[at] || 0) : 0
         if (skillId <= 0 || seen.has(skillId)) continue
         seen.add(skillId)
-        entries.push({ kind: 'weapon', id: skillId, name: `skill ${skillId}`, meta: `class ${cells[classAt]}` })
+        entries.push({ kind: 'weapon', id: skillId, name: 'Weapon Skill ' + entries.length, meta: '' })
       }
     }
     return entries
   }
 
-  return []
+  // Both memory slots offer the same four stat picks. What differs is the skill list: the upper
+  // slot carries the orb and basic attack levels, the lower slot the signature, QTE, core and
+  // class skills. The tables split those by skill type, 5/6/7/9 against 1/2/3/4.
+  const attribPoolId = Number(row[resonance.column('AttribPoolId', slot)] || 0)
+  const wantedTypes = slot === 1 ? [5, 6, 7, 9] : [1, 2, 3, 4]
+  const entries = []
+
+  if (attribPoolId > 0) {
+    const attribs = tableRows('share/attrib/AttribPool.tsv')
+    if (attribs) {
+      const poolAt = attribs.header.indexOf('PoolId')
+      const idIndex = attribs.header.indexOf('Id')
+      const nameIndex = attribs.header.indexOf('Name')
+      const descIndex = attribs.header.indexOf('Description')
+      for (const cells of attribs.rows) {
+        if (Number(cells[poolAt]) !== attribPoolId) continue
+        entries.push({
+          kind: 'attrib',
+          id: Number(cells[idIndex]),
+          name: (cells[nameIndex] || '').trim() || 'Stat',
+          meta: (cells[descIndex] || '').trim(),
+          order: 0,
+        })
+      }
+    }
+  }
+
+  const allowed = characterSkills(characterId)
+  const pools = tableRows('share/character/skill/CharacterSkillPool.tsv')
+  const seen = new Set()
+  if (pools) {
+    const poolAt = pools.header.indexOf('PoolId')
+    const skillAt = pools.header.indexOf('SkillId')
+    const poolIds = new Set([0, 1].map((index) => Number(row[resonance.column('CharacterSkillPoolId', index + 1)] || 0)))
+    for (const cells of pools.rows) {
+      if (!poolIds.has(Number(cells[poolAt]))) continue
+      const skillId = Number(cells[skillAt] || 0)
+      if (skillId <= 0 || seen.has(skillId)) continue
+      if (allowed !== null && allowed.size > 0 && !allowed.has(skillId)) continue
+      const type = skillTypeOf(skillId)
+      if (!wantedTypes.includes(type)) continue
+      seen.add(skillId)
+      entries.push({ kind: 'skill', id: skillId, name: SKILL_TYPE_LABELS[type] || 'Skill', meta: '', order: type })
+    }
+  }
+
+  entries.sort((left, right) => left.order - right.order)
+  return entries
 }
 
 function catalog(kind) {
