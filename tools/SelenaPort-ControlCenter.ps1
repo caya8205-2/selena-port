@@ -131,7 +131,9 @@ function Get-Status {
     [pscustomobject]@{
         Mongo = Test-Port $MongoPort
         Sdk = Test-Port $SdkPort
-        Game = Test-Port $GamePort
+        # A TCP probe makes the game server open a session and save state on every refresh,
+        # which floods its log and touches player documents. The process is the honest signal.
+        Game = (Get-Process -Name AscNet -ErrorAction SilentlyContinue) -ne $null
         Panel = Test-Port $PanelPort
     }
 }

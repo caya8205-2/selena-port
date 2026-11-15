@@ -103,11 +103,22 @@ async function waitPort(port, seconds) {
   return false
 }
 
+// Probing the game port with a raw connect makes the server open a session and save state, which
+// floods its log and can race a real login. Once it is known open, trust that for a minute.
+let gameUpAt = 0
+
+async function gameServerUp() {
+  if (Date.now() - gameUpAt < 60_000) return true
+  const open = await portOpen(config.gamePort)
+  if (open) gameUpAt = Date.now()
+  return open
+}
+
 async function status() {
   return {
     mongo: await portOpen(config.mongoPort),
     sdk: await portOpen(config.sdkPort),
-    game: await portOpen(config.gamePort),
+    game: await gameServerUp(),
     mongoPort: config.mongoPort,
     sdkPort: config.sdkPort,
     gamePort: config.gamePort,
