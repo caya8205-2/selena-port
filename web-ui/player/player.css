@@ -366,7 +366,21 @@
 .cleanup__sample { margin: 0; padding-left: 16px; font-size: 11.5px; color: var(--text-faint); }
 .cleanup__confirm { display: flex; align-items: center; gap: 8px; }
 .cleanup__confirm .input { flex: 1 1 auto; }
-.cleanup__actions { display: flex; gap: 8px; }
+
+/* Action rows share one recipe everywhere: separated from the fields above, buttons in a
+   single row with a real gap, never flush against the card. */
+.field__actions,
+.cleanup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.hint-block { margin: 12px 0 0; }
+
 .field__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
 /* Account picker: reads the admin list, so choosing an account needs no sign-in. */
@@ -386,3 +400,5 @@
 }
 .topbar__account select:hover { border-color: var(--accent); }
 .topbar__account select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* The shared action row: separated from the fields above, buttons in one line. */
+.actions { padding-top: 10px; border-top: 1px solid var(--line); }

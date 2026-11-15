@@ -10,7 +10,7 @@ moment they cost time. A stale note is worse than no note, because it is trusted
 session starts without its earlier context, read this file first, then `git log -5`, then the
 files it names. Do not rely on memory for ports, paths or column names.
 
-Last updated: wardrobe scrolls internally, rail and tab bars hidden, static assets no-store.
+Last updated: shared action row, stacked memory-set control with an amount.
 
 ---
 
@@ -106,8 +106,13 @@ Containers never grow with their content. Which of them show a bar is a separate
   `.frame { height: 100% }`; padded views (console/accounts/config/update) scroll inside
 - wardrobe: `.grid__cards { max-height: 300px; overflow-y: auto }`, a short first page of 48
   cards, exact total printed next to "Show all N"
-- the action row sits in normal flow: sticky was tried and reverted, it covered the
-  catalog status line without buying anything, since the wardrobe box keeps it close
+- **one action row per tab**: section-specific buttons (unlock coating, unlock every coating)
+  are inserted into `#sectionActions` through `sectionActions.slot()`, in front of
+  Tutti/Perform/Silence. Custom sections hide the default bulk button so there is never a twin.
+  The row carries `padding-top: 10px` and a top hairline
+- sticky was tried and reverted: it covered the catalog status line without buying anything
+- `.console` is `height: max-content`: a fixed box clipped the action row as soon as a section
+  carried two catalogs (coatings)
 - **visible bars**: only the wardrobe's thin one. `.rail__nav`, `.workspace` and `.view` set
   `scrollbar-width: none` and zero width webkit bars: they still scroll by wheel, drag and
   keyboard, they just draw nothing. Two grooves next to the wardrobe bar was noise.
@@ -127,8 +132,11 @@ override and every height reads short (a 764 window measured 429 and looked like
 - `GET /api/panel/memory-sets` (Node) returns 114 sets built from Equip.tsv by grouping on
   `SuitId`, keeping only suits with all six slots, e.g. Burana 1649 -> 3016049..3066049.
   This endpoint is Node-only; the .NET panel has no equivalent, so the widget hides there.
-- `web-ui/common/ui.js` has `memorySetGrant(runSet)`: a select of sets, a "Grant set" button,
-  a live status line, disabled while running, hidden when the endpoint is missing.
+- `web-ui/common/ui.js` has `memorySetGrant(runSet)`: stacked like every other field, i.e.
+  label, full width select, an Amount row (label left, stepper right), then the "Grant set"
+  button with the set count beside it. Disabled while running, hidden when the endpoint is
+  missing. `runSet(set, copies)` repeats the add per copy, because `equip add <id>` has no
+  count argument.
 - `grid()` honours `field.columns === 3` (`.grid__cards--three`), so the memories wardrobe
   reads three per row, slots 1-3 above 4-6, the same order as the game.
 - Both panels: `memories` section carries `setGrant: true` and `columns: 3`;

@@ -704,3 +704,13 @@ a { color: inherit; text-decoration: none; }
 .rail__nav::-webkit-scrollbar,
 .workspace::-webkit-scrollbar,
 .view::-webkit-scrollbar { width: 0; height: 0; }
+
+/* A label on the left and its control on the right, used by inline fields such as the
+   memory amount. The control keeps a fixed width so the number sits next to its buttons. */
+.field__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.field__row > .stepper { flex: 0 0 auto; width: 118px; }

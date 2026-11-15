@@ -218,16 +218,22 @@
 
 
   // A memory set is six records, one per slot; slot layouts differ per construct.
-  async function grantMemorySet(set) {
+  async function grantMemorySet(set, copies) {
+    var amount = Math.max(1, copies || 1);
     var results = [];
     for (var i = 0; i < set.slots.length; i += 1) {
       var slot = set.slots[i];
-      try {
-        await window.SelenaAPI.command("equip", ["add", String(slot.id)]);
-        results.push({ site: slot.site, id: slot.id, ok: true });
-      } catch (error) {
-        results.push({ site: slot.site, id: slot.id, ok: false, error: error.message });
+      var ok = true;
+      var error = "";
+      for (var copy = 0; copy < amount && ok; copy += 1) {
+        try {
+          await window.SelenaAPI.command("equip", ["add", String(slot.id)]);
+        } catch (err) {
+          ok = false;
+          error = (err && err.message) || "Request failed";
+        }
       }
+      results.push({ site: slot.site, id: slot.id, ok: ok, error: error });
     }
     return results;
   }
@@ -281,6 +287,22 @@
    * construct (read from the fashion table per character). Unlocking one coating
    * sends "coating unlock <characterId> <coatingId>"; the per-character bulk stays
    * available for when the whole wardrobe is wanted. */
+  var sectionActions = {
+    slot: function () {
+      var row = $("#sectionActions");
+      var holder = row.querySelector("[data-section-holder]");
+      if (!holder) {
+        holder = document.createElement("span");
+        holder.setAttribute("data-section-holder", "");
+        // contents keeps the buttons as direct flex children of the shared row
+        holder.style.display = "contents";
+        row.insertBefore(holder, row.firstChild);
+      }
+      holder.textContent = "";
+      return holder;
+    },
+  };
+
   function renderCoatings(host) {
     var owner = null;
     var coating = null;
@@ -296,8 +318,9 @@
     var coatingBody = document.createElement("div");
     coatingHost.appendChild(coatingBody);
 
-    var actions = document.createElement("div");
-    actions.className = "cleanup__actions";
+    /* One action row per tab. Section-specific buttons join the shared row instead of
+     * stacking a second row above Silence, which read as two unrelated toolbars. */
+    var actions = sectionActions.slot();
 
     var unlockBtn = document.createElement("button");
     unlockBtn.type = "button";
@@ -363,7 +386,6 @@
 
     host.appendChild(ownerGrid.node);
     host.appendChild(coatingHost);
-    host.appendChild(actions);
     host.appendChild(status);
 
     function entryFor(args, ok, detail) {
@@ -411,8 +433,7 @@
       function () { /* read-only: the command has no per-scene form yet */ }
     );
 
-    var actions = document.createElement("div");
-    actions.className = "cleanup__actions";
+    var actions = sectionActions.slot();
 
     var tuttiBtn = armButton(document.createElement("button"), "Tutti", function () {
       send(["unlock", "all"]);
@@ -424,7 +445,6 @@
     status.textContent = "The catalog above is what unlock-all grants; the command has no per-scene form yet.";
 
     host.appendChild(grid.node);
-    host.appendChild(actions);
     host.appendChild(status);
 
     function entryFor(args, ok, detail) {
@@ -540,7 +560,9 @@
     }
 
     var allBtn = $("#allBtn");
-    var hasAll = typeof section.allArgs === "function";
+    /* A custom renderer brings its own bulk button into the same row, so the default one
+     * stays hidden there instead of standing next to its twin. */
+    var hasAll = typeof section.allArgs === "function" && !section.custom;
     allBtn.hidden = !hasAll;
     allBtn.disabled = false;
     allBtn.textContent = "Tutti · all";

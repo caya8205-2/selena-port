@@ -512,9 +512,8 @@
 
   // -------------------------------------------------------------- memory sets
   // Six memories share a SuitId and each one may occupy exactly one slot. Which four a
-  // construct equips differs per build, so this grants the whole set instead of guessing
-  // a layout. It hides itself when the server cannot answer, rather than showing an empty
-  // control that looks broken.
+  // construct equips differs per build, so this grants the whole set instead of guessing a
+  // layout. Laid out like every other field: label, control, then its actions underneath.
   function memorySetGrant(runSet) {
     var wrap = document.createElement("div");
     wrap.className = "field";
@@ -530,12 +529,29 @@
     labelRow.appendChild(hint);
     wrap.appendChild(labelRow);
 
-    var row = document.createElement("div");
-    row.className = "actions";
-
     var select = document.createElement("select");
     select.className = "input";
     select.setAttribute("aria-label", "Memory set");
+    wrap.appendChild(select);
+
+    var amountRow = document.createElement("div");
+    amountRow.className = "field__row";
+    var amountLabel = document.createElement("span");
+    amountLabel.className = "field__label";
+    amountLabel.textContent = "Amount";
+    var amount = document.createElement("input");
+    amount.className = "input input--mono";
+    amount.type = "number";
+    amount.min = "1";
+    amount.max = "99";
+    amount.value = "1";
+    amount.setAttribute("aria-label", "Copies of each memory");
+    amountRow.appendChild(amountLabel);
+    amountRow.appendChild(window.SelenaUI.stepper(amount, { min: 1, max: 99, label: "Amount" }, function () {}));
+    wrap.appendChild(amountRow);
+
+    var actions = document.createElement("div");
+    actions.className = "field__actions";
 
     var button = document.createElement("button");
     button.type = "button";
@@ -547,10 +563,9 @@
     status.className = "field__note";
     status.setAttribute("aria-live", "polite");
 
-    row.appendChild(select);
-    row.appendChild(button);
-    row.appendChild(status);
-    wrap.appendChild(row);
+    actions.appendChild(button);
+    actions.appendChild(status);
+    wrap.appendChild(actions);
 
     var sets = [];
 
@@ -576,20 +591,27 @@
       var chosen = sets.filter(function (set) { return String(set.id) === select.value; })[0];
       if (!chosen) return;
 
+      var copies = Math.max(1, Math.min(99, Number(amount.value) || 1));
+
       button.disabled = true;
       select.disabled = true;
+      amount.disabled = true;
       status.textContent = "granting six slots...";
 
-      Promise.resolve(runSet(chosen))
+      Promise.resolve(runSet(chosen, copies))
         .then(function (results) {
           var list = results || [];
           var failed = list.filter(function (result) { return !result.ok; });
           status.textContent = failed.length === 0
-            ? "all six granted"
+            ? list.length + " slots granted" + (copies > 1 ? " x " + copies : "")
             : (list.length - failed.length) + " of " + list.length + " granted";
         })
         .catch(function (error) { status.textContent = "failed: " + error.message; })
-        .then(function () { button.disabled = false; select.disabled = false; });
+        .then(function () {
+          button.disabled = false;
+          select.disabled = false;
+          amount.disabled = false;
+        });
     });
 
     return { node: wrap };

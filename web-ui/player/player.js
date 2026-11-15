@@ -238,16 +238,22 @@
 
 
   // A memory set is six records, one per slot; slot layouts differ per construct.
-  async function grantMemorySet(set) {
+  async function grantMemorySet(set, copies) {
+    var amount = Math.max(1, copies || 1);
     var results = [];
     for (var i = 0; i < set.slots.length; i += 1) {
       var slot = set.slots[i];
-      try {
-        await window.SelenaAPI.command("equip", ["add", String(slot.id)]);
-        results.push({ site: slot.site, id: slot.id, ok: true });
-      } catch (error) {
-        results.push({ site: slot.site, id: slot.id, ok: false, error: error.message });
+      var ok = true;
+      var error = "";
+      for (var copy = 0; copy < amount && ok; copy += 1) {
+        try {
+          await window.SelenaAPI.command("equip", ["add", String(slot.id)]);
+        } catch (err) {
+          ok = false;
+          error = (err && err.message) || "Request failed";
+        }
       }
+      results.push({ site: slot.site, id: slot.id, ok: ok, error: error });
     }
     return results;
   }
