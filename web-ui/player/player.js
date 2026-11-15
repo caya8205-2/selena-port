@@ -101,6 +101,55 @@
       command: "equip",
       custom: "build"
     },
+    dorm: {
+      title: "Dorm",
+      command: "dorm",
+      fields: [
+        { key: "op", type: "select", label: "Operation", placeholder: "Choose an operation", required: true,
+          options: function () {
+            return Promise.resolve([
+              { value: "info", label: "Read the dorm" },
+              { value: "fill", label: "Fill furniture" }
+            ]);
+          },
+          hint: "filling grants every piece the tables name that the account does not own" },
+        { key: "room", type: "text", label: "Room", placeholder: "all", hint: "a room template id, or all for every room" }
+      ],
+      build: function (v) {
+        if (v.op === "info") return ["info"];
+        return ["fill", v.room || "all"];
+      },
+      allArgs: function () { return ["fill", "all"]; }
+    },
+    guild: {
+      title: "Guild",
+      command: "guild",
+      fields: [
+        { key: "op", type: "select", label: "Operation", placeholder: "Choose an operation", required: true,
+          options: function () {
+            return Promise.resolve([
+              { value: "info", label: "Read the guild" },
+              { value: "grant", label: "Grant resources" }
+            ]);
+          },
+          hint: "reads membership, rank and contribution, or moves a store" },
+        { key: "kind", type: "select", label: "Store", placeholder: "Choose a store",
+          options: function () {
+            return Promise.resolve([
+              { value: "exp", label: "Guild build" },
+              { value: "fund", label: "Guild funds" },
+              { value: "contribution", label: "Member contribution" }
+            ]);
+          },
+          hint: "fund and contribution credit the same pool" },
+        { key: "amount", type: "number", label: "Amount", value: "1000", min: 1, max: 999999,
+          hint: "a pool grant above the daily limit asks for confirm" }
+      ],
+      build: function (v) {
+        if (v.op === "info") return ["info"];
+        return ["grant", v.kind, String(v.amount)];
+      }
+    },
     cleanup: {
       title: "Cleanup",
       command: "cleanup",
@@ -126,6 +175,8 @@
     commandant: "Set the Commandant level, the account-wide progression value shown in your profile.",
     bc: "Send a broadcast payload to the account's in-game mailbox.",
     build: "Read a construct's build and act on one piece: rank, memory level, breakthrough, awaken and resonance, weapon overrun.",
+    dorm: "Fill a dorm from the furniture tables: reads the rooms and what is missing, or grants every piece the account does not own.",
+    guild: "Read the guild or move its build, funds or a member's contribution through the guild module's own rules.",
     cleanup: "Remove duplicates and low-star leftovers from your inventory. Preview first; nothing is deleted until you confirm."
   };
 
