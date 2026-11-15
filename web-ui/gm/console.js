@@ -713,14 +713,18 @@
     el.addEventListener("click", function () { renderSection(el.dataset.section); });
   });
 
-  $("#accountBtn").addEventListener("click", function () {
-    if (window.SelenaAPI.account) {
-      window.SelenaAPI.logout();
-      renderAccount();
-    } else {
-      signIn();
-    }
-  });
+  // The sign-in button is gone from this console, so this wiring must not assume it exists.
+  var accountButton = $("#accountBtn");
+  if (accountButton) {
+    accountButton.addEventListener("click", function () {
+      if (window.SelenaAPI.account) {
+        window.SelenaAPI.logout();
+        renderAccount();
+      } else {
+        signIn();
+      }
+    });
+  }
 
   $("#allBtn").addEventListener("click", performAll);
   $("#actionForm").addEventListener("submit", perform);
@@ -812,9 +816,20 @@
         onChange: function (picked) {
           var chosen = accounts.filter(function (account) { return String(account.uid) === String(picked); })[0];
           if (chosen) localStorage.setItem("selena.activeAccount", JSON.stringify({ uid: chosen.uid, username: chosen.username }));
+          var native = document.getElementById("accountSelect");
+          if (native) native.value = String(picked);
         },
       });
       host.appendChild(accountPicker.node);
+
+      // The native select keeps holding the value for the old readers, but it is out of sight and
+      // out of the tab order: the visible control is the panel's own.
+      var native = document.getElementById("accountSelect");
+      if (native) {
+        native.classList.add("is-mirrored");
+        native.tabIndex = -1;
+        native.setAttribute("aria-hidden", "true");
+      }
     }
 
     accountPicker.setOptions(accounts.map(function (account) {
