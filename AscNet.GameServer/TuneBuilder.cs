@@ -157,20 +157,22 @@ namespace AscNet.GameServer
                     equip.ResonanceInfo.Add(info);
             }
 
-            // Harmony: the weapon borrows a memory set, and the overrun level is what says how many
-            // pieces that set counts as. The caller names the memory, the tables name the suit.
-            if (request.HarmonyMemoryId > 0)
+            // Harmony: the weapon borrows a memory set, and an active harmony counts as two pieces of
+            // it. The caller names the set, so the picker is a set list, not a memory list: four
+            // signature memories plus harmony already complete a four piece bonus.
+            if (request.HarmonySuit > 0)
             {
-                if (!equipRows.TryGetValue(request.HarmonyMemoryId, out EquipTable? harmonyRow) || harmonyRow.Site <= 0)
-                    throw new InvalidOperationException($"memory {request.HarmonyMemoryId} is not a memory in Equip.tsv, so it cannot be a harmony.");
+                bool suitExists = equipRows.Values.Any(row => row.Site > 0 && row.SuitId == request.HarmonySuit);
+                if (!suitExists)
+                    throw new InvalidOperationException($"suit {request.HarmonySuit} is not a memory set in Equip.tsv, so it cannot be a harmony.");
 
                 List<WeaponOverrunTable> overrunRows = TableReaderV2.Parse<WeaponOverrunTable>()
                     .Where(candidate => candidate.WeaponId == weaponRow.Id)
                     .OrderBy(candidate => candidate.Level)
                     .ToList();
                 equip.WeaponOverrunData ??= new WeaponOverrunData();
-                equip.WeaponOverrunData.ChoseSuit = (int)harmonyRow.SuitId;
-                equip.WeaponOverrunData.ActiveSuits = [.. equip.WeaponOverrunData.ActiveSuits.Append((int)harmonyRow.SuitId).Distinct()];
+                equip.WeaponOverrunData.ChoseSuit = request.HarmonySuit;
+                equip.WeaponOverrunData.ActiveSuits = [.. equip.WeaponOverrunData.ActiveSuits.Append(request.HarmonySuit).Distinct()];
                 equip.WeaponOverrunData.Level = overrunRows.Select(candidate => candidate.Level).DefaultIfEmpty(0).Max();
             }
 
@@ -430,7 +432,7 @@ namespace AscNet.GameServer
         public int TemplateId { get; set; }
         public int Level { get; set; }
         public List<TuneResonance> Resonance { get; set; } = [];
-        public int HarmonyMemoryId { get; set; }
+        public int HarmonySuit { get; set; }
     }
 
     public sealed class TuneReport

@@ -28,7 +28,10 @@ const isDev = !isPackaged
 
 // One console at a time. A second launch focuses the window that is already open instead of
 // stacking another one, which used to leave two panels listening on two ports.
-if (!app.requestSingleInstanceLock()) {
+const singleInstance = app.requestSingleInstanceLock()
+if (!singleInstance) {
+  // A second launch has nothing to do: quit and let the running window take over. The rest
+  // of this file is skipped so it cannot race a half-started app.
   app.quit()
 } else {
   app.on('second-instance', () => {
@@ -1379,6 +1382,8 @@ function watchRenderer() {
 }
 
 app.whenReady().then(async () => {
+  // Only the instance that owns the lock starts a server or opens a window.
+  if (!singleInstance) return
   fs.mkdirSync(logDir, { recursive: true })
   uiPort = await startUiServer()
   // Persist the port: it is ephemeral, and the smoke test (and any support request)

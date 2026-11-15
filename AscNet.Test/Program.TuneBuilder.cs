@@ -92,7 +92,7 @@ namespace AscNet.Test
                 Character = new TuneCharacter { Level = 80, Quality = 5, Star = 3, Grade = maxGrade },
                 MemoryLevel = 45,
                 Hypertune = true,
-                Weapon = new TuneWeapon { TemplateId = weapon.Id, Level = 45, HarmonyMemoryId = memories[1].Id },
+                Weapon = new TuneWeapon { TemplateId = weapon.Id, Level = 45, HarmonySuit = (int)memories[1].SuitId },
             };
 
             foreach ((int site, EquipTable memory) in memories)

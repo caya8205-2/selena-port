@@ -840,7 +840,7 @@
    * catalogue depends on what this account owns, so a construct, memory or weapon the account
    * never held can still be tuned in. */
   function renderBuild(host) {
-    const state = { catalog: null, detail: null, characterId: null, identity: null, current: null, template: null };
+    const state = { catalog: null, detail: null, characterId: null, identity: null, current: null, template: null, suitOfMemory: {} };
 
     const card = document.createElement("div");
     card.className = "build";
@@ -981,7 +981,7 @@
         memoryLevel: MEMORY_LEVEL_CAP,
         hypertune: true,
         slots: {},
-        weapon: { templateId: 0, level: WEAPON_LEVEL_CAP, harmonyMemoryId: 0 },
+        weapon: { templateId: 0, level: WEAPON_LEVEL_CAP, harmonySuit: 0 },
         resonances: {},
         weaponResonances: [],
       };
@@ -992,7 +992,7 @@
       }
       const weapon = current && (current.weapons || [])[0];
       design.weapon.templateId = weapon ? weapon.templateId : 0;
-      design.weapon.harmonyMemoryId = design.slots[1] || 0;
+      design.weapon.harmonySuit = 0;
       return {
         levels: { min: 1, max: Math.max(1, detail.maxLevel || 80) },
         promotions: promos,
@@ -1153,7 +1153,7 @@
           onChange: function (value) {
             design.slots[slot] = Number(value);
             design.resonances[slot] = { top: 0, bottom: 0 };
-            if (!design.weapon.harmonyMemoryId) design.weapon.harmonyMemoryId = Number(value);
+            if (!design.weapon.harmonySuit) design.weapon.harmonySuit = state.suitOfMemory[Number(value)] || 0;
             cell.classList.toggle("is-empty", Number(value) === 0);
             paintResonances();
           },
@@ -1299,17 +1299,30 @@
       }
       paintWeaponResonances();
 
-      const harmony = section("Harmony");
-      const harmonyPicker = window.SelenaUI.select([{ value: 0, label: "none" }].concat((state.catalog.memories || [])
-        .slice()
-        .sort((left, right) => String(left.name).localeCompare(String(right.name)))
-        .map((memory) => ({ value: memory.id, label: memory.name + " · slot " + memory.site }))), {
-        value: design.weapon.harmonyMemoryId,
-        search: "Filter harmonies",
-        tip: "Harmony takes the set of the memory you name, so the weapon counts as a piece of that set.",
-        onChange: function (value) { design.weapon.harmonyMemoryId = Number(value); },
+      // Harmony names a set, never a memory: an active harmony counts as two pieces of that set,
+      // so four signature memories plus harmony already complete a four piece bonus.
+      const harmony = section("Harmony", "one set, counted as two pieces");
+      const harmonyPicker = window.SelenaUI.select([{ value: 0, label: "none" }], {
+        value: design.weapon.harmonySuit,
+        search: "Filter sets",
+        tip: "Harmony borrows a memory set. Pick the set, not a memory: the weapon then counts as two pieces of it.",
+        onChange: function (value) { design.weapon.harmonySuit = Number(value); },
       });
       harmony.appendChild(harmonyPicker.node);
+      fetch("/api/panel/memory-sets")
+        .then((response) => (response.ok ? response.json() : { sets: [] }))
+        .then((payload) => {
+          const sets = (payload && payload.sets) || [];
+          state.suitOfMemory = {};
+          sets.forEach((set) => {
+            (set.slots || []).forEach((slot) => { state.suitOfMemory[slot.id] = set.id; });
+          });
+          harmonyPicker.setOptions([{ value: 0, label: "none" }].concat(sets.map((set) => ({
+            value: set.id,
+            label: set.name + " · " + set.meta,
+          }))), design.weapon.harmonySuit);
+        })
+        .catch(() => {});
       body.appendChild(harmony);
 
       $("#tuneNote").textContent = "Nothing is spent from the account. Perform writes the build.";
@@ -1342,7 +1355,7 @@
           Resonance: (design.weaponResonances || []).map((templateId, index) => (templateId
             ? { Slot: index + 1, Type: "weapon", TemplateId: templateId }
             : null)).filter(Boolean),
-          HarmonyMemoryId: design.weapon.harmonyMemoryId || 0,
+          HarmonySuit: design.weapon.harmonySuit || 0,
         };
       }
       return body;
@@ -1392,7 +1405,7 @@
       if (!design.weapon.templateId && state.catalog.weapons && state.catalog.weapons.length > 0) {
         design.weapon.templateId = state.catalog.weapons[0].id;
       }
-      if (!design.weapon.harmonyMemoryId) design.weapon.harmonyMemoryId = design.slots[1] || 0;
+      if (!design.weapon.harmonySuit) design.weapon.harmonySuit = state.suitOfMemory[design.slots[1]] || 0;
 
       const fill = [];
       for (let slot = 1; slot <= 6; slot += 1) {
