@@ -382,3 +382,63 @@
 /* The action row wraps inside the form column instead of overflowing the card when the
    labels plus the hint are wider than the column. */
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+
+/* ------------------------------------------------------------ tune */
+
+/* The tune surface is a modal because a build is written in one pass: the card behind it stays
+ * as the reference, and nothing is committed until Perform. */
+.modal { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; }
+.modal[hidden] { display: none; }
+.modal__scrim { position: absolute; inset: 0; background: rgba(8, 10, 18, 0.74); backdrop-filter: blur(3px); }
+.modal__panel {
+  position: relative;
+  width: min(900px, calc(100vw - 48px));
+  max-height: calc(100vh - 56px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.modal__head { display: flex; align-items: center; justify-content: space-between; padding: 15px 20px; border-bottom: 1px solid var(--line); }
+.modal__title { margin: 0; font-family: var(--serif); font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--silver); }
+.modal__close { background: none; border: 0; color: var(--text-faint); font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; }
+.modal__close:hover { color: var(--silver); }
+.modal__body { padding: 18px 20px; overflow-y: auto; display: grid; gap: 22px; }
+.modal__foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 20px; border-top: 1px solid var(--line); }
+.modal__note { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+
+.tune { display: grid; gap: 10px; }
+.tune__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.tune__label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-faint); }
+.tune__value { font-family: var(--mono); font-size: 11.5px; color: var(--silver); }
+
+.tune__slider { display: grid; grid-template-columns: 104px 1fr 96px; align-items: center; gap: 14px; }
+.tune__slider input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+.tune__slider output { font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); text-align: right; }
+
+.tune__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tune__cell {
+  display: grid;
+  gap: 7px;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface-2);
+  min-height: 74px;
+}
+.tune__cell.is-empty { border-style: dashed; }
+.tune__slot { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); }
+.tune__pick { font-family: inherit; font-size: 12.5px; text-align: left; color: var(--silver); background: none; border: 0; padding: 0; cursor: pointer; }
+.tune__pick:hover { color: var(--accent-hover); }
+.tune__cell .input { font-size: 11.5px; padding: 5px 7px; }
+
+.tune__toggle { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }
+.tune__toggle input { accent-color: var(--accent); width: 15px; height: 15px; }
+
+@media (max-width: 720px) {
+  .tune__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tune__slider { grid-template-columns: 1fr; gap: 6px; }
+}
+

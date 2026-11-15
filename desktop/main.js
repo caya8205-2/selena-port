@@ -313,6 +313,122 @@ function tableRows(relativePath) {
   return table
 }
 
+const RANK_LABELS = ['', 'B', 'A', 'S', 'SS', 'SSS', 'SSS+']
+
+function rankLabel(quality) {
+  return RANK_LABELS[quality] || ('Q' + quality)
+}
+
+// Everything the tune modal needs, read from the tables: no account is consulted, so a build can
+// name a memory or a weapon this account never held.
+function tuneCatalog() {
+  const characters = tableRows('share/character/Character.tsv')
+  const qualities = tableRows('share/character/quality/CharacterQuality.tsv')
+  const levels = tableRows('share/character/grade/CharacterGrade.tsv')
+  const equips = tableRows('share/equip/Equip.tsv')
+  if (!characters || !equips) return null
+
+  const baseQuality = new Map()
+  if (qualities) {
+    const idAt = qualities.header.indexOf('CharacterId')
+    const qualityAt = qualities.header.indexOf('Quality')
+    for (const cells of qualities.rows) {
+      const id = Number(cells[idAt])
+      const quality = Number(cells[qualityAt])
+      if (!baseQuality.has(id) || quality < baseQuality.get(id)) baseQuality.set(id, quality)
+    }
+  }
+
+  const characterRows = []
+  const nameAt = characters.header.indexOf('Name')
+  const tradeAt = characters.header.indexOf('TradeName')
+  const idAt = characters.header.indexOf('Id')
+  for (const cells of characters.rows) {
+    const id = Number(cells[idAt])
+    if (id <= 0) continue
+    const quality = baseQuality.get(id) || 1
+    characterRows.push({ id, name: cells[nameAt], tradeName: cells[tradeAt] || '', baseQuality: quality, baseRank: rankLabel(quality) })
+  }
+
+  const memoryRows = []
+  const weaponRows = []
+  const equipIdAt = equips.header.indexOf('Id')
+  const equipNameAt = equips.header.indexOf('Name')
+  const starAt = equips.header.indexOf('Star')
+  const siteAt = equips.header.indexOf('Site')
+  for (const cells of equips.rows) {
+    const id = Number(cells[equipIdAt])
+    const site = Number(cells[siteAt])
+    const entry = { id, name: cells[equipNameAt], star: Number(cells[starAt] || 0) }
+    if (site === 0) weaponRows.push(entry)
+    else if (site > 0) memoryRows.push(Object.assign({ site }, entry))
+  }
+
+  return {
+    ranks: [1, 2, 3, 4, 5, 6].map((quality) => ({ quality, label: rankLabel(quality) })),
+    characters: characterRows,
+    memories: memoryRows,
+    weapons: weaponRows,
+  }
+}
+
+// Per construct: the promotion ladder, its level cap and how many star steps each rank has.
+function tuneCharacter(characterId) {
+  const grades = tableRows('share/character/grade/CharacterGrade.tsv')
+  const fragments = tableRows('share/character/quality/CharacterQualityFragment.tsv')
+  const characters = tableRows('share/character/Character.tsv')
+  const levelUps = tableRows('share/character/CharacterLevelUp.tsv')
+  if (!grades || !characters) return null
+
+  const idAt = characters.header.indexOf('Id')
+  const typeAt = characters.header.indexOf('Type')
+  const levelTypeAt = characters.header.indexOf('LevelUpTemplateId')
+  const character = characters.rows.find((cells) => Number(cells[idAt]) === characterId)
+  if (!character) return null
+
+  const characterType = Number(character[typeAt])
+  const promotions = []
+  const gradeAt = grades.header.indexOf('Grade')
+  const characterAt = grades.header.indexOf('CharacterId')
+  const nameColumn = grades.header.indexOf('GradeName')
+  for (const cells of grades.rows) {
+    if (Number(cells[characterAt]) !== characterId) continue
+    promotions.push({ grade: Number(cells[gradeAt]), name: cells[nameColumn] || ('grade ' + cells[gradeAt]) })
+  }
+  promotions.sort((left, right) => left.grade - right.grade)
+
+  // star steps per rank, straight from the fragment table
+  const stars = {}
+  if (fragments) {
+    const typeColumn = fragments.header.indexOf('Type')
+    const qualityColumn = fragments.header.indexOf('Quality')
+    for (const cells of fragments.rows) {
+      if (Number(cells[typeColumn]) !== characterType) continue
+      let steps = 0
+      for (let ordinal = 1; ordinal <= 10; ordinal += 1) {
+        const at = fragments.column('StarUseCount', ordinal)
+        if (at >= 0 && Number(cells[at] || 0) > 0) steps += 1
+      }
+      stars[Number(cells[qualityColumn])] = steps
+    }
+  }
+
+  let maxLevel = 0
+  if (levelUps) {
+    const levelAt = levelUps.header.indexOf('Level')
+    const levelTypeColumn = levelUps.header.indexOf('Type')
+    const template = Number(character[levelTypeAt])
+    for (const cells of levelUps.rows) {
+      if (levelTypeColumn >= 0 && Number(cells[levelTypeColumn]) !== template) continue
+      maxLevel = Math.max(maxLevel, Number(cells[levelAt] || 0))
+    }
+  }
+
+  // The level curve lives in the server's database templates rather than a TSV here, so the
+  // slider offers the game's ceiling and the server clamps to the curve it actually keeps.
+  return { characterId, maxLevel: maxLevel || 80, stars, promotions }
+}
+
 // Which resonances a slot can hold, from the game's own pools: a memory takes a stat on slot 1
 // and one of its construct's skills on slot 2, a weapon takes a class skill.
 function resonanceEntries(templateId, slot) {
@@ -323,9 +439,21 @@ function resonanceEntries(templateId, slot) {
   const row = resonance.rows.find((cells) => Number(cells[idAt]) === templateId)
   if (!row) return []
 
-  const attribPoolId = Number(row[resonance.column('AttribPoolId', slot)] || 0)
-  const skillPoolId = Number(row[resonance.column('CharacterSkillPoolId', slot)] || 0)
-  const weaponPoolId = Number(row[resonance.column('WeaponSkillPoolId', slot)] || 0)
+  // Which pool a slot draws from is the game's rule, not a guess: a memory takes the stat pool on
+  // slot 1 and the construct's skill pool on slot 2, a weapon takes its class skill pool.
+  const equipTable = tableRows('share/equip/Equip.tsv')
+  let site = -1
+  if (equipTable) {
+    const equipIdAt = equipTable.header.indexOf('Id')
+    const siteAt = equipTable.header.indexOf('Site')
+    const template = equipTable.rows.find((cells) => Number(cells[equipIdAt]) === templateId)
+    if (template) site = Number(template[siteAt] || 0)
+  }
+
+  const isWeapon = site === 0
+  const attribPoolId = !isWeapon && slot === 1 ? Number(row[resonance.column('AttribPoolId', slot)] || 0) : 0
+  const skillPoolId = !isWeapon && slot > 1 ? Number(row[resonance.column('CharacterSkillPoolId', slot)] || 0) : 0
+  const weaponPoolId = isWeapon ? Number(row[resonance.column('WeaponSkillPoolId', slot)] || 0) : 0
 
   if (attribPoolId > 0) {
     const attribs = tableRows('share/attrib/AttribPool.tsv')
@@ -537,6 +665,39 @@ function startUiServer() {
         req.on('data', (chunk) => { body += chunk })
         req.on('end', () => {
           fetch('http://127.0.0.1:' + config.sdkPort + '/api/admin/command/' + encodeURIComponent(name), {
+            method: 'POST',
+            headers: { 'X-Admin-Token': token, 'Content-Type': 'application/json' },
+            body: body || '{}',
+          })
+            .then((response) => response.json().then((payload) => sendJson(res, payload, response.status)))
+            .catch((err) => sendJson(res, { ok: false, msg: err.message }, 502))
+        })
+        return
+      }
+
+      if (url.pathname === '/api/panel/tune-catalog') {
+        const catalog = tuneCatalog()
+        return catalog
+          ? sendJson(res, Object.assign({ ok: true }, catalog))
+          : sendJson(res, { ok: false, msg: 'character tables not found' }, 404)
+      }
+
+      if (url.pathname.startsWith('/api/panel/tune-character/')) {
+        const characterId = Number(url.pathname.slice('/api/panel/tune-character/'.length))
+        const detail = tuneCharacter(characterId)
+        return detail
+          ? sendJson(res, Object.assign({ ok: true }, detail))
+          : sendJson(res, { ok: false, msg: 'construct ' + characterId + ' has no table row' }, 404)
+      }
+
+      if (url.pathname === '/api/panel/tune') {
+        const token = readAdminToken()
+        if (!token) return sendJson(res, { ok: false, msg: 'admin token not found - start the server once' }, 404)
+
+        let body = ''
+        req.on('data', (chunk) => { body += chunk })
+        req.on('end', () => {
+          fetch('http://127.0.0.1:' + config.sdkPort + '/api/admin/tune', {
             method: 'POST',
             headers: { 'X-Admin-Token': token, 'Content-Type': 'application/json' },
             body: body || '{}',

@@ -825,117 +825,68 @@
     }
   }
 
-  /* ---------------------------------------------------------------- build */
+  /* ---------------------------------------------------------------- tune */
 
-  /* The builder reads the construct first, then acts on one piece at a time. Every action is the
-   * game's own request (level feed, breakthrough, awaken, resonance, weapon overrun), so a button
-   * here cannot invent a cost or a rule: the server answers with its own code. */
+  const RANK_LABELS = { 1: "B", 2: "A", 3: "S", 4: "SS", 5: "SSS", 6: "SSS+" };
+  const MEMORY_LEVEL_CAP = 45;
+  const WEAPON_LEVEL_CAP = 45;
+
+  function rankText(quality, star, hasStar) {
+    const label = RANK_LABELS[quality] || `Q${quality}`;
+    return quality >= 6 ? label : label + (hasStar ? star : 0);
+  }
+
+  /* The tune flow designs a build from the tables, then writes it in one pass. Nothing in the
+   * catalogue depends on what this account owns, so a construct, memory or weapon the account
+   * never held can still be tuned in. */
   function renderBuild(host) {
-    var state = { info: null, characterId: null, selected: null, filter: "" };
-    var picker = null;
+    const state = { catalog: null, detail: null, characterId: null, identity: null, current: null, template: null };
 
-    var pickerWrap = document.createElement("label");
-    pickerWrap.className = "field";
-    var pickerLabel = document.createElement("span");
+    const card = document.createElement("div");
+    card.className = "build";
+
+    const pickerLabel = document.createElement("span");
     pickerLabel.className = "field__label";
     pickerLabel.textContent = "Construct";
-    pickerWrap.appendChild(pickerLabel);
-    host.appendChild(pickerWrap);
+    host.appendChild(pickerLabel);
 
-    picker = window.SelenaUI.combo(
-      { key: "build", catalog: "characters", placeholder: "Search construct, trade name or ID" },
+    const picker = window.SelenaUI.combo(
+      { key: "construct", catalog: "characters", placeholder: "Search construct, trade name or ID" },
       function () { return catalog("characters"); },
       function () {
-        var pick = picker.value();
-        if (pick) load(pick.id);
+        const pick = picker.value();
+        if (pick) select(pick.id);
       }
     );
-    pickerWrap.appendChild(picker.node);
+    host.appendChild(picker.node);
+    host.appendChild(card);
 
-    var view = document.createElement("div");
-    view.className = "build";
-    host.appendChild(view);
-
-    function entryFor(commandName, args, ok, detail) {
+    function log(name, args, ok, detail) {
       performed += 1;
-      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed,
-        { name: commandName, args: args }, ok, detail);
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, { name, args }, ok, detail);
       $("#consoleMeta").textContent = opusLabel(performed);
       if (ok) window.SelenaAudio.chord(); else window.SelenaAudio.low();
     }
 
-    function act(label, tip, commandName, args) {
-      var button = document.createElement("button");
-      button.type = "button";
-      button.className = "btn btn--quiet";
-      button.textContent = label;
-      button.setAttribute("data-tip", tip);
-      button.addEventListener("click", async function () {
-        button.disabled = true;
-        $("#meter").dataset.state = "running";
-        try {
-          var response = await command(commandName, args);
-          var detail = JSON.stringify((response && response.data) || (response && response.msg) || "OK", null, 2);
-          if (response && response.live === false) detail += "\nstored in the database - the client shows it at its next login";
-          entryFor(commandName, args, true, detail);
-        } catch (err) {
-          entryFor(commandName, args, false, (err && err.message) || "Request failed");
-        } finally {
-          $("#meter").dataset.state = "idle";
-          button.disabled = false;
-          await load(state.characterId);
-        }
-      });
-      return button;
-    }
-
-    function label(text, hint) {
-      var node = document.createElement("span");
-      node.className = "field__label";
-      var name = document.createElement("span");
-      name.className = "build__label-text";
-      name.textContent = text;
-      node.appendChild(name);
-      if (hint) {
-        node.setAttribute("data-tip", hint);
-        var note = document.createElement("span");
-        note.className = "field__hint";
-        note.textContent = hint;
-        node.appendChild(note);
-      }
-      return node;
-    }
-
-    async function load(characterId) {
-      state.characterId = characterId;
-      view.textContent = "";
-      view.appendChild(label("Reading the build…"));
-      try {
-        var response = await command("character", ["info", String(characterId)]);
-        state.info = (response && response.data) || null;
-        if (state.info && state.info.memories && state.info.memories.length > 0) {
-          var stillThere = state.info.memories.some(function (memory) { return memory.equipId === state.selected; });
-          if (!stillThere) state.selected = state.info.memories[0].equipId;
-        } else {
-          state.selected = null;
-        }
-      } catch (err) {
-        state.info = null;
-        render((err && err.message) || "Could not read this construct.");
-        return;
-      }
-      render();
+    function ensureCatalog() {
+      if (state.catalog) return Promise.resolve(state.catalog);
+      return fetch("/api/panel/tune-catalog")
+        .then((response) => {
+          if (!response.ok) throw new Error("the character tables are not readable");
+          return response.json();
+        })
+        .then((payload) => { state.catalog = payload; return payload; });
     }
 
     function rows(entries) {
-      var box = document.createElement("div");
+      const box = document.createElement("div");
       box.className = "build__rows";
-      entries.forEach(function (entry) {
-        var line = document.createElement("div");
+      entries.forEach((entry) => {
+        const line = document.createElement("div");
         line.className = "field__row";
-        var key = document.createElement("span");
+        const key = document.createElement("span");
         key.textContent = entry[0];
-        var value = document.createElement("b");
+        const value = document.createElement("b");
         value.textContent = entry[1];
         line.append(key, value);
         box.appendChild(line);
@@ -943,277 +894,547 @@
       return box;
     }
 
-    function loadResonance(templateId, slot) {
-      return fetch("/api/panel/resonance/" + templateId + "/" + slot)
-        .then(function (response) {
-          return response.ok ? response.json() : { entries: [] };
-        })
-        .then(function (payload) {
-          return {
-            entries: (payload && payload.entries) || [],
-            selectItemId: (payload && payload.selectItemId) || 0
-          };
-        })
-        .catch(function () { return { entries: [], selectItemId: 0 }; });
+    function button(label, tip, handler, primary) {
+      const node = document.createElement("button");
+      node.type = "button";
+      node.className = primary ? "btn" : "btn btn--quiet";
+      node.textContent = label;
+      node.setAttribute("data-tip", tip);
+      node.addEventListener("click", handler);
+      return node;
     }
 
-    function resonanceEditor(equip, slot, characterId, entries, selectItemId) {
-      var wrap = document.createElement("div");
-      wrap.className = "build__resonance";
+    async function select(characterId) {
+      state.characterId = characterId;
+      card.textContent = "";
+      card.appendChild(rows([["Construct", "reading…"]]));
 
-      var select = document.createElement("select");
-      select.className = "input";
-      select.setAttribute("aria-label", "Resonance slot " + slot + " of " + equip.name);
-      entries.forEach(function (entry) {
-        var option = document.createElement("option");
-        option.value = entry.kind + ":" + entry.id;
-        option.textContent = entry.name + (entry.meta ? " — " + entry.meta : "");
-        select.appendChild(option);
-      });
-
-      var resonate = document.createElement("button");
-      resonate.type = "button";
-      resonate.className = "btn btn--quiet";
-      resonate.textContent = "Resonate slot " + slot;
-      if (selectItemId > 0) {
-        resonate.setAttribute("data-tip", "Spend item " + selectItemId + " and store the chosen entry on slot " + slot + ". The server refuses an entry outside the pool or an unowned item.");
-      } else {
-        resonate.disabled = true;
-        resonate.setAttribute("data-tip", "The tables give this equip no resonance item, so the server refuses every slot " + slot + " request. Point it at an equip whose row carries one.");
+      let catalogPayload = null;
+      try {
+        catalogPayload = await ensureCatalog();
+      } catch (error) {
+        card.textContent = "";
+        card.appendChild(rows([["Construct", error.message]]));
+        return;
       }
-      resonate.addEventListener("click", async function () {
-        var value = select.value;
-        if (!value) return;
-        var parts = value.split(":");
-        resonate.disabled = true;
-        $("#meter").dataset.state = "running";
-        try {
-          var response = await command("equip", ["resonate", String(equip.equipId), String(slot), parts[0], parts[1], String(characterId)]);
-          var detail = JSON.stringify((response && response.data) || "OK", null, 2);
-          if (response && response.live === false) detail += "\nstored in the database - the client shows it at its next login";
-          entryFor("equip", ["resonate", String(equip.equipId), String(slot), parts[0], parts[1]], true, detail);
-        } catch (err) {
-          entryFor("equip", ["resonate", String(equip.equipId), String(slot), parts[0], parts[1]], false, (err && err.message) || "Request failed");
-        } finally {
-          resonate.disabled = false;
-          $("#meter").dataset.state = "idle";
-          await load(state.characterId);
-        }
-      });
 
-      wrap.append(
-        label("Slot " + slot, entries.length + (entries.length === 1 ? " entry in this pool" : " entries in this pool")),
-        select,
-        resonate
+      state.identity = catalogPayload.characters.find((character) => character.id === characterId) || null;
+      state.detail = await fetch(`/api/panel/tune-character/${characterId}`)
+        .then((response) => (response.ok ? response.json() : null));
+      state.current = null;
+      try {
+        const info = await command("character", ["info", String(characterId)]);
+        state.current = (info && info.data) || null;
+      } catch (error) {
+        state.current = null;
+      }
+
+      state.template = buildTemplate();
+      paintCard();
+    }
+
+    function baseRankLabel() {
+      const quality = state.identity ? state.identity.baseQuality : 1;
+      const stars = state.detail && state.detail.stars ? state.detail.stars[quality] || 0 : 0;
+      return rankText(quality, 0, stars > 0);
+    }
+
+    function paintCard() {
+      card.textContent = "";
+      const identity = state.identity;
+      const current = state.current;
+      if (!identity) return;
+
+      const name = identity.name + (identity.tradeName ? " · " + identity.tradeName : "");
+      card.appendChild(rows([
+        ["Construct", name],
+        ["Base rank", baseRankLabel()],
+        ["Level", current ? String(current.character.level) : "not in this account"],
+        ["Rank", current
+          ? rankText(current.character.quality, current.character.star, true)
+          : "—"],
+        ["Promotion", current && state.detail
+          ? (state.detail.promotions.find((promotion) => promotion.grade === current.character.grade) || {}).name || String(current.character.grade)
+          : "—"],
+        ["Memories", current ? String((current.memories || []).length) : "—"],
+      ]));
+
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      actions.append(
+        button("Tune", "Open the design surface: level, rank, promotion, the six memories with their resonances, hypertune, weapon and harmony.", openTune, true),
+        button("Max", "Write a complete build: top rank, Hero promotion, max level, memories at max with hypertune, weapon with three resonances and a harmony.", performMax)
       );
+      card.appendChild(actions);
+    }
+
+    function buildTemplate() {
+      const detail = state.detail || { promotions: [], stars: {}, maxLevel: 80 };
+      const baseQuality = state.identity ? state.identity.baseQuality : 1;
+      const promos = detail.promotions.length > 0 ? detail.promotions : [{ grade: 1, name: "Private I" }];
+      const current = state.current;
+      const design = {
+        level: current ? current.character.level : 1,
+        quality: current ? current.character.quality : baseQuality,
+        star: current ? current.character.star : 0,
+        grade: current ? current.character.grade : promos[0].grade,
+        memoryLevel: MEMORY_LEVEL_CAP,
+        hypertune: true,
+        slots: {},
+        weapon: { templateId: 0, level: WEAPON_LEVEL_CAP, harmonyMemoryId: 0 },
+        resonances: {},
+        weaponResonances: [],
+      };
+      for (let slot = 1; slot <= 6; slot += 1) {
+        const held = current && (current.memories || []).find((memory) => memory.site === slot);
+        design.slots[slot] = held ? held.templateId : 0;
+        design.resonances[slot] = { top: 0, bottom: 0 };
+      }
+      const weapon = current && (current.weapons || [])[0];
+      design.weapon.templateId = weapon ? weapon.templateId : 0;
+      design.weapon.harmonyMemoryId = design.slots[1] || 0;
+      return {
+        levels: { min: 1, max: Math.max(1, detail.maxLevel || 80) },
+        promotions: promos,
+        stars: detail.stars || {},
+        baseQuality,
+        design,
+      };
+    }
+
+    function rankSteps() {
+      const steps = [];
+      const stars = state.template.stars;
+      for (let quality = state.template.baseQuality; quality <= 6; quality += 1) {
+        const count = quality >= 6 ? 1 : Math.max(1, stars[quality] || 0);
+        for (let star = 0; star < count; star += 1) {
+          steps.push({ quality, star, label: rankText(quality, star, count > 1) });
+        }
+      }
+      return steps;
+    }
+
+    function memoryOptions(site) {
+      return (state.catalog.memories || [])
+        .filter((memory) => memory.site === site)
+        .sort((left, right) => String(left.name).localeCompare(String(right.name)));
+    }
+
+    function fillSelect(select, options, value) {
+      select.textContent = "";
+      options.forEach((option) => {
+        const node = document.createElement("option");
+        node.value = String(option.value);
+        node.textContent = option.label;
+        select.appendChild(node);
+      });
+      select.value = String(value || (options[0] ? options[0].value : ""));
+    }
+
+    function slider(labelText, min, max, value, format, onChange) {
+      const wrap = document.createElement("div");
+      wrap.className = "tune__slider";
+      const label = document.createElement("span");
+      label.className = "tune__label";
+      label.textContent = labelText;
+      const range = document.createElement("input");
+      range.type = "range";
+      range.min = String(min);
+      range.max = String(max);
+      range.step = "1";
+      range.value = String(value);
+      range.setAttribute("data-tip", labelText + " — drag to set, the value is written on Perform.");
+      const output = document.createElement("output");
+      output.textContent = format(value);
+      range.addEventListener("input", function () {
+        output.textContent = format(Number(range.value));
+        onChange(Number(range.value));
+      });
+      wrap.append(label, range, output);
       return wrap;
     }
 
-    async function render(problem) {
-      view.textContent = "";
+    function openTune() {
+      const modal = $("#tuneModal");
+      const body = $("#tuneBody");
+      $("#tuneTitle").textContent = "Tune · " + state.identity.name;
+      body.textContent = "";
 
-      if (problem) {
-        var error = document.createElement("p");
-        error.className = "hint-block";
-        error.textContent = problem;
-        view.appendChild(error);
-        return;
-      }
+      const design = state.template.design;
+      state.modalDesign = design;
 
-      if (!state.info) {
-        var empty = document.createElement("p");
-        empty.className = "hint-block";
-        empty.textContent = "Pick a construct to read its build: progression, the six memories, and the equipped weapon.";
-        view.appendChild(empty);
-        return;
-      }
+      // progression
+      const progression = document.createElement("section");
+      progression.className = "tune";
+      const progressionHead = document.createElement("div");
+      progressionHead.className = "tune__head";
+      const progressionLabel = document.createElement("span");
+      progressionLabel.className = "tune__label";
+      progressionLabel.textContent = "Progression";
+      const progressionValue = document.createElement("span");
+      progressionValue.className = "tune__value";
+      progressionHead.append(progressionLabel, progressionValue);
+      progression.appendChild(progressionHead);
 
-      var character = state.info.character;
-      var next = state.info.next || {};
-      view.appendChild(rows([
-        ["Construct", character.name + (character.tradeName ? " · " + character.tradeName : "")],
-        ["Level", String(character.level)],
-        ["Rank", "quality " + character.quality + " · star " + character.star],
-        ["Shards", character.shards + " · item " + character.shardItemId],
-        ["Next step", next.kind === "none" ? (next.reason || "nothing left") : next.kind + " · " + next.cost + " × " + next.itemName + " (have " + next.have + ")"],
-      ]));
+      const steps = rankSteps();
+      let rankIndex = steps.findIndex((step) => step.quality === design.quality && step.star === design.star);
+      if (rankIndex < 0) rankIndex = 0;
+      let promotionIndex = Math.max(0, state.template.promotions.findIndex((promotion) => promotion.grade === design.grade));
 
-      var rankRow = document.createElement("div");
-      rankRow.className = "actions";
-      rankRow.append(
-        act("Star +1", "Spend the shard ladder for one star step.", "character", ["rank", String(character.id), "star"]),
-        act("Quality +1", "Promote one rank with cogs. Refused while the shard ladder is unspent, because the reset would waste it.", "character", ["rank", String(character.id), "quality"]),
-        act("Rank to max", "Walk as far as the shards and cogs allow, stopping at the first shortfall.", "character", ["rank", String(character.id), "max"])
-      );
-      view.appendChild(rankRow);
+      const paintProgression = function () {
+        progressionValue.textContent = steps[rankIndex].label
+          + " · " + state.template.promotions[promotionIndex].name
+          + " · Lv " + design.level;
+      };
 
-      var memories = state.info.memories || [];
-      var worn = memories.filter(function (memory) { return memory.equippedTo === character.id; }).length;
-      view.appendChild(label(
-        "Memories (" + memories.length + (worn > 0 ? " · " + worn + " worn" : "") + ")",
-        "filter by name or slot; a worn memory is the one this construct actually carries"
-      ));
+      progression.appendChild(slider("Level", 1, state.template.levels.max, design.level, (value) => "Lv " + value, (value) => { design.level = value; paintProgression(); }));
+      progression.appendChild(slider("Rank", 0, steps.length - 1, rankIndex, (value) => steps[value].label, (value) => {
+        rankIndex = value;
+        design.quality = steps[value].quality;
+        design.star = steps[value].star;
+        paintProgression();
+      }));
+      progression.appendChild(slider("Promotion", 0, state.template.promotions.length - 1, promotionIndex, (value) => state.template.promotions[value].name, (value) => {
+        promotionIndex = value;
+        design.grade = state.template.promotions[value].grade;
+        paintProgression();
+      }));
+      paintProgression();
+      body.appendChild(progression);
 
-      if (memories.length === 0) {
-        var none = document.createElement("p");
-        none.className = "hint-block";
-        none.textContent = "This account holds no memories. Grant a set from the Memories tab first.";
-        view.appendChild(none);
-      } else {
-        // The pile can be hundreds of rows, so the table shows a filtered window instead of a wall.
-        var filter = document.createElement("input");
-        filter.className = "input";
-        filter.type = "search";
-        filter.placeholder = "Filter by name, slot, level or worn";
-        filter.value = state.filter || "";
-        view.appendChild(filter);
+      // memories: one cell per grid slot, each carrying that slot's catalogue
+      const memories = document.createElement("section");
+      memories.className = "tune";
+      const memoryHead = document.createElement("div");
+      memoryHead.className = "tune__head";
+      const memoryLabel = document.createElement("span");
+      memoryLabel.className = "tune__label";
+      memoryLabel.textContent = "Memory slots";
+      const memoryValue = document.createElement("span");
+      memoryValue.className = "tune__value";
+      memoryValue.textContent = "one memory per slot";
+      memoryHead.append(memoryLabel, memoryValue);
+      memories.appendChild(memoryHead);
 
-        var table = document.createElement("table");
-        table.className = "table table--pick";
-        var head = document.createElement("thead");
-        var headRow = document.createElement("tr");
-        ["Slot", "Memory", "Level", "Awaken", "Resonance", "Owned"].forEach(function (name) {
-          var cell = document.createElement("th");
-          cell.textContent = name;
-          headRow.appendChild(cell);
+      const memoryGrid = document.createElement("div");
+      memoryGrid.className = "tune__grid";
+      const selects = {};
+      for (let slot = 1; slot <= 6; slot += 1) {
+        const cell = document.createElement("div");
+        cell.className = "tune__cell";
+        const slotLabel = document.createElement("span");
+        slotLabel.className = "tune__slot";
+        slotLabel.textContent = "Slot " + slot;
+        const select = document.createElement("select");
+        select.className = "input";
+        select.setAttribute("data-tip", "Memory for slot " + slot + ". The list holds every memory the tables put in this slot.");
+        const options = [{ value: 0, label: "— empty —" }].concat(memoryOptions(slot).map((memory) => ({ value: memory.id, label: memory.name + " · " + memory.star + "★" })));
+        fillSelect(select, options, design.slots[slot]);
+        select.addEventListener("change", function () {
+          design.slots[slot] = Number(select.value);
+          design.resonances[slot] = { top: 0, bottom: 0 };
+          if (design.harmonyMemoryId === 0) design.harmonyMemoryId = Number(select.value);
+          cell.classList.toggle("is-empty", Number(select.value) === 0);
+          paintResonances();
         });
-        head.appendChild(headRow);
-        table.appendChild(head);
+        cell.classList.toggle("is-empty", design.slots[slot] === 0);
+        cell.append(slotLabel, select);
+        memoryGrid.appendChild(cell);
+        selects[slot] = select;
+      }
+      memories.appendChild(memoryGrid);
+      body.appendChild(memories);
 
-        var body = document.createElement("tbody");
-        table.appendChild(body);
+      // resonance: two picks per memory, stat on top and the construct's skill below
+      const resonanceSection = document.createElement("section");
+      resonanceSection.className = "tune";
+      const resonanceHead = document.createElement("div");
+      resonanceHead.className = "tune__head";
+      const resonanceLabel = document.createElement("span");
+      resonanceLabel.className = "tune__label";
+      resonanceLabel.textContent = "Memory resonance";
+      const resonanceValue = document.createElement("span");
+      resonanceValue.className = "tune__value";
+      resonanceValue.textContent = "top: stat · bottom: skill";
+      resonanceHead.append(resonanceLabel, resonanceValue);
+      resonanceSection.appendChild(resonanceHead);
+      const resonanceGrid = document.createElement("div");
+      resonanceGrid.className = "tune__grid";
+      resonanceSection.appendChild(resonanceGrid);
+      body.appendChild(resonanceSection);
 
-        var note = document.createElement("p");
-        note.className = "build__note";
+      let paintResonances = function () {
+        resonanceGrid.textContent = "";
+        for (let slot = 1; slot <= 6; slot += 1) {
+          const cell = document.createElement("div");
+          cell.className = "tune__cell";
+          const slotLabel = document.createElement("span");
+          slotLabel.className = "tune__slot";
+          slotLabel.textContent = "Slot " + slot;
+          cell.appendChild(slotLabel);
 
-        var paint = function () {
-          var needle = (state.filter || "").trim().toLowerCase();
-          var matches = memories.filter(function (memory) {
-            if (!needle) return true;
-            var owned = memory.equippedTo === character.id ? "worn" : "spare";
-            return (memory.name + " " + memory.site + " " + memory.level + " " + owned).toLowerCase().indexOf(needle) >= 0;
-          });
-          var shown = matches.slice(0, 40);
-          body.textContent = "";
-          shown.forEach(function (memory) {
-            var isWorn = memory.equippedTo === character.id;
-            var row = document.createElement("tr");
-            if (memory.equipId === state.selected) row.className = "is-selected";
-            row.setAttribute("data-tip", (isWorn ? "Worn by " + character.name + ". " : "Spare in this account. ") + "Click to edit it.");
-            row.addEventListener("click", function () {
-              state.selected = memory.equipId;
-              render();
-            });
-            [
-              String(memory.site),
-              memory.name,
-              memory.level + (memory.breakthrough > 0 ? " · bt " + memory.breakthrough : ""),
-              (memory.awakeSlots || []).length === 0 ? "none" : (memory.awakeSlots || []).join(", "),
-              (memory.resonance || []).length === 0 ? "none" : (memory.resonance || []).map(function (entry) { return entry.slot + ":" + entry.templateId; }).join("  "),
-              isWorn ? "worn" : "spare",
-            ].forEach(function (value, index) {
-              var cell = document.createElement("td");
-              cell.textContent = value;
-              if ((index > 1 && value === "none") || value === "spare") cell.className = "dim";
-              row.appendChild(cell);
-            });
-            body.appendChild(row);
-          });
-          note.textContent = matches.length > shown.length
-            ? "showing " + shown.length + " of " + matches.length + " — narrow the filter"
-            : matches.length + (matches.length === 1 ? " memory" : " memories");
-        };
+          const templateId = design.slots[slot];
+          if (!templateId) {
+            const empty = document.createElement("span");
+            empty.className = "tune__pick";
+            empty.textContent = "no memory";
+            cell.appendChild(empty);
+            resonanceGrid.appendChild(cell);
+            continue;
+          }
 
-        filter.addEventListener("input", function () {
-          state.filter = filter.value;
-          paint();
-        });
-        paint();
-        var scroll = document.createElement("div");
-        scroll.className = "build__scroll";
-        scroll.appendChild(table);
-        view.appendChild(scroll);
-        view.appendChild(note);
+          const top = document.createElement("select");
+          top.className = "input";
+          top.setAttribute("data-tip", "Resonance slot 1 of this memory: the stat pool the tables give it.");
+          const bottom = document.createElement("select");
+          bottom.className = "input";
+          bottom.setAttribute("data-tip", "Resonance slot 2 of this memory: the construct's own skill pool.");
+          fillSelect(top, [{ value: 0, label: "stat — none —" }], design.resonances[slot].top);
+          fillSelect(bottom, [{ value: 0, label: "skill — none —" }], design.resonances[slot].bottom);
 
-        var selected = memories.filter(function (memory) { return memory.equipId === state.selected; })[0];
-        if (selected) {
-          view.appendChild(label("Editing " + selected.name + " · slot " + selected.site));
-
-          var filled = {};
-          (selected.resonance || []).forEach(function (entry) { filled[entry.slot] = true; });
-          var awakeTip = function (slot) {
-            return filled[slot]
-              ? "Awaken resonance slot " + slot + ": needs the memory at its last breakthrough and the recipe items."
-              : "Slot " + slot + " holds no resonance yet, so there is nothing to awaken. Resonate it first.";
+          const load = (slotNumber, select, key) => {
+            fetch(`/api/panel/resonance/${templateId}/${slotNumber}`)
+              .then((response) => (response.ok ? response.json() : { entries: [] }))
+              .then((payload) => {
+                const entries = (payload && payload.entries) || [];
+                const label = key === "top" ? "stat — none —" : "skill — none —";
+                fillSelect(select, [{ value: 0, label }].concat(entries.map((entry) => ({
+                  value: entry.id,
+                  label: entry.name + (entry.meta ? " · " + entry.meta : ""),
+                }))), design.resonances[slot][key]);
+              })
+              .catch(() => {});
           };
+          load(1, top, "top");
+          load(2, bottom, "bottom");
 
-          var actions = document.createElement("div");
-          actions.className = "actions";
-          var awakeOne = act("Awaken 1", awakeTip(1), "equip", ["awake", String(selected.equipId), "1", "1"]);
-          var awakeTwo = act("Awaken 2", awakeTip(2), "equip", ["awake", String(selected.equipId), "2", "1"]);
-          if (!filled[1]) awakeOne.disabled = true;
-          if (!filled[2]) awakeTwo.disabled = true;
-          actions.append(
-            act("Feed to cap", "Feed the material you already hold until this breakthrough's level limit. The exp curve and the coin cost are the game's.", "equip", ["feed", String(selected.equipId)]),
-            act("Breakthrough", "Spend the breakthrough material for the next step.", "equip", ["break", String(selected.equipId)]),
-            awakeOne,
-            awakeTwo
-          );
-          view.appendChild(actions);
+          top.addEventListener("change", function () { design.resonances[slot].top = Number(top.value); });
+          bottom.addEventListener("change", function () { design.resonances[slot].bottom = Number(bottom.value); });
+          cell.append(top, bottom);
+          resonanceGrid.appendChild(cell);
+        }
+      };
+      paintResonances();
 
-          var resonanceHost = document.createElement("div");
-          resonanceHost.className = "build__resonances";
-          view.appendChild(resonanceHost);
-          Promise.all([1, 2].map(function (slot) {
-            return loadResonance(selected.templateId, slot).then(function (pool) { return { slot: slot, pool: pool }; });
-          })).then(function (pairs) {
-            var usable = pairs.filter(function (pair) { return pair.pool.entries.length > 0; });
-            if (usable.length === 0) {
-              var nothing = document.createElement("p");
-              nothing.className = "build__note";
-              nothing.textContent = "The tables ship no resonance pool for this memory, so its awaken slots cannot be filled.";
-              resonanceHost.appendChild(nothing);
-              return;
-            }
-            usable.forEach(function (pair) {
-              resonanceHost.appendChild(resonanceEditor(selected, pair.slot, character.id, pair.pool.entries, pair.pool.selectItemId));
-            });
-          });
+      // hypertune
+      const hypertune = document.createElement("label");
+      hypertune.className = "tune__toggle";
+      hypertune.setAttribute("data-tip", "Hypertune every memory: both resonance slots of all six count as awakened.");
+      const hypertuneInput = document.createElement("input");
+      hypertuneInput.type = "checkbox";
+      hypertuneInput.checked = design.hypertune;
+      hypertuneInput.addEventListener("change", function () { design.hypertune = hypertuneInput.checked; });
+      const hypertuneText = document.createElement("span");
+      hypertuneText.textContent = "Hypertune all six memories";
+      hypertune.append(hypertuneInput, hypertuneText);
+      body.appendChild(hypertune);
+
+      // weapon, its three resonances and its harmony
+      const weaponSection = document.createElement("section");
+      weaponSection.className = "tune";
+      const weaponHead = document.createElement("div");
+      weaponHead.className = "tune__head";
+      const weaponLabel = document.createElement("span");
+      weaponLabel.className = "tune__label";
+      weaponLabel.textContent = "Weapon";
+      weaponHead.appendChild(weaponLabel);
+      weaponSection.appendChild(weaponHead);
+
+      const weaponSelect = document.createElement("select");
+      weaponSelect.className = "input";
+      weaponSelect.setAttribute("data-tip", "Weapon this construct carries.");
+      fillSelect(weaponSelect, [{ value: 0, label: "— empty —" }].concat((state.catalog.weapons || [])
+        .sort((left, right) => String(left.name).localeCompare(String(right.name)))
+        .map((weapon) => ({ value: weapon.id, label: weapon.name + " · " + weapon.star + "★" }))), design.weapon.templateId);
+      weaponSection.appendChild(weaponSelect);
+      weaponSection.appendChild(slider("Weapon level", 1, WEAPON_LEVEL_CAP, design.weapon.level, (value) => "Lv " + value, (value) => { design.weapon.level = value; }));
+
+      weaponSelect.addEventListener("change", function () {
+        design.weapon.templateId = Number(weaponSelect.value);
+        design.weaponResonances = [];
+        paintWeaponResonances();
+      });
+
+      const weaponGrid = document.createElement("div");
+      weaponGrid.className = "tune__grid";
+      weaponSection.appendChild(weaponGrid);
+      body.appendChild(weaponSection);
+
+      function paintWeaponResonances() {
+        weaponGrid.textContent = "";
+        const templateId = design.weapon.templateId;
+        for (let slot = 1; slot <= 3; slot += 1) {
+          const cell = document.createElement("div");
+          cell.className = "tune__cell";
+          const slotLabel = document.createElement("span");
+          slotLabel.className = "tune__slot";
+          slotLabel.textContent = "Resonance " + slot;
+          const select = document.createElement("select");
+          select.className = "input";
+          select.setAttribute("data-tip", `Weapon resonance ${slot}: the class skill pool the tables give this weapon.`);
+          cell.append(slotLabel, select);
+          if (!templateId) {
+            select.disabled = true;
+            fillSelect(select, [{ value: 0, label: "no weapon" }], 0);
+          } else {
+            fetch(`/api/panel/resonance/${templateId}/${slot}`)
+              .then((response) => (response.ok ? response.json() : { entries: [] }))
+              .then((payload) => {
+                const entries = (payload && payload.entries) || [];
+                fillSelect(select, [{ value: 0, label: "— none —" }].concat(entries.map((entry) => ({
+                  value: entry.id,
+                  label: entry.name + (entry.meta ? " · " + entry.meta : ""),
+                }))), design.weaponResonances[slot - 1] || 0);
+              })
+              .catch(() => {});
+            select.addEventListener("change", function () { design.weaponResonances[slot - 1] = Number(select.value); });
+          }
+          weaponGrid.appendChild(cell);
         }
       }
+      paintWeaponResonances();
 
-      var weapons = state.info.weapons || [];
-      if (weapons.length > 0) {
-        var weapon = weapons[0];
-        view.appendChild(label("Weapon", "one weapon at a time; overrun nodes are class-specific"));
-        view.appendChild(rows([
-          ["Weapon", weapon.name + " · " + weapon.star + "★"],
-          ["Overrun", "level " + weapon.overrunLevel + (weapon.overrunChoseSuit ? " · suit " + weapon.overrunChoseSuit : "")],
-        ]));
+      // harmony borrows a memory set
+      const harmony = document.createElement("section");
+      harmony.className = "tune";
+      const harmonyHead = document.createElement("div");
+      harmonyHead.className = "tune__head";
+      const harmonyLabel = document.createElement("span");
+      harmonyLabel.className = "tune__label";
+      harmonyLabel.textContent = "Harmony";
+      harmonyHead.appendChild(harmonyLabel);
+      harmony.appendChild(harmonyHead);
+      const harmonySelect = document.createElement("select");
+      harmonySelect.className = "input";
+      harmonySelect.setAttribute("data-tip", "Harmony takes the set of the memory you name, so the weapon counts as a piece of that set.");
+      const harmonyOptions = [{ value: 0, label: "— none —" }].concat((state.catalog.memories || [])
+        .slice()
+        .sort((left, right) => String(left.name).localeCompare(String(right.name)))
+        .map((memory) => ({ value: memory.id, label: memory.name + " · slot " + memory.site })));
+      fillSelect(harmonySelect, harmonyOptions, design.weapon.harmonyMemoryId);
+      harmonySelect.addEventListener("change", function () { design.weapon.harmonyMemoryId = Number(harmonySelect.value); });
+      harmony.appendChild(harmonySelect);
+      body.appendChild(harmony);
 
-        var weaponActions = document.createElement("div");
-        weaponActions.className = "actions";
-        weaponActions.append(
-          act("Overrun +1", "Raise the weapon's overrun one node, spending its chips and the active-suit item.", "equip", ["overrun", String(weapon.equipId), "1"])
-        );
-        view.appendChild(weaponActions);
-
-        loadResonance(weapon.templateId, 1).then(function (pool) {
-          if (pool.entries.length === 0) {
-            var nothing = document.createElement("p");
-            nothing.className = "build__note";
-            nothing.textContent = "The tables ship no weapon skill pool for this weapon.";
-            view.appendChild(nothing);
-            return;
-          }
-          view.appendChild(resonanceEditor(weapon, 1, character.id, pool.entries, pool.selectItemId));
-        });
-      }
-
+      $("#tuneNote").textContent = "Nothing is spent from the account; Perform writes the build.";
+      modal.hidden = false;
       window.SelenaUI.initTooltips();
     }
 
-    render();
+    function payload(design) {
+      const memories = [];
+      for (let slot = 1; slot <= 6; slot += 1) {
+        const templateId = design.slots[slot];
+        if (!templateId) continue;
+        const entry = { Slot: slot, TemplateId: templateId };
+        if (design.resonances[slot].top) entry.Top = { Slot: 1, Type: "attrib", TemplateId: design.resonances[slot].top };
+        if (design.resonances[slot].bottom) entry.Bottom = { Slot: 2, Type: "skill", TemplateId: design.resonances[slot].bottom };
+        memories.push(entry);
+      }
+      const body = {
+        Uid: Number($("#accountSelect").value),
+        CharacterId: state.characterId,
+        Character: { Level: design.level, Quality: design.quality, Star: design.star, Grade: design.grade },
+        MemoryLevel: design.memoryLevel,
+        Hypertune: design.hypertune,
+        Memories: memories,
+      };
+      if (design.weapon.templateId) {
+        body.Weapon = {
+          TemplateId: design.weapon.templateId,
+          Level: design.weapon.level,
+          Resonance: (design.weaponResonances || []).map((templateId, index) => (templateId
+            ? { Slot: index + 1, Type: "weapon", TemplateId: templateId }
+            : null)).filter(Boolean),
+          HarmonyMemoryId: design.weapon.harmonyMemoryId || 0,
+        };
+      }
+      return body;
+    }
+
+    async function write(body, label) {
+      const note = $("#tuneNote");
+      note.textContent = "writing…";
+      try {
+        const response = await fetch("/api/panel/tune", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const payload = await response.json();
+        if (!response.ok || payload.ok === false) throw new Error(payload.msg || "the tune was refused");
+        const report = payload.data || {};
+        note.textContent = `wrote ${label}${payload.live === false ? " · stored in the database, the client shows it at its next login" : ""}`;
+        log("tune", ["character", String(state.characterId)], true, JSON.stringify(report, null, 2));
+        $("#tuneModal").hidden = true;
+        await select(state.characterId);
+      } catch (error) {
+        note.textContent = error.message;
+        log("tune", ["character", String(state.characterId)], false, error.message);
+      } finally {
+        window.SelenaUI.initTooltips();
+      }
+    }
+
+    function performMax() {
+      const design = JSON.parse(JSON.stringify(state.template.design));
+      design.level = state.template.levels.max;
+      design.quality = 6;
+      design.star = 0;
+      design.grade = state.template.promotions[state.template.promotions.length - 1].grade;
+      design.memoryLevel = MEMORY_LEVEL_CAP;
+      design.hypertune = true;
+      design.weapon.level = WEAPON_LEVEL_CAP;
+
+      // a maxed build still needs pieces named: take the first memory the tables give each slot
+      for (let slot = 1; slot <= 6; slot += 1) {
+        if (!design.slots[slot]) {
+          const options = memoryOptions(slot);
+          if (options.length > 0) design.slots[slot] = options[0].id;
+        }
+      }
+      if (!design.weapon.templateId && state.catalog.weapons && state.catalog.weapons.length > 0) {
+        design.weapon.templateId = state.catalog.weapons[0].id;
+      }
+      if (!design.weapon.harmonyMemoryId) design.weapon.harmonyMemoryId = design.slots[1] || 0;
+
+      const fill = [];
+      for (let slot = 1; slot <= 6; slot += 1) {
+        const templateId = design.slots[slot];
+        if (!templateId) continue;
+        fill.push(fetch(`/api/panel/resonance/${templateId}/1`).then((response) => (response.ok ? response.json() : null))
+          .then((payload) => { if (payload && payload.entries[0]) design.resonances[slot].top = payload.entries[0].id; }).catch(() => {}));
+        fill.push(fetch(`/api/panel/resonance/${templateId}/2`).then((response) => (response.ok ? response.json() : null))
+          .then((payload) => { if (payload && payload.entries[0]) design.resonances[slot].bottom = payload.entries[0].id; }).catch(() => {}));
+      }
+      if (design.weapon.templateId) {
+        for (let slot = 1; slot <= 3; slot += 1) {
+          fill.push(fetch(`/api/panel/resonance/${design.weapon.templateId}/${slot}`)
+            .then((response) => (response.ok ? response.json() : null))
+            .then((payload) => { if (payload && payload.entries[0]) design.weaponResonances[slot - 1] = payload.entries[0].id; })
+            .catch(() => {}));
+        }
+      }
+
+      Promise.all(fill).then(() => write(payload(design), "a maxed build"));
+    }
+
+    $("#tunePerform").addEventListener("click", function () {
+      // the modal keeps its own design object on the element so Perform reads what the sliders show
+      const design = state.modalDesign;
+      if (!design) return;
+      write(payload(design), "the designed build");
+    });
+
+    document.querySelectorAll("[data-close='tune']").forEach((node) => {
+      node.addEventListener("click", function () { $("#tuneModal").hidden = true; });
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && !$("#tuneModal").hidden) $("#tuneModal").hidden = true;
+    });
+
+    // the section renders the empty state until a construct is picked
+    card.appendChild(rows([["Construct", "pick one to see its build"]]));
   }
 
   /* ---------------------------------------------------------------- tutti */

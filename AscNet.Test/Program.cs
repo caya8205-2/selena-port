@@ -91,6 +91,11 @@ namespace AscNet.Test
                     ValidateCharacterBuilderCompatibility();
                     return;
                 }
+                if (args.Contains("--tune-builder-only"))
+                {
+                    ValidateTuneBuilder();
+                    return;
+                }
                 if (args.Contains("--equip-builder-only"))
                 {
                     ValidateEquipBuilderCompatibility();

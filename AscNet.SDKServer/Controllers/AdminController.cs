@@ -189,6 +189,26 @@ namespace AscNet.SDKServer.Controllers
 
                 return Json(new { ok = true, msg = "OK", data = command.Payload, live });
             });
+
+            app.MapPost("/api/admin/tune", (HttpContext ctx, [FromBody] AscNet.GameServer.TuneRequest request) =>
+            {
+                if (!Authorised(ctx)) return Unauthorised(ctx);
+
+                AscNet.GameServer.TuneReport report;
+                bool live;
+                try
+                {
+                    AscNet.GameServer.AdminSession.Handle handle = AscNet.GameServer.AdminSession.Open(request.Uid);
+                    live = handle.Live;
+                    report = AscNet.GameServer.TuneBuilder.Apply(handle.Session, request);
+                }
+                catch (Exception ex)
+                {
+                    return Json(new { ok = false, msg = ex.InnerException?.Message ?? ex.Message }, 400);
+                }
+
+                return Json(new { ok = true, msg = "OK", data = report, live });
+            });
         }
 
         private static Account? Find(long uid) =>
