@@ -16,30 +16,45 @@ panel instead of the in-game menu: cleaning a full inventory, filling a dorm
 blueprint gap, and moving guild resources. Leaving the cards in the UI without a
 backend would be a dead control, so they are labelled *stage B* until they exist.
 
-## B1 - Inventory cleanup  (highest value, lowest risk)
-
-Self-contained, single account, no cross-player state.
+## B1 - Inventory cleanup  (implemented)
 
 ```
-cleanup preview <memories|weapons|partners|items> <maxStar 3..6> [itemId] [includeDeveloped 0|1]
-cleanup apply   <same arguments as preview> confirm=<token from preview>
+cleanup preview <weapons|memories> <maxStar 1..6> [includeDeveloped 0|1]
+cleanup apply   <same args> confirm=<token>
 ```
 
-Rules to implement, mirroring the CN panel's semantics:
+Implemented in `AscNet.GameServer/Commands/CleanupCommand.cs`, with the panel
+flow in the player page (Maintenance -> Cleanup).
 
-- keep anything equipped, locked, referenced by a team preset, or part of a
-  Memory set; keep invested items unless `includeDeveloped=1`
-- items are deleted outright, no material refund
-- `preview` returns `{ eligible, items, quantity, sample }`; `apply` requires the
-  preview token so the confirmed set is the one that was shown
-- reject while the player is offline (existing session check already does this)
+What changed against the first draft, and why:
 
-Panel side: Preview -> review -> typed confirmation ("CONFIRM CLEANUP") ->
-Perform. No new HTTP endpoint; the existing command route carries it.
+- **Weapons and memories only.** An inventory item (`session.inventory.Items`)
+  has no in-use signal at all, so a bulk delete there could reach a currency or a
+  quest ticket. Partners keep their star on the instance, not on a template
+  column, so "up to N stars" has no honest meaning for them. Both categories are
+  refused by the argument regex rather than failing later.
+- **Star range is 1..6.** The Equip table has Star 1 and 2 entries; a 3..6 bound
+  would have left those in the bag forever.
+- **Eligibility is the game's own decompose gate**: not equipped
+  (`CharacterId == 0`), not locked, not recycling, not in a team preset, not in a
+  chip group, no confirmed or unconfirmed resonance, no pending resonance. With
+  `includeDeveloped=0` it also requires level/exp/breakthrough/awaken/overrun to
+  be untouched.
+- **The token is derived, not stored**: a hash over the sorted candidate ids,
+  the player id and the settings. A restart cannot invalidate a preview the user
+  is looking at, and a changed set invalidates it by itself.
+- **Apply runs under `Session.GetPlayerOperationLock`**, recomputes the candidate
+  set, and refuses when the token no longer matches, so the confirmed set is the
+  set that was shown. Deletions go through `NotifyEquipDataList.DeletedEquipIdList`
+  and `SaveChecked()`, because a removal without the push leaves stale rows in the
+  client until relog.
 
-**Open questions:** does the inventory model expose a stable "invested/leveled"
-flag per item, and is the team-preset reference list reachable from the session
-object? Both need a read pass over `AscNet.GameServer/Handlers` before coding.
+### Command payload channel
+
+`Command.Execute()` returns `void` and the SDK route answered a literal
+`{ msg: "OK" }`, so no command could return counts. The fork now adds
+`Command.Payload` (virtual, null by default) and the controller answers
+`{ msg, data }`. Commands that only have something to say are unaffected.
 
 ## B2 - Guild resources  (medium risk)
 
@@ -59,6 +74,20 @@ guild levelup
 Panel side: the guild card returns, with the permission matrix shown as disabled
 options rather than hidden ones, so the reason is visible.
 
+## B2b - Per-coating unlock  (implemented)
+
+`coating unlock <characterId>` takes an optional third argument,
+`coating unlock <characterId> <coatingId>`, validated against
+`FashionTable.CharacterId` (the coating must belong to that construct) and
+`Character.IsOwnableCharacter`. Granting a coating onto a construct the account
+does not own is invisible in the game, so it is refused rather than written.
+
+The panel reads coatings from `share/fashion/Fashion.tsv` through
+`/api/panel/coatings/{characterId}` (Id, Name, Quality tier), and the GM Coatings
+section is a two-step gallery: construct, then its coatings. "Unlock every
+coating" for that construct stays one press. The player page still unlocks the
+whole wardrobe for one construct; mirroring the two-step there is the next step.
+
 ## B3 - Dorm blueprint shortfall  (highest risk, spike first)
 
 ```
@@ -72,7 +101,7 @@ dorm blueprints buy   <roomId> <templateId> confirm=<quote token>
 - requires the dorm/furniture tables; coverage is unknown, so this starts with a
   spike that reads the tables and reports what is missing before any UI work
 
-## B0 - Online status probe  (no upstream change)
+## B0 - Online status probe  (no upstream change)  [implemented]
 
 The panel cannot see AscNet's live sessions from a separate process, and there is
 no status endpoint today. A cheap, honest probe:

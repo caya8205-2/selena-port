@@ -107,6 +107,13 @@
     return (data && data.data) || [];
   }
 
+  /* Coatings of one character come from a dedicated read-only route: the list
+   * depends on the character, so it cannot be a flat catalog. */
+  async function coatings(characterId) {
+    var data = await request("/api/panel/coatings/" + encodeURIComponent(characterId), { auth: false });
+    return (data && data.entries) || [];
+  }
+
   async function command(name, args) {
     if (!account()) throw new Error("Log in first");
     return request("/api/AscNet/command/" + encodeURIComponent(name), {
@@ -196,6 +203,7 @@
     catalog: catalog,
     commands: commands,
     command: command,
+    coatings: coatings,
     status: status
   };
 })();

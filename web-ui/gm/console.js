@@ -38,9 +38,7 @@
     coatings: {
       title: "Coatings",
       command: "coating",
-      fields: [{ key: "owner", type: "grid", catalog: "characters", label: "Owner", placeholder: "Search construct, trade name or ID", required: true, hint: "unlocks every coating of that character" }],
-      build: function (v) { return ["unlock", v.owner.id]; },
-      allArgs: function () { return ["unlock", "all"]; }
+      custom: "coatings"
     },
     scenes: {
       title: "Scenes",
@@ -216,6 +214,124 @@
 
   /* ---------------------------------------------------------------- sections */
 
+
+  /* ---------------------------------------------------------------- coatings */
+
+  /* Two dependent pickers: the construct, then the coatings that belong to that
+   * construct (read from the fashion table per character). Unlocking one coating
+   * sends "coating unlock <characterId> <coatingId>"; the per-character bulk stays
+   * available for when the whole wardrobe is wanted. */
+  function renderCoatings(host) {
+    var owner = null;
+    var coating = null;
+    var ownerGrid;
+    var coatingHost = document.createElement("div");
+    coatingHost.className = "field";
+
+    var coatingLabel = document.createElement("span");
+    coatingLabel.className = "field__label";
+    coatingLabel.innerHTML = 'Coating<span class="field__hint">every coating of this construct</span>';
+    coatingHost.appendChild(coatingLabel);
+
+    var coatingBody = document.createElement("div");
+    coatingHost.appendChild(coatingBody);
+
+    var actions = document.createElement("div");
+    actions.className = "cleanup__actions";
+
+    var unlockBtn = document.createElement("button");
+    unlockBtn.type = "button";
+    unlockBtn.className = "btn btn--primary";
+    unlockBtn.textContent = "Unlock coating";
+    unlockBtn.disabled = true;
+
+    var unlockAllBtn = document.createElement("button");
+    unlockAllBtn.type = "button";
+    unlockAllBtn.className = "btn btn--quiet";
+    unlockAllBtn.textContent = "Unlock every coating";
+    unlockAllBtn.disabled = true;
+
+    actions.appendChild(unlockBtn);
+    actions.appendChild(unlockAllBtn);
+
+    var status = document.createElement("p");
+    status.className = "hint-block";
+    status.textContent = "Pick a construct first.";
+
+    ownerGrid = window.SelenaUI.grid(
+      { label: "Construct", catalog: "characters", placeholder: "Search construct, trade name or ID" },
+      function () { return catalog("characters"); },
+      function () {
+        owner = ownerGrid.value();
+        coating = null;
+        unlockBtn.disabled = true;
+        unlockAllBtn.disabled = !owner;
+        coatingBody.textContent = "";
+
+        if (!owner) {
+          status.textContent = "Pick a construct first.";
+          return;
+        }
+
+        status.textContent = "Loading coatings…";
+        var grid = window.SelenaUI.grid(
+          { label: "Coating", placeholder: "Search coating name or id" },
+          function () { return window.SelenaAPI.coatings(owner.id); },
+          function () {
+            coating = grid.value();
+            unlockBtn.disabled = !coating;
+          }
+        );
+        grid.node.querySelector(".grid__status").textContent = "";
+
+        window.SelenaAPI.coatings(owner.id).then(function (entries) {
+          status.textContent = owner.name + " · " + entries.length + (entries.length === 1 ? " coating" : " coatings");
+        }).catch(function () {
+          status.textContent = "Could not read the coating catalog.";
+        });
+
+        coatingBody.appendChild(grid.node);
+      }
+    );
+
+    host.appendChild(ownerGrid.node);
+    host.appendChild(coatingHost);
+    host.appendChild(actions);
+    host.appendChild(status);
+
+    function entryFor(args, ok, detail) {
+      performed += 1;
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, { name: "coating", args: args }, ok, detail);
+      $("#consoleMeta").textContent = opusLabel(performed);
+      if (ok) { celebrate(unlockBtn); window.SelenaAudio.chord(); } else { window.SelenaAudio.low(); }
+      refreshStatus();
+    }
+
+    async function send(args, button) {
+      button.disabled = true;
+      $("#meter").dataset.state = "running";
+      try {
+        var response = await window.SelenaAPI.command("coating", args);
+        entryFor(args, true, (response && response.msg) || "OK");
+      } catch (err) {
+        entryFor(args, false, (err && err.message) || "Request failed");
+      } finally {
+        $("#meter").dataset.state = "idle";
+        button.disabled = button === unlockBtn ? !coating : !owner;
+      }
+    }
+
+    unlockBtn.addEventListener("click", function () {
+      if (!owner || !coating) return;
+      send(["unlock", owner.id, coating.id], unlockBtn);
+    });
+
+    unlockAllBtn.addEventListener("click", function () {
+      if (!owner) return;
+      send(["unlock", owner.id], unlockAllBtn);
+    });
+  }
+
   function renderSection(key) {
     current = key;
     values = {};
@@ -232,6 +348,21 @@
 
     var host = $("#formFields");
     host.textContent = "";
+
+    /* Custom sections own their actions: the generic score line, Perform and the
+     * bulk button step aside so no control is left pointing at nothing. */
+    var isCustom = Boolean(section.custom);
+    $("#preview").hidden = isCustom;
+    $("#runBtn").hidden = isCustom;
+    var gmPreviewLabel = document.querySelector("#previewLabel");
+    if (gmPreviewLabel) gmPreviewLabel.hidden = isCustom;
+    disarmAll();
+    $("#allBtn").hidden = true;
+
+    if (section.custom === "coatings") {
+      renderCoatings(host);
+      return;
+    }
 
     section.fields.forEach(function (field) {
       var wrap = document.createElement("label");

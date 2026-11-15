@@ -1,4 +1,5 @@
 ﻿using AscNet.Common;
+using AscNet.Common.Database;
 using AscNet.Common.MsgPack;
 using AscNet.Common.Util;
 using AscNet.GameServer.Handlers;
@@ -20,6 +21,30 @@ namespace AscNet.GameServer.Commands
         [Argument(1, @"^[0-9]+$|^all$", "Character id, or 'all' for all owned character coatings and catalog weapon coatings")]
         string Target { get; set; } = string.Empty;
 
+        [Argument(2, @"^[0-9]+$", "A single coating id belonging to that character", ArgumentFlags.Optional)]
+        string Coating { get; set; } = string.Empty;
+
+        /// <summary>
+        /// One coating, validated against the character it belongs to: the catalog
+        /// must place that coating on this character, and the character must be
+        /// owned or ownable. Unlocking a coating on a construct the account does not
+        /// have is invisible in game, so it is refused rather than granted silently.
+        /// </summary>
+        private static HashSet<int> SingleCoating(int characterId, int coatingId)
+        {
+            FashionTable? fashion = TableReaderV2.Parse<FashionTable>().Find(row => row.Id == coatingId);
+            if (fashion is null)
+                throw new InvalidOperationException($"Coating {coatingId} is not in the catalog.");
+
+            if (fashion.CharacterId != characterId)
+                throw new InvalidOperationException($"Coating {coatingId} belongs to character {fashion.CharacterId}, not {characterId}.");
+
+            if (!Character.IsOwnableCharacter((uint)characterId))
+                throw new InvalidOperationException($"Character {characterId} cannot be owned.");
+
+            return new HashSet<int> { coatingId };
+        }
+
         public override void Execute()
         {
             int characterId = Miscs.ParseIntOr(Target);
@@ -33,13 +58,15 @@ namespace AscNet.GameServer.Commands
                         ? session.character.Characters.Select(character => (int)character.Id).ToHashSet()
                         : null;
 
-                    HashSet<int> fashionIds = (Target == "all"
-                        ? TableReaderV2.Parse<FashionTable>()
-                            .Where(fashion => ownedCharacterIds!.Contains(fashion.CharacterId))
-                        : TableReaderV2.Parse<FashionTable>()
-                            .Where(fashion => fashion.CharacterId == characterId))
-                        .Select(fashion => fashion.Id)
-                        .ToHashSet();
+                    HashSet<int> fashionIds = string.IsNullOrEmpty(Coating)
+                        ? (Target == "all"
+                            ? TableReaderV2.Parse<FashionTable>()
+                                .Where(fashion => ownedCharacterIds!.Contains(fashion.CharacterId))
+                            : TableReaderV2.Parse<FashionTable>()
+                                .Where(fashion => fashion.CharacterId == characterId))
+                            .Select(fashion => fashion.Id)
+                            .ToHashSet()
+                        : SingleCoating(characterId, Miscs.ParseIntOr(Coating));
 
                     List<HeadPortraitList> changedHeads = new();
                     foreach (int fashionId in fashionIds)

@@ -66,6 +66,74 @@ public sealed class Catalog
         return true;
     }
 
+    /// <summary>
+    /// Coatings of one character, read from share/fashion/Fashion.tsv. Kept separate
+    /// from the flat catalogs because it depends on a chosen character; the second
+    /// line carries the quality tier the client shows as its own badge.
+    /// </summary>
+    public CatalogEntry[] CoatingsFor(long characterId)
+    {
+        var path = Path.Combine(_tableRoot, Path.Combine("share", "fashion", "Fashion.tsv"));
+        if (!File.Exists(path))
+        {
+            _log.LogWarning("Fashion table missing: {Path}", path);
+            return Array.Empty<CatalogEntry>();
+        }
+
+        var key = "fashion:" + characterId;
+        var stamp = File.GetLastWriteTimeUtc(path);
+        if (_cache.TryGetValue(key, out var hit) && hit.Stamp == stamp)
+        {
+            return hit.Entries;
+        }
+
+        var lines = File.ReadAllLines(path);
+        if (lines.Length < 2)
+        {
+            return Array.Empty<CatalogEntry>();
+        }
+
+        var header = lines[0].Split('\t');
+        var idIndex = Find(header, "Id");
+        var nameIndex = Find(header, "Name");
+        var ownerIndex = Find(header, "CharacterId");
+        var qualityIndex = Find(header, "Quality");
+        if (idIndex < 0 || nameIndex < 0 || ownerIndex < 0)
+        {
+            return Array.Empty<CatalogEntry>();
+        }
+
+        var widest = Math.Max(idIndex, Math.Max(nameIndex, Math.Max(ownerIndex, qualityIndex)));
+        var result = new List<CatalogEntry>();
+
+        for (var i = 1; i < lines.Length; i++)
+        {
+            var row = lines[i].Split('\t');
+            if (row.Length <= widest || !long.TryParse(row[ownerIndex].Trim(), out var owner) || owner != characterId)
+            {
+                continue;
+            }
+
+            if (!long.TryParse(row[idIndex].Trim(), out var id))
+            {
+                continue;
+            }
+
+            var name = row[nameIndex].Trim();
+            if (name.Length == 0)
+            {
+                continue;
+            }
+
+            var quality = qualityIndex >= 0 ? row[qualityIndex].Trim() : string.Empty;
+            result.Add(new CatalogEntry(id, name, quality.Length > 0 ? "tier " + quality : string.Empty));
+        }
+
+        var entries = result.ToArray();
+        _cache[key] = (stamp, entries);
+        return entries;
+    }
+
     private static CatalogEntry[] Parse(string path, string idColumn, string nameColumn, Extra extra)
     {
         var lines = File.ReadAllLines(path);

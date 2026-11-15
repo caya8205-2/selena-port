@@ -95,20 +95,20 @@ class Handler(BaseHTTPRequestHandler):
                         "ok": True,
                         "eligible": 37,
                         "items": 41,
-                        "quantity": 1203,
+                        "quantity": 37,
                         "token": "MOCK-PREVIEW-8741",
                         "sample": [
-                            "Memory: Condelina (4*) x3",
-                            "Weapon: Kuji no Sada (5*) x1",
-                            "Partner: Chassis (3*) x2",
+                            "Standard Pistol (3*)",
+                            "Kuji no Sada (5*)",
+                            "Condelina (4*)",
                         ],
                     }
-                    return self._send({"msg": json.dumps(payload)})
+                    return self._send({"msg": "Preview: %d eligible." % payload["eligible"], "data": payload})
                 if op == "apply":
                     token = next((a.split("=", 1)[1] for a in args if str(a).startswith("confirm=")), "")
                     if token != "MOCK-PREVIEW-8741":
                         return self._send({"msg": "Confirmation token mismatch. Preview again."}, 400)
-                    return self._send({"msg": json.dumps({"ok": True, "removed": 37, "items": 41})})
+                    return self._send({"msg": "Removed 37 stacks.", "data": {"ok": True, "removed": 37, "items": 41}})
                 return self._send({"msg": "Usage: cleanup <preview|apply> ..."}, 400)
 
             return self._send({"msg": "OK (mock): %s %s" % (name, " ".join(str(a) for a in args))})

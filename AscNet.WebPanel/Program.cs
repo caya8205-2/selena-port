@@ -94,6 +94,14 @@ app.MapGet("/api/panel/catalog/{kind}", (string kind, Catalog catalog) =>
         ? Results.Json(new { code = 0, kind, count = entries.Length, entries })
         : Results.Json(new { code = -1, kind, msg = "unknown or missing catalog" }, statusCode: 404));
 
+// Coatings of one character, for the per-coating picker. Separate from the flat
+// catalogs because it depends on a character selection.
+app.MapGet("/api/panel/coatings/{characterId:long}", (long characterId, Catalog catalog) =>
+{
+    var entries = catalog.CoatingsFor(characterId);
+    return Results.Json(new { code = 0, characterId, count = entries.Length, entries });
+});
+
 // Pass-through: the browser only ever talks to this process, which keeps the
 // SDK server bound to loopback and avoids cross-origin rules in the panel JS.
 app.Map("/api/{**rest}", async (HttpContext ctx, IHttpClientFactory factory) =>

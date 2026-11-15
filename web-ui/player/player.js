@@ -239,12 +239,13 @@
    * read-only preview, and the delete only runs when the user echoes the token
    * the preview returned. Keeping it a custom renderer makes that explicit. */
   function renderCleanup(host) {
-    var state = { category: "memories", star: 4, developed: false, token: null };
+    /* Weapons and memories only: items carry no "in use" signal server-side, so a
+     * bulk delete could reach a currency, and partners keep their star on the
+     * instance rather than a template column. */
+    var state = { category: "weapons", star: 3, developed: false, token: null };
     var CATEGORIES = [
-      ["memories", "Memories"],
       ["weapons", "Weapons"],
-      ["partners", "Partners"],
-      ["items", "Items"]
+      ["memories", "Memories"]
     ];
 
     var categoryRow = document.createElement("div");
@@ -280,8 +281,8 @@
     starInput.className = "input input--mono";
     starInput.type = "number";
     starInput.value = String(state.star);
-    starRow.appendChild(window.SelenaUI.stepper(starInput, { label: "the star limit", min: 3, max: 6, value: String(state.star) }, function () {
-      state.star = Number(starInput.value) || 4;
+    starRow.appendChild(window.SelenaUI.stepper(starInput, { label: "the star limit", min: 1, max: 6, value: String(state.star) }, function () {
+      state.star = Number(starInput.value) || 3;
       state.token = null;
       reset();
     }));
@@ -358,7 +359,10 @@
       refreshStatus();
     }
 
+    /* The server answers { msg, data }; the dev mock can still answer JSON in msg,
+     * so both shapes are accepted and the structured one wins. */
     function parse(payload) {
+      if (payload && payload.data && typeof payload.data === "object") return payload.data;
       var text = payload && payload.msg ? payload.msg : "";
       try {
         return JSON.parse(text);

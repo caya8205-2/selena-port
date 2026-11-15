@@ -45,9 +45,10 @@ namespace AscNet.SDKServer.Controllers
                     return ctx.Response.WriteAsync(JsonConvert.SerializeObject(new { msg = "Player is offline!" }));
                 }
 
+                Command? cmd;
                 try
                 {
-                    Command? cmd = CommandFactory.CreateCommand(command, session, body.Args);
+                    cmd = CommandFactory.CreateCommand(command, session, body.Args);
                     if (cmd is null)
                     {
                         ctx.Response.StatusCode = 404;
@@ -62,7 +63,7 @@ namespace AscNet.SDKServer.Controllers
                     return ctx.Response.WriteAsync(JsonConvert.SerializeObject(new { msg = "Execution error!", err = ex.InnerException?.Message ?? ex.Message }));
                 }
 
-                return ctx.Response.WriteAsync(JsonConvert.SerializeObject(new { msg =  "OK" }));
+                return ctx.Response.WriteAsync(JsonConvert.SerializeObject(new { msg = "OK", data = cmd.Payload }));
             });
         }
     }

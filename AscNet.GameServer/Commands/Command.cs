@@ -52,6 +52,13 @@ namespace AscNet.GameServer.Commands
             return null;
         }
 
+        /// <summary>
+        /// Optional structured result for callers that need more than a status
+        /// word - the panel's previews carry counts and a confirmation token.
+        /// Null for every command that only has something to say.
+        /// </summary>
+        public virtual object? Payload => null;
+
         public abstract void Execute();
     }
 
