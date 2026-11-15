@@ -416,11 +416,12 @@
     var hasAll = typeof section.allArgs === "function";
     allBtn.hidden = !hasAll;
     allBtn.disabled = false;
-    allBtn.textContent = "Grant all";
+    allBtn.textContent = "Tutti · all";
     allBtn.classList.remove("is-armed");
     disarmAll();
     if (hasAll) {
-      allBtn.setAttribute("data-tip", "Runs this command in its \"all\" form: every character, equipment or coating in the catalog, or items up to the current amount. Press twice to confirm.");
+      allBtn.setAttribute("data-tip", "Tutti — from the score: every instrument at once. Runs this command in its all form: every character, equipment or stage in the catalog, or items up to the current amount. Press twice to confirm.");
+      allBtn.setAttribute("aria-label", "Tutti: run this command for every entry (press twice)");
     }
 
     if (section.note) {
@@ -505,7 +506,7 @@
     var button = $("#allBtn");
     if (button) {
       button.classList.remove("is-armed");
-      button.textContent = "Grant all";
+      button.textContent = "Tutti · all";
     }
   }
 
@@ -518,7 +519,7 @@
     if (!allArmed) {
       allArmed = true;
       button.classList.add("is-armed");
-      button.textContent = "Grant all — press again";
+      button.textContent = "Tutti · press again";
       allTimer = setTimeout(disarmAll, 5000);
       return;
     }
