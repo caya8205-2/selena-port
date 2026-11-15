@@ -6,34 +6,33 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="shell">
-  <aside class="rail">
-    <div class="rail__mark">
+<header class="topbar">
+  <div class="brand">
+    <img class="brand__icon" src="/icon.webp" alt="">
+    <div class="brand__text">
       <strong>Selena-port</strong>
-      <span>Desktop console</span>
+      <span id="brandSubtitle">Console</span>
     </div>
+  </div>
 
-    <nav class="rail__nav">
-      <button class="rail__item is-active" data-view="console">Console</button>
-      <button class="rail__item" data-view="gm">GM panel</button>
-      <button class="rail__item" data-view="player">Player panel</button>
-    </nav>
+  <nav class="tabs" id="tabs">
+    <button class="tab is-active" data-view="console">Console</button>
+    <button class="tab" data-view="gm">GM</button>
+    <button class="tab" data-view="player">Player</button>
+    <button class="tab" data-view="config">Config</button>
+    <button class="tab" data-view="update">Update</button>
+  </nav>
 
-    <div class="rail__status" id="railStatus">
-      <span class="dot" id="dotMongo"></span> mongodb
-      <span class="dot" id="dotSdk"></span> server
-      <span class="dot" id="dotGame"></span> game port
-    </div>
-  </aside>
+  <div class="ports">
+    <span class="port"><i class="dot" id="dotMongo"></i>mongodb</span>
+    <span class="port"><i class="dot" id="dotSdk"></i>server</span>
+    <span class="port"><i class="dot" id="dotGame"></i>game</span>
+  </div>
+</header>
 
-  <main class="main">
+<main class="main">
     <section class="view is-active" data-view="console">
-      <header class="view__head">
-        <h1>Console</h1>
-        <p>Start the stack, then open the panels or launch the patched client.</p>
-      </header>
-
-      <div class="rows" id="statusRows">
+      <div class="rows">
         <div class="row"><span>MongoDB</span><b id="rowMongo">checking…</b></div>
         <div class="row"><span>Server (SDK / game)</span><b id="rowSdk">checking…</b></div>
         <div class="row"><span>Game directory</span><b id="rowGameDir" class="dim">—</b></div>
@@ -43,8 +42,6 @@
         <button class="btn btn--primary" id="btnStart">Start stack</button>
         <button class="btn" id="btnStop">Stop</button>
         <button class="btn" id="btnLaunch">Launch client</button>
-        <button class="btn btn--quiet" id="btnGm">Open GM</button>
-        <button class="btn btn--quiet" id="btnPlayer">Open player</button>
       </div>
 
       <pre class="log" id="log"></pre>
@@ -57,8 +54,66 @@
     <section class="view" data-view="player">
       <iframe class="frame" id="framePlayer" title="Player panel"></iframe>
     </section>
+
+    <section class="view" data-view="config">
+      <div class="form">
+        <label class="field">
+          <span class="field__label">Game directory <em>folder that contains PGR.exe</em></span>
+          <span class="field__row">
+            <input class="input" id="cfgGameDir" type="text" spellcheck="false">
+            <button class="btn" data-browse="gameDir">Browse</button>
+          </span>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Server build <em>folder with AscNet.dll</em></span>
+          <span class="field__row">
+            <input class="input" id="cfgServerDir" type="text" spellcheck="false">
+            <button class="btn" data-browse="serverDir">Browse</button>
+          </span>
+        </label>
+
+        <label class="field">
+          <span class="field__label">MongoDB binary <em>mongod.exe</em></span>
+          <span class="field__row">
+            <input class="input" id="cfgMongoBinary" type="text" spellcheck="false">
+            <button class="btn" data-browse="mongoBinary">Browse</button>
+            <button class="btn" id="btnInstallMongo">Install if missing</button>
+          </span>
+        </label>
+
+        <div class="actions">
+          <button class="btn btn--primary" id="btnSaveConfig">Save</button>
+          <button class="btn" id="btnRebuild">Rebuild server</button>
+        </div>
+
+        <pre class="log" id="configLog"></pre>
+      </div>
+    </section>
+
+    <section class="view" data-view="update">
+      <div class="form">
+        <label class="field">
+          <span class="field__label">Repository <em>owner/name, tracked for new commits</em></span>
+          <span class="field__row">
+            <input class="input" id="cfgRepo" type="text" placeholder="owner/name" spellcheck="false">
+            <button class="btn btn--primary" id="btnCheckUpdate">Check</button>
+          </span>
+        </label>
+
+        <div class="rows">
+          <div class="row"><span>Latest commit</span><b id="updSha" class="dim">—</b></div>
+          <div class="row"><span>Message</span><b id="updMsg" class="dim">—</b></div>
+          <div class="row"><span>Date</span><b id="updDate" class="dim">—</b></div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" id="btnOpenRepo">Open on GitHub</button>
+        </div>
+        <pre class="log" id="updateLog"></pre>
+      </div>
+    </section>
   </main>
-</div>
 <script src="app.js"></script>
 </body>
 </html>

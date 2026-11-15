@@ -43,9 +43,7 @@
     scenes: {
       title: "Scenes",
       command: "scene",
-      fields: [],
-      note: "Unlocks every scene background in the catalog. The command layer has no per-scene selection yet.",
-      build: function () { return ["unlock", "all"]; }
+      custom: "scenes"
     },
     commandant: {
       title: "Commandant",
@@ -220,6 +218,39 @@
   /* ---------------------------------------------------------------- sections */
 
 
+
+  /* Two-press confirmation for bulk actions inside custom sections, matching the
+   * rail's Tutti button: arm, then confirm within five seconds, with the same cues. */
+  function armButton(button, label, onConfirm) {
+    var armed = false;
+    var timer = null;
+    button.type = "button";
+    button.className = "btn btn--quiet";
+    button.textContent = label + " · all";
+
+    function reset() {
+      armed = false;
+      clearTimeout(timer);
+      button.classList.remove("is-armed");
+      button.textContent = label + " · all";
+    }
+
+    button.addEventListener("click", function () {
+      if (!armed) {
+        armed = true;
+        button.classList.add("is-armed");
+        button.textContent = label + " · press again";
+        window.SelenaAudio.arm();
+        timer = setTimeout(function () { reset(); window.SelenaAudio.standDown(); }, 5000);
+        return;
+      }
+      reset();
+      onConfirm();
+    });
+
+    return button;
+  }
+
   /* ---------------------------------------------------------------- coatings */
 
   /* Two dependent pickers: the construct, then the coatings that belong to that
@@ -258,6 +289,13 @@
 
     actions.appendChild(unlockBtn);
     actions.appendChild(unlockAllBtn);
+
+    /* Catalog-wide unlock: the same "all" the rail's Tutti sends, available here
+     * because this section is a custom renderer and hides the rail button. */
+    var tuttiBtn = armButton(document.createElement("button"), "Tutti", function () {
+      send(["unlock", "all"], tuttiBtn);
+    });
+    actions.appendChild(tuttiBtn);
 
     var status = document.createElement("p");
     status.className = "hint-block";
@@ -337,6 +375,57 @@
     });
   }
 
+
+  /* ---------------------------------------------------------------- scenes */
+
+  /* The command is all-or-nothing, so the catalog is information rather than a
+   * selection: it tells the user what "all" covers, and Tutti does the work. */
+  function renderScenes(host) {
+    var grid = window.SelenaUI.grid(
+      { label: "Scene backgrounds", placeholder: "Search scene name" },
+      function () { return catalog("scenes"); },
+      function () { /* read-only: the command has no per-scene form yet */ }
+    );
+
+    var actions = document.createElement("div");
+    actions.className = "cleanup__actions";
+
+    var tuttiBtn = armButton(document.createElement("button"), "Tutti", function () {
+      send(["unlock", "all"]);
+    });
+    actions.appendChild(tuttiBtn);
+
+    var status = document.createElement("p");
+    status.className = "hint-block";
+    status.textContent = "The catalog above is what unlock-all grants; the command has no per-scene form yet.";
+
+    host.appendChild(grid.node);
+    host.appendChild(actions);
+    host.appendChild(status);
+
+    function entryFor(args, ok, detail) {
+      performed += 1;
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, { name: "scene", args: args }, ok, detail);
+      $("#consoleMeta").textContent = opusLabel(performed);
+      if (ok) { celebrate(tuttiBtn); window.SelenaAudio.chord(); } else { window.SelenaAudio.low(); }
+      refreshStatus();
+    }
+
+    async function send(args) {
+      tuttiBtn.disabled = true;
+      $("#meter").dataset.state = "running";
+      try {
+        var response = await window.SelenaAPI.command("scene", args);
+        entryFor(args, true, (response && response.msg) || "OK");
+      } catch (err) {
+        entryFor(args, false, (err && err.message) || "Request failed");
+      } finally {
+        $("#meter").dataset.state = "idle";
+        tuttiBtn.disabled = false;
+      }
+    }
+  }
+
   function renderSection(key) {
     current = key;
     values = {};
@@ -366,6 +455,11 @@
 
     if (section.custom === "coatings") {
       renderCoatings(host);
+      return;
+    }
+
+    if (section.custom === "scenes") {
+      renderScenes(host);
       return;
     }
 

@@ -5,6 +5,12 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('selena', {
   status: () => ipcRenderer.invoke('stack:status'),
+  settings: () => ipcRenderer.invoke('config:get'),
+  saveSettings: (next) => ipcRenderer.invoke('config:set', next),
+  browse: (payload) => ipcRenderer.invoke('config:browse', payload),
+  installMongo: () => ipcRenderer.invoke('tools:install-mongo'),
+  rebuildServer: () => ipcRenderer.invoke('tools:rebuild'),
+  checkUpdate: (repo) => ipcRenderer.invoke('update:check', repo),
   start: () => ipcRenderer.invoke('stack:start'),
   stop: () => ipcRenderer.invoke('stack:stop'),
   launch: () => ipcRenderer.invoke('stack:launch'),

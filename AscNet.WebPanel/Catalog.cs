@@ -27,6 +27,7 @@ public sealed class Catalog
             ["characters"] = ("share/character/Character.tsv", "Id", "Name", Extra.TradeName),
             ["equips"] = ("share/equip/Equip.tsv", "Id", "Name", Extra.Star),
             ["stages"] = ("share/fuben/Stage.tsv", "StageId", "Name", Extra.None),
+            ["scenes"] = ("share/photomode/Background.tsv", "Id", "Name", Extra.None),
         };
 
     private readonly ConcurrentDictionary<string, (DateTime Stamp, CatalogEntry[] Entries)> _cache = new();

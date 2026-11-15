@@ -1,18 +1,35 @@
-// Shell page: view switching plus the small status/action surface exposed by preload.
+// Shell page: tab switching, live status, config form and update check.
+// The panels live in frames; everything else is a thin surface over the preload API.
 
-const buttons = document.querySelectorAll('.rail__item')
+const tabs = document.querySelectorAll('.tab')
 const views = document.querySelectorAll('.view')
 
-function show(view) {
-  buttons.forEach((b) => b.classList.toggle('is-active', b.dataset.view === view))
-  views.forEach((v) => v.classList.toggle('is-active', v.dataset.view === view))
-
-  // Frames load lazily so the panels only run when they are actually opened.
-  if (view === 'gm' && !document.querySelector('#frameGm').src) document.querySelector('#frameGm').src = '/gm/index.html'
-  if (view === 'player' && !document.querySelector('#framePlayer').src) document.querySelector('#framePlayer').src = '/player/index.html'
+// The subtitle names the tool the user is looking at, not the shell.
+const SUBTITLES = {
+  console: 'Console',
+  gm: 'GM console',
+  player: 'Player console',
+  config: 'Configuration',
+  update: 'Updates',
 }
 
-buttons.forEach((b) => b.addEventListener('click', () => show(b.dataset.view)))
+function show(view) {
+  tabs.forEach((t) => t.classList.toggle('is-active', t.dataset.view === view))
+  views.forEach((v) => v.classList.toggle('is-active', v.dataset.view === view))
+
+  const subtitle = document.querySelector('#brandSubtitle')
+  if (subtitle) subtitle.textContent = SUBTITLES[view] || 'Console'
+
+  // Frames load lazily so a panel only runs once it is actually opened.
+  if (view === 'gm' && !document.querySelector('#frameGm').src) document.querySelector('#frameGm').src = '/gm/index.html'
+  if (view === 'player' && !document.querySelector('#framePlayer').src) document.querySelector('#framePlayer').src = '/player/index.html'
+  if (view === 'config') loadConfig()
+  if (view === 'update') document.querySelector('#cfgRepo').value = settings.repo || ''
+}
+
+tabs.forEach((tab) => tab.addEventListener('click', () => show(tab.dataset.view)))
+
+// ------------------------------------------------------------------- logging
 
 const logBox = document.querySelector('#log')
 function append(line) {
@@ -20,7 +37,16 @@ function append(line) {
   logBox.scrollTop = logBox.scrollHeight
 }
 
+function appendTo(id, line) {
+  const box = document.querySelector('#' + id)
+  if (!box) return
+  box.textContent += line + '\n'
+  box.scrollTop = box.scrollHeight
+}
+
 window.selena.onLog(append)
+
+// ------------------------------------------------------------------- status
 
 function paintStatus(state) {
   const mongo = document.querySelector('#rowMongo')
@@ -34,6 +60,7 @@ function paintStatus(state) {
   sdk.className = state.sdk ? '' : 'dim'
 
   document.querySelector('#rowGameDir').textContent = state.gameDir || 'not configured'
+  document.querySelector('#rowGameDir').className = state.gameDir ? '' : 'dim'
   document.querySelector('#dotMongo').classList.toggle('is-up', state.mongo)
   document.querySelector('#dotSdk').classList.toggle('is-up', state.sdk)
   document.querySelector('#dotGame').classList.toggle('is-up', state.game)
@@ -50,16 +77,115 @@ document.querySelector('#btnStart').addEventListener('click', async (event) => {
 })
 
 document.querySelector('#btnStop').addEventListener('click', async () => {
-  paintStatus(await window.selena.stop())
+  try { paintStatus(await window.selena.stop()) } catch (err) { append('stop failed: ' + err.message) }
 })
 
 document.querySelector('#btnLaunch').addEventListener('click', async () => {
   try { await window.selena.launch() } catch (err) { append('launch failed: ' + err.message) }
 })
 
-document.querySelector('#btnGm').addEventListener('click', () => show('gm'))
-document.querySelector('#btnPlayer').addEventListener('click', () => show('player'))
+// ------------------------------------------------------------------- config
 
-window.selena.logs().then((lines) => { lines.forEach(append) })
+let settings = {}
+
+const CONFIG_FIELDS = {
+  gameDir: '#cfgGameDir',
+  serverDir: '#cfgServerDir',
+  mongoBinary: '#cfgMongoBinary',
+}
+
+async function loadConfig() {
+  settings = await window.selena.settings()
+  for (const [key, selector] of Object.entries(CONFIG_FIELDS)) {
+    document.querySelector(selector).value = settings[key] || ''
+  }
+  document.querySelector('#cfgRepo').value = settings.repo || ''
+
+  const mongo = document.querySelector('#rowMongo')
+  if (!settings.mongoExists) appendTo('configLog', 'mongod.exe not found at the configured path')
+}
+
+document.querySelectorAll('[data-browse]').forEach((button) => {
+  button.addEventListener('click', async () => {
+    const key = button.dataset.browse
+    const field = document.querySelector(CONFIG_FIELDS[key])
+    const picked = await window.selena.browse({ key, current: field.value })
+    if (picked) field.value = picked
+  })
+})
+
+document.querySelector('#btnSaveConfig').addEventListener('click', async () => {
+  const next = {}
+  for (const [key, selector] of Object.entries(CONFIG_FIELDS)) next[key] = document.querySelector(selector).value.trim()
+  next.repo = document.querySelector('#cfgRepo').value.trim()
+
+  settings = await window.selena.saveSettings(next)
+  appendTo('configLog', 'saved: ' + JSON.stringify(next))
+  append('settings saved')
+  refresh()
+})
+
+document.querySelector('#btnInstallMongo').addEventListener('click', async (event) => {
+  const button = event.currentTarget
+  button.disabled = true
+  appendTo('configLog', 'installing MongoDB (portable)…')
+  try {
+    const result = await window.selena.installMongo()
+    document.querySelector('#cfgMongoBinary').value = result.mongoBinary
+    appendTo('configLog', 'installed: ' + result.mongoBinary)
+  } catch (err) {
+    appendTo('configLog', 'install failed: ' + err.message)
+  } finally {
+    button.disabled = false
+  }
+})
+
+document.querySelector('#btnRebuild').addEventListener('click', async (event) => {
+  const button = event.currentTarget
+  button.disabled = true
+  appendTo('configLog', 'rebuilding server…')
+  try {
+    const result = await window.selena.rebuildServer()
+    appendTo('configLog', result.ok ? 'build finished' : 'build failed')
+  } catch (err) {
+    appendTo('configLog', 'build failed: ' + err.message)
+  } finally {
+    button.disabled = false
+  }
+})
+
+// ------------------------------------------------------------------- update
+
+document.querySelector('#btnCheckUpdate').addEventListener('click', async (event) => {
+  const button = event.currentTarget
+  const repo = document.querySelector('#cfgRepo').value.trim()
+  if (!repo) { appendTo('updateLog', 'enter owner/name first'); return }
+
+  button.disabled = true
+  appendTo('updateLog', `checking ${repo}…`)
+  try {
+    const commit = await window.selena.checkUpdate(repo)
+    document.querySelector('#updSha').textContent = commit.sha
+    document.querySelector('#updSha').className = ''
+    document.querySelector('#updMsg').textContent = commit.message
+    document.querySelector('#updMsg').className = ''
+    document.querySelector('#updDate').textContent = new Date(commit.date).toLocaleString()
+    document.querySelector('#updDate').className = ''
+  } catch (err) {
+    appendTo('updateLog', 'check failed: ' + err.message)
+  } finally {
+    button.disabled = false
+  }
+})
+
+document.querySelector('#btnOpenRepo').addEventListener('click', async () => {
+  const repo = document.querySelector('#cfgRepo').value.trim() || settings.repo
+  if (repo) await window.selena.open(`https://github.com/${repo}`)
+})
+
+// ------------------------------------------------------------------- startup
+
+window.selena.logs().then((lines) => lines.forEach(append))
+window.selena.settings().then((value) => { settings = value })
 refresh()
 setInterval(refresh, 3000)

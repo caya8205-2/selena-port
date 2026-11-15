@@ -35,6 +35,8 @@ const defaults = {
   gameDir: isPackaged ? '' : 'D:\\gemink\\Punishing Gray Raven\\Punishing Gray Raven Game',
   tableDir: isPackaged ? path.join(resources, 'table') : path.join(__dirname, '..', 'Resources', 'table'),
   webUi: isPackaged ? path.join(__dirname, 'web-ui') : path.join(__dirname, '..', 'web-ui'),
+  repoRoot: isPackaged ? '' : path.join(__dirname, '..'),
+  repo: '',
 }
 
 function readConfig() {
@@ -191,6 +193,7 @@ const catalogSources = {
   characters: { file: 'share/character/Character.tsv', id: 'Id', name: 'Name', extra: 'TradeName' },
   equips: { file: 'share/equip/Equip.tsv', id: 'Id', name: 'Name', extra: 'Star' },
   stages: { file: 'share/fuben/Stage.tsv', id: 'StageId', name: 'Name', extra: null },
+  scenes: { file: 'share/photomode/Background.tsv', id: 'Id', name: 'Name', extra: 'Quality' },
 }
 
 const cache = new Map()
@@ -351,6 +354,146 @@ function startUiServer() {
   })
 }
 
+
+// ---------------------------------------------------------------- settings & tools
+
+const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json')
+const SETTINGS_KEYS = ['gameDir', 'serverDir', 'mongoBinary', 'repo', 'repoRoot']
+
+function settingsSnapshot() {
+  return {
+    ...Object.fromEntries(SETTINGS_KEYS.map((key) => [key, config[key]])),
+    mongoExists: Boolean(config.mongoBinary && fs.existsSync(config.mongoBinary)),
+    serverExists: Boolean(config.serverDir && fs.existsSync(path.join(config.serverDir, 'AscNet.dll'))),
+    sdkPort: config.sdkPort,
+  }
+}
+
+function persistSettings(next) {
+  for (const key of SETTINGS_KEYS) {
+    if (next[key] !== undefined) config[key] = next[key]
+  }
+  fs.mkdirSync(path.dirname(CONFIG_FILE), { recursive: true })
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(Object.fromEntries(SETTINGS_KEYS.map((k) => [k, config[k]])), null, 2))
+  return settingsSnapshot()
+}
+
+async function browsePath(key, current) {
+  const { dialog } = require('electron')
+  const wantsFile = key === 'mongoBinary'
+  const result = await dialog.showOpenDialog({
+    title: wantsFile ? 'Select mongod.exe' : 'Select folder',
+    defaultPath: current || undefined,
+    properties: wantsFile ? ['openFile'] : ['openDirectory'],
+    filters: wantsFile ? [{ name: 'Executable', extensions: ['exe'] }] : undefined,
+  })
+  if (result.canceled || result.filePaths.length === 0) return null
+  return result.filePaths[0]
+}
+
+function download(url, target, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirects > 5) return reject(new Error('too many redirects'))
+    https.get(url, (response) => {
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        response.resume()
+        return download(response.headers.location, target, redirects + 1).then(resolve, reject)
+      }
+      if (response.statusCode !== 200) {
+        response.resume()
+        return reject(new Error(`download failed with HTTP ${response.statusCode}`))
+      }
+      const out = fs.createWriteStream(target)
+      response.pipe(out)
+      out.on('finish', () => out.close(() => resolve(target)))
+      out.on('error', reject)
+    }).on('error', reject)
+  })
+}
+
+function extractZip(zip, destination) {
+  return new Promise((resolve, reject) => {
+    // tar.exe ships with Windows and handles long paths; PowerShell's Expand-Archive
+    // treats some failures as non-terminating and would hand back a partial tree.
+    const tar = path.join(process.env.SystemRoot || 'C:\Windows', 'System32', 'tar.exe')
+    const child = spawn(tar, ['-xf', zip, '-C', destination], { windowsHide: true })
+    let error = ''
+    child.stderr.on('data', (chunk) => { error += chunk.toString() })
+    child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(error || `tar exited with ${code}`))))
+  })
+}
+
+function findFile(root, name) {
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const full = path.join(root, entry.name)
+    if (entry.isFile() && entry.name.toLowerCase() === name) return full
+    if (entry.isDirectory()) {
+      const hit = findFile(full, name)
+      if (hit) return hit
+    }
+  }
+  return null
+}
+
+const MONGO_ZIP = 'https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-7.0.48.zip'
+
+async function installMongo() {
+  const base = config.mongoBinary
+    ? path.dirname(config.mongoBinary)
+    : path.join(app.getPath('userData'), 'mongo')
+
+  fs.mkdirSync(base, { recursive: true })
+  const zip = path.join(base, 'mongodb.zip')
+
+  log(`downloading MongoDB to ${base}`)
+  await download(MONGO_ZIP, zip)
+  log('extracting MongoDB')
+  await extractZip(zip, base)
+
+  const mongod = findFile(base, 'mongod.exe')
+  if (!mongod) throw new Error('mongod.exe was not found in the downloaded archive')
+
+  config.mongoBinary = mongod
+  persistSettings({ mongoBinary: mongod })
+  log(`mongod ready at ${mongod}`)
+  return { mongoBinary: mongod }
+}
+
+function rebuildServer() {
+  const project = path.join(config.repoRoot || path.join(__dirname, '..'), 'AscNet', 'AscNet.csproj')
+  if (!fs.existsSync(project)) throw new Error(`project not found: ${project}`)
+
+  const dotnet = process.env.DOTNET_ROOT ? path.join(process.env.DOTNET_ROOT, 'dotnet.exe') : 'dotnet'
+  return new Promise((resolve) => {
+    const child = spawnHidden(dotnet, ['build', project, '-v', 'q', '--nologo'], { cwd: path.dirname(path.dirname(project)) })
+    child.on('exit', (code) => resolve({ ok: code === 0 }))
+  })
+}
+
+function checkUpdate(repo) {
+  return new Promise((resolve, reject) => {
+    const url = `https://api.github.com/repos/${repo}/commits?per_page=1`
+    https.get(url, { headers: { 'User-Agent': 'selena-port', Accept: 'application/vnd.github+json' } }, (response) => {
+      let body = ''
+      response.on('data', (chunk) => { body += chunk })
+      response.on('end', () => {
+        if (response.statusCode !== 200) return reject(new Error(`GitHub answered ${response.statusCode}`))
+        try {
+          const commits = JSON.parse(body)
+          if (!Array.isArray(commits) || commits.length === 0) return reject(new Error('no commits returned'))
+          resolve({
+            sha: commits[0].sha.slice(0, 10),
+            message: commits[0].commit.message.split('\n')[0],
+            date: commits[0].commit.committer.date,
+          })
+        } catch (err) {
+          reject(new Error('could not read the response'))
+        }
+      })
+    }).on('error', reject)
+  })
+}
+
 // ---------------------------------------------------------------- window
 
 let mainWindow = null
@@ -383,15 +526,24 @@ app.whenReady().then(async () => {
   // needs to know where the shell is actually listening.
   fs.writeFileSync(path.join(logDir, 'ui-port.txt'), String(uiPort))
   log(`ui served on http://127.0.0.1:${uiPort}`)
-  await createWindow()
 
+  // Handlers must exist before the window loads, or the page's first calls race the
+  // registration and fail with "No handler registered".
   ipcMain.handle('stack:status', () => status())
   ipcMain.handle('stack:start', () => startAll())
   ipcMain.handle('stack:stop', () => stopAll())
   ipcMain.handle('stack:launch', () => { launchClient(); return true })
   ipcMain.handle('stack:logs', () => logLines)
   ipcMain.handle('stack:config', () => ({ uiPort, sdkPort: config.sdkPort, gameDir: config.gameDir }))
+  ipcMain.handle('config:get', () => settingsSnapshot())
+  ipcMain.handle('config:set', (_event, next) => persistSettings(next || {}))
+  ipcMain.handle('config:browse', (_event, payload) => browsePath(payload.key, payload.current))
+  ipcMain.handle('tools:install-mongo', () => installMongo())
+  ipcMain.handle('tools:rebuild', () => rebuildServer())
+  ipcMain.handle('update:check', (_event, repo) => checkUpdate(repo))
   ipcMain.handle('stack:open', (_event, target) => shell.openExternal(target))
+
+  await createWindow()
 
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 })
