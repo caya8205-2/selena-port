@@ -10,7 +10,7 @@ moment they cost time. A stale note is worse than no note, because it is trusted
 session starts without its earlier context, read this file first, then `git log -5`, then the
 files it names. Do not rely on memory for ports, paths or column names.
 
-Last updated: scroll containers collapsed to two, scrollbars thinned.
+Last updated: wardrobe scrolls internally, rail and tab bars hidden.
 
 ---
 
@@ -98,18 +98,24 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
 
 ### Scroll containers (one rule, keep it)
 
-A panel shows **two** scrollbars at most: the rail nav when its entries exceed the window,
-and the tab's own `.workspace`. Nothing else scrolls, including the page.
+Containers never grow with their content. Which of them show a bar is a separate choice.
 
 - panels: `.app { height: 100vh; overflow: hidden }`, `.main { min-height: 0; overflow: hidden }`,
   `.workspace { flex: 1 1 auto; min-height: 0; overflow-y: auto }`
 - shell: `html, body { overflow: hidden }`, `.view { height: calc(100vh - 52px); overflow: hidden }`,
-  `.frame { height: 100% }`; only the padded views (console/accounts/config/update) scroll
-- the card grid has **no** own scroll (`max-height` removed); it grows inside the tab
-- scrollbar look: `--scroll-size: 7px`, thumb `rgba(106,127,219,0.18)`, hover gold 0.38
+  `.frame { height: 100% }`; padded views (console/accounts/config/update) scroll inside
+- wardrobe: `.grid__cards { max-height: 300px; overflow-y: auto }`, a short first page of 48
+  cards, exact total printed next to "Show all N"
+- the action row is sticky at the bottom of the form, so Perform never scrolls away
+- **visible bars**: only the wardrobe's thin one. `.rail__nav`, `.workspace` and `.view` set
+  `scrollbar-width: none` and zero width webkit bars: they still scroll by wheel, drag and
+  keyboard, they just draw nothing. Two grooves next to the wardrobe bar was noise.
+- scrollbar variables: `--scroll-size: 7px`, thumb `rgba(106,127,219,0.18)`, hover gold 0.38
 
-Measured at 1366x764: GM one scroller (workspace 598/12744), player two
-(rail__nav 642/743 and workspace 595/743), shell page zero, frame 1366x712.
+Measured at 1366x764: GM wardrobe 300/936 with a thin bar, workspace 598/12744 with no bar,
+player rail 642/743 with no bar and scrolling (scrollTop reached 60), shell page no scroll,
+frame 1366x712. Watch the viewport when measuring: a browser daemon restart drops the metrics
+override and every height reads short (a 764 window measured 429 and looked like a layout bug).
 
 ## 6. Memory slots, wardrobe columns, set grant (finished, one test outstanding)
 

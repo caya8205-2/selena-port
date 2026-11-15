@@ -631,12 +631,16 @@ a { color: inherit; text-decoration: none; }
 .grid__search::placeholder { color: var(--text-faint); }
 .grid__search:focus { outline: none; border-color: var(--accent); }
 
-/* No inner scroll: the catalog grows and the tab's own bar carries it. Nesting a second
-   bar inside the tab is what made three scrollbars appear on one screen. */
+/* The wardrobe scrolls inside a fixed box, so a long catalog never pushes the action row
+   off the screen. Its bar is the one thin bar left visible: it is the signal that the box
+   scrolls at all. */
 .grid__cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
   gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 2px 6px 2px 2px;
 }
 
@@ -676,3 +680,27 @@ a { color: inherit; text-decoration: none; }
 /* Memories are numbered 1 to 6 and the game lays them out three per row, so the wardrobe
    reads in the same order the player equips them. */
 .grid__cards--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.grid__more {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.grid__more:hover { color: var(--gold); }
+.grid__more:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The rail and the tab scroll by wheel, drag and keyboard, but draw no bar: two visible
+   grooves beside a wardrobe bar was noise. The wardrobe keeps its own thin bar as the cue. */
+.rail__nav,
+.workspace,
+.view {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.rail__nav::-webkit-scrollbar,
+.workspace::-webkit-scrollbar,
+.view::-webkit-scrollbar { width: 0; height: 0; }

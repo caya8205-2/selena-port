@@ -381,9 +381,11 @@
     wrap.appendChild(cards);
     wrap.appendChild(status);
 
-    /* High enough that a whole catalog fits: the old 60 card cap silently cut the
-     * list at whatever row landed 60th, which read as a missing catalog. */
-    var LIMIT = 600;
+    /* A short first page keeps the form usable, and the exact total is printed next to a
+     * button that draws the rest. The old silent cap read as a missing catalog; this one
+     * says how many exist, so nothing is hidden without the player knowing. */
+    var PAGE = 48;
+    var page = PAGE;
     var entries = [];
     var selected = null;
     var active = -1;
@@ -435,9 +437,18 @@
         cards.appendChild(empty);
       }
 
-      status.textContent = hits > LIMIT
-        ? "Showing the first " + shown.length + " of " + hits + " matching entries — refine the search."
-        : hits + (hits === 1 ? " entry" : " entries");
+      status.textContent = "";
+      if (hits > shown.length) {
+        status.appendChild(document.createTextNode(shown.length + " of " + hits + " entries "));
+        var more = document.createElement("button");
+        more.type = "button";
+        more.className = "grid__more";
+        more.textContent = "Show all " + hits;
+        more.addEventListener("click", function () { page = hits; filter(); });
+        status.appendChild(more);
+      } else {
+        status.textContent = hits + (hits === 1 ? " entry" : " entries");
+      }
 
       window.SelenaUI.hideTip(null);
     }
@@ -446,12 +457,13 @@
       var query = search.value.trim().toLowerCase();
       var found = entries.filter(function (entry) { return matches(entry, query); });
       hits = found.length;
-      shown = found.slice(0, LIMIT);
+      shown = found.slice(0, page);
       if (selected && found.indexOf(selected) < 0) selected = null;
       paint();
     }
 
     search.addEventListener("input", function () {
+      page = PAGE;
       clear.hidden = search.value.length === 0;
       filter();
     });
