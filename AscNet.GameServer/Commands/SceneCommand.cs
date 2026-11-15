@@ -9,12 +9,12 @@ namespace AscNet.GameServer.Commands
     {
         public SceneCommand(Session session, string[] args, bool validate = true) : base(session, args, validate) { }
 
-        public override string Help => "Unlock every home scene background with 'all'.";
+        public override string Help => "Unlock one scene background by id, or every background with 'all'.";
 
         [Argument(0, @"^unlock$", "The operation selected (unlock)")]
         string Op { get; set; } = string.Empty;
 
-        [Argument(1, @"^all$", "Unlock every catalog scene background")]
+        [Argument(1, @"^[0-9]+$|^all$", "A scene background id, or 'all' for the whole catalog", ArgumentFlags.IgnoreCase)]
         string Target { get; set; } = string.Empty;
 
         public override void Execute()
@@ -29,14 +29,34 @@ namespace AscNet.GameServer.Commands
                 .Order()
                 .ToList();
 
+            // "all" keeps the bulk form; a numeric target unlocks just that background, which is
+            // what the panel's Perform sends when one entry is picked from the catalog.
+            List<int> requested = new();
+            if (Target.Equals("all", StringComparison.OrdinalIgnoreCase))
+            {
+                requested = catalogIds;
+            }
+            else
+            {
+                int id = Miscs.ParseIntOr(Target);
+                if (!catalogIds.Contains(id))
+                    throw new CommandMessageCallbackException($"Unknown scene background id: {id}.");
+
+                requested.Add(id);
+            }
+
             List<int> owned = session.player.OwnedBackgroundIds ?? new List<int>();
-            List<int> added = catalogIds.Where(id => !owned.Contains(id)).ToList();
+            List<int> added = requested.Where(id => !owned.Contains(id)).ToList();
 
             if (added.Count == 0)
-                throw new CommandMessageCallbackException("All scene backgrounds are already unlocked.");
+            {
+                throw new CommandMessageCallbackException(requested.Count == 1
+                    ? "That scene background is already unlocked."
+                    : "All scene backgrounds are already unlocked.");
+            }
 
             List<int> original = owned.ToList();
-            session.player.OwnedBackgroundIds = owned.Union(catalogIds).Distinct().Order().ToList();
+            session.player.OwnedBackgroundIds = owned.Union(requested).Distinct().Order().ToList();
 
             try
             {
@@ -51,7 +71,9 @@ namespace AscNet.GameServer.Commands
             foreach (int id in added)
                 session.SendPush(new NotifyAddBackground { BackgroundId = id });
 
-            throw new CommandMessageCallbackException($"Unlocked {added.Count} scene background(s).");
+            throw new CommandMessageCallbackException(added.Count == 1
+                ? "Unlocked 1 scene background."
+                : $"Unlocked {added.Count} scene background(s).");
         }
     }
 }

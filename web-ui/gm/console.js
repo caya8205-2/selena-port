@@ -46,12 +46,16 @@
     coatings: {
       title: "Coatings",
       command: "coating",
-      custom: "coatings"
+      fields: [{ key: "owner", type: "grid", catalog: "characters", label: "Construct", placeholder: "Search construct, trade name or ID", required: true, hint: "unlocks every coating of that construct" }],
+      build: function (v) { return ["unlock", v.owner.id]; },
+      allArgs: function () { return ["unlock", "all"]; }
     },
     scenes: {
       title: "Scenes",
       command: "scene",
-      custom: "scenes"
+      fields: [{ key: "scene", type: "grid", catalog: "scenes", label: "Scene background", placeholder: "Search scene name or ID", required: true }],
+      build: function (v) { return ["unlock", v.scene.id]; },
+      allArgs: function () { return ["unlock", "all"]; }
     },
     commandant: {
       title: "Commandant",
@@ -79,8 +83,8 @@
     items: "Grant items to the selected account. The amount is the stack size the server receives.",
     characters: "Unlock a construct. The server grants it at the level it decides, not a copy of someone else's.",
     equipment: "Grant weapons and memories by star. Equipped slots stay untouched.",
-    coatings: "Unlock every coating that belongs to the chosen construct.",
-    scenes: "Unlock scene backgrounds and lobby views for the account.",
+    coatings: "Unlock every coating of the chosen construct. Tutti covers every construct.",
+    scenes: "Unlock one scene background, or every background with Tutti.",
     stages: "Unlock stages and bosses so they can be selected in game.",
     commandant: "Set the Commandant level, the account-wide progression value shown in your profile.",
     bc: "Send a broadcast payload to the account's in-game mailbox."
@@ -281,15 +285,9 @@
     return button;
   }
 
-  /* ---------------------------------------------------------------- coatings */
-
-  /* Two dependent pickers: the construct, then the coatings that belong to that
-   * construct (read from the fashion table per character). Unlocking one coating
-   * sends "coating unlock <characterId> <coatingId>"; the per-character bulk stays
-   * available for when the whole wardrobe is wanted. */
+  /* Section-specific buttons are gone: every section now declares fields and a build, and
+   * Perform runs it. The row only has to be cleared in case a custom renderer added buttons. */
   var sectionActions = {
-    // Every section render clears the previous section's buttons, not just the next custom
-    // renderer: leaving them behind put "Unlock coating" on Stages and Memories.
     clear: function () {
       var row = $("#sectionActions");
       if (!row) return;
@@ -297,187 +295,7 @@
       var holder = row.querySelector("[data-section-holder]");
       if (holder) holder.textContent = "";
     },
-    slot: function () {
-      var row = $("#sectionActions");
-      var holder = row.querySelector("[data-section-holder]");
-      if (!holder) {
-        holder = document.createElement("span");
-        holder.setAttribute("data-section-holder", "");
-        // contents keeps the buttons as direct flex children of the shared row
-        holder.style.display = "contents";
-        row.insertBefore(holder, row.firstChild);
-      }
-      holder.textContent = "";
-      return holder;
-    },
   };
-
-  function renderCoatings(host) {
-    var owner = null;
-    var coating = null;
-    var ownerGrid;
-    var coatingHost = document.createElement("div");
-    coatingHost.className = "field";
-
-    var coatingLabel = document.createElement("span");
-    coatingLabel.className = "field__label";
-    coatingLabel.innerHTML = 'Coating<span class="field__hint">every coating of this construct</span>';
-    coatingHost.appendChild(coatingLabel);
-
-    var coatingBody = document.createElement("div");
-    coatingHost.appendChild(coatingBody);
-
-    /* One action row per tab. Section-specific buttons join the shared row instead of
-     * stacking a second row above Silence, which read as two unrelated toolbars. */
-    var actions = sectionActions.slot();
-
-    var unlockBtn = document.createElement("button");
-    unlockBtn.type = "button";
-    unlockBtn.className = "btn btn--primary";
-    unlockBtn.textContent = "Unlock coating";
-    unlockBtn.disabled = true;
-
-    var unlockAllBtn = document.createElement("button");
-    unlockAllBtn.type = "button";
-    unlockAllBtn.className = "btn btn--quiet";
-    unlockAllBtn.textContent = "Unlock every coating";
-    unlockAllBtn.disabled = true;
-
-    actions.appendChild(unlockBtn);
-    actions.appendChild(unlockAllBtn);
-
-    /* Catalog-wide unlock: the same "all" the rail's Tutti sends, available here
-     * because this section is a custom renderer and hides the rail button. */
-    var tuttiBtn = armButton(document.createElement("button"), "Tutti", function () {
-      send(["unlock", "all"], tuttiBtn);
-    });
-    actions.appendChild(tuttiBtn);
-
-    var status = document.createElement("p");
-    status.className = "hint-block";
-    status.textContent = "Pick a construct first.";
-
-    ownerGrid = window.SelenaUI.grid(
-      { label: "Construct", catalog: "characters", placeholder: "Search construct, trade name or ID" },
-      function () { return catalog("characters"); },
-      function () {
-        owner = ownerGrid.value();
-        coating = null;
-        unlockBtn.disabled = true;
-        unlockAllBtn.disabled = !owner;
-        coatingBody.textContent = "";
-
-        if (!owner) {
-          status.textContent = "Pick a construct first.";
-          return;
-        }
-
-        status.textContent = "Loading coatings…";
-        var grid = window.SelenaUI.grid(
-          { label: "Coating", placeholder: "Search coating name or id" },
-          function () { return window.SelenaAPI.coatings(owner.id); },
-          function () {
-            coating = grid.value();
-            unlockBtn.disabled = !coating;
-          }
-        );
-        grid.node.querySelector(".grid__status").textContent = "";
-
-        window.SelenaAPI.coatings(owner.id).then(function (entries) {
-          status.textContent = owner.name + " · " + entries.length + (entries.length === 1 ? " coating" : " coatings");
-        }).catch(function () {
-          status.textContent = "Could not read the coating catalog.";
-        });
-
-        coatingBody.appendChild(grid.node);
-      }
-    );
-
-    host.appendChild(ownerGrid.node);
-    host.appendChild(coatingHost);
-    host.appendChild(status);
-
-    function entryFor(args, ok, detail) {
-      performed += 1;
-      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, { name: "coating", args: args }, ok, detail);
-      $("#consoleMeta").textContent = opusLabel(performed);
-      if (ok) { celebrate(unlockBtn); window.SelenaAudio.chord(); } else { window.SelenaAudio.low(); }
-      refreshStatus();
-    }
-
-    async function send(args, button) {
-      button.disabled = true;
-      $("#meter").dataset.state = "running";
-      try {
-        var response = await window.SelenaAPI.command("coating", args);
-        entryFor(args, true, (response && response.msg) || "OK");
-      } catch (err) {
-        entryFor(args, false, (err && err.message) || "Request failed");
-      } finally {
-        $("#meter").dataset.state = "idle";
-        button.disabled = button === unlockBtn ? !coating : !owner;
-      }
-    }
-
-    unlockBtn.addEventListener("click", function () {
-      if (!owner || !coating) return;
-      send(["unlock", owner.id, coating.id], unlockBtn);
-    });
-
-    unlockAllBtn.addEventListener("click", function () {
-      if (!owner) return;
-      send(["unlock", owner.id], unlockAllBtn);
-    });
-  }
-
-
-  /* ---------------------------------------------------------------- scenes */
-
-  /* The command is all-or-nothing, so the catalog is information rather than a
-   * selection: it tells the user what "all" covers, and Tutti does the work. */
-  function renderScenes(host) {
-    var grid = window.SelenaUI.grid(
-      { label: "Scene backgrounds", placeholder: "Search scene name" },
-      function () { return catalog("scenes"); },
-      function () { /* read-only: the command has no per-scene form yet */ }
-    );
-
-    var actions = sectionActions.slot();
-
-    var tuttiBtn = armButton(document.createElement("button"), "Tutti", function () {
-      send(["unlock", "all"]);
-    });
-    actions.appendChild(tuttiBtn);
-
-    var status = document.createElement("p");
-    status.className = "hint-block";
-    status.textContent = "The catalog above is what unlock-all grants; the command has no per-scene form yet.";
-
-    host.appendChild(grid.node);
-    host.appendChild(status);
-
-    function entryFor(args, ok, detail) {
-      performed += 1;
-      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, { name: "scene", args: args }, ok, detail);
-      $("#consoleMeta").textContent = opusLabel(performed);
-      if (ok) { celebrate(tuttiBtn); window.SelenaAudio.chord(); } else { window.SelenaAudio.low(); }
-      refreshStatus();
-    }
-
-    async function send(args) {
-      tuttiBtn.disabled = true;
-      $("#meter").dataset.state = "running";
-      try {
-        var response = await window.SelenaAPI.command("scene", args);
-        entryFor(args, true, (response && response.msg) || "OK");
-      } catch (err) {
-        entryFor(args, false, (err && err.message) || "Request failed");
-      } finally {
-        $("#meter").dataset.state = "idle";
-        tuttiBtn.disabled = false;
-      }
-    }
-  }
 
   function renderSection(key) {
     current = key;
@@ -506,16 +324,6 @@
     if (gmPreviewLabel) gmPreviewLabel.hidden = isCustom;
     disarmAll();
     $("#allBtn").hidden = true;
-
-    if (section.custom === "coatings") {
-      renderCoatings(host);
-      return;
-    }
-
-    if (section.custom === "scenes") {
-      renderScenes(host);
-      return;
-    }
 
     section.fields.forEach(function (field) {
       var wrap = document.createElement("label");

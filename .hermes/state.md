@@ -10,7 +10,7 @@ moment they cost time. A stale note is worse than no note, because it is trusted
 session starts without its earlier context, read this file first, then `git log -5`, then the
 files it names. Do not rely on memory for ports, paths or column names.
 
-Last updated: duplicated section buttons fixed.
+Last updated: coatings and scenes use the universal Perform/Tutti row.
 
 ---
 
@@ -75,6 +75,8 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
   panel grants the whole set instead of guessing four pieces.
 - Slot numbering is 1-3 top row, 4-6 bottom row, three per row in the game UI.
 - Character.tsv `TradeName` gives the second card line; Equip.tsv `Star` gives the star meta.
+- `scene` accepts `unlock <id>` and `unlock all` (the single-id form was added for the panel;
+  before it, Perform had nothing to send and the tab was information only).
 - The `equip` command accepts `add <id>` and `add all` only, with no type filter: Tutti in the
   Weapons or Memories section grants every equip of both kinds. Say so in the tooltip.
 - Catalog endpoints: Node `desktop/main.js` (`/api/panel/catalog/<kind>`, `/api/panel/accounts`,
@@ -110,10 +112,13 @@ Containers never grow with their content. Which of them show a bar is a separate
 - **the action row is cleared on every section render** (`sectionActions.clear()` runs before
   any fields are built). Clearing only inside the custom renderers left "Unlock coating" sitting
   on Stages and Memories until a custom section happened to run again
-- **one action row per tab**: section-specific buttons (unlock coating, unlock every coating)
-  are inserted into `#sectionActions` through `sectionActions.slot()`, in front of
-  Tutti/Perform/Silence. Custom sections hide the default bulk button so there is never a twin.
-  The row carries `padding-top: 10px` and a top hairline
+- **no section-specific buttons exist**: every section is just `fields` plus `build(v)`, so
+  Perform runs it, and an optional `allArgs(v)` gives Tutti its bulk form. Coatings picks a
+  construct and performs `coating unlock <id>`; Scenes picks a background and performs
+  `scene unlock <id>`. A custom renderer is reserved for a section whose form genuinely does
+  not fit the generic one (player cleanup), never for adding another button
+- the shared row is Tutti, Perform, Silence only, wraps inside the column (`flex-wrap`),
+  carries `padding-top: 10px` and a top hairline; `sectionActions.clear()` runs on each render
 - sticky was tried and reverted: it covered the catalog status line without buying anything
 - `.console` is `height: max-content`: a fixed box clipped the action row as soon as a section
   carried two catalogs (coatings)

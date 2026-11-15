@@ -47,9 +47,8 @@
     scenes: {
       title: "Scenes",
       command: "scene",
-      fields: [],
-      note: "Unlocks every scene background in the catalog. The command layer has no per-scene selection yet.",
-      build: function () { return ["unlock", "all"]; }
+      fields: [{ key: "scene", type: "grid", catalog: "scenes", label: "Scene background", placeholder: "Search scene name or ID", required: true }],
+      build: function (v) { return ["unlock", v.scene.id]; }
     },
     commandant: {
       title: "Commandant",

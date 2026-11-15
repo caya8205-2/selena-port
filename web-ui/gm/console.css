@@ -296,5 +296,6 @@
   border-top: 1px solid var(--line);
 }
 .hint-block { margin: 12px 0 0; }
-/* The shared action row: separated from the fields above, buttons in one line. */
-.actions { padding-top: 10px; border-top: 1px solid var(--line); }
+/* The action row wraps inside the form column instead of overflowing the card when the
+   labels plus the hint are wider than the column. */
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
