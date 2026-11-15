@@ -62,11 +62,15 @@
       </div>
 
       <div class="rail__group">
+        <div class="rail__label">Maintenance</div>
+        <button class="rail__item" data-section="cleanup">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M7.4 2.6l1.2 3 3 1.2-3 1.2-1.2 3-1.2-3-3-1.2 3-1.2z"/><path d="M12.2 10.5l.5 1.4 1.4.5-1.4.5-.5 1.4-.5-1.4-1.4-.5 1.4-.5z"/></svg></span>
+          Cleanup
+        </button>
+      </div>
+
+      <div class="rail__group">
         <div class="rail__label">Not available</div>
-        <div class="rail__item" data-state="unavailable">
-          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.6" y="4.6" width="10.8" height="7.6" rx="1.2"/><path d="M2.6 7.4h10.8"/></svg></span>
-          Inventory cleanup
-        </div>
         <div class="rail__item" data-state="unavailable">
           <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 12.6V6.2l5-2.8 5 2.8v6.4z"/><path d="M6.4 12.6V8.8h3.2v3.8"/></svg></span>
           Dorm blueprints
@@ -152,7 +156,7 @@
             <form id="actionForm" autocomplete="off">
               <div id="formFields" style="display:flex;flex-direction:column;gap:14px"></div>
               <div class="field" style="margin-top:14px">
-                <span class="field__label">Score preview</span>
+                <span class="field__label" id="previewLabel">Score preview</span>
                 <div class="preview" id="preview" data-ready="false"><span class="preview__prompt">&gt;</span><span id="previewText">choose a target</span><span class="preview__meter" id="meter" data-state="idle" aria-hidden="true"><i></i><i></i><i></i></span></div>
               </div>
               <div class="actions" style="margin-top:16px">
@@ -195,7 +199,6 @@
             <div class="panel__meta">needs server support</div>
           </div>
           <div class="unavailable">
-            <div class="unavailable__row"><span class="unavailable__name">Inventory cleanup</span><span class="unavailable__tag">stage B</span></div>
             <div class="unavailable__row"><span class="unavailable__name">Dorm blueprint shortfall</span><span class="unavailable__tag">stage B</span></div>
             <div class="unavailable__row"><span class="unavailable__name">Guild resources and experience</span><span class="unavailable__tag">stage B</span></div>
           </div>

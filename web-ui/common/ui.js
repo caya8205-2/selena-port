@@ -192,9 +192,13 @@
       return el;
     }
 
+    /* The stepper is used with ad-hoc field descriptors too, so the label is
+     * optional rather than a crash waiting to happen. */
+    var label = String(field.label || "the value").toLowerCase();
+
     wrap.appendChild(input);
-    wrap.appendChild(button("\u2212", "Decrease " + field.label.toLowerCase(), -1));
-    wrap.appendChild(button("+", "Increase " + field.label.toLowerCase(), 1));
+    wrap.appendChild(button("\u2212", "Decrease " + label, -1));
+    wrap.appendChild(button("+", "Increase " + label, 1));
     return wrap;
   }
 

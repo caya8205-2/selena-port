@@ -55,6 +55,11 @@
       command: "stage",
       fields: [{ key: "stage", type: "combo", catalog: "stages", label: "Stage", placeholder: "Search stage name or ID", required: true }],
       build: function (v) { return [v.stage.id]; }
+    },
+    cleanup: {
+      title: "Cleanup",
+      command: "cleanup",
+      custom: "cleanup"
     }
   };
 
@@ -73,10 +78,13 @@
     scenes: "Unlock scene backgrounds and lobby views for the account.",
     stages: "Unlock stages and bosses so they can be selected in game.",
     commandant: "Set the Commandant level, the account-wide progression value shown in your profile.",
-    bc: "Send a broadcast payload to the account's in-game mailbox."
+    bc: "Send a broadcast payload to the account's in-game mailbox.",
+    cleanup: "Remove duplicates and low-star leftovers from your inventory. Preview first; nothing is deleted until you confirm."
   };
 
-  var RAIL_SCALE = [523.25, 587.33, 659.25, 783.99];
+  /* One note per rail entry, ascending: a C major scale is exactly seven steps,
+   * so every section sounds different instead of wrapping back after four. */
+  var RAIL_SCALE = [523.25, 587.33, 659.25, 698.46, 783.99, 880.0, 987.77, 1046.5];
 
   function initRailTips() {
     var items = document.querySelectorAll(".rail__item[data-section]");
@@ -224,6 +232,234 @@
 
   /* ---------------------------------------------------------------- sections */
 
+
+  /* ---------------------------------------------------------------- cleanup */
+
+  /* Inventory cleanup is the one flow that cannot be a single Perform: it has a
+   * read-only preview, and the delete only runs when the user echoes the token
+   * the preview returned. Keeping it a custom renderer makes that explicit. */
+  function renderCleanup(host) {
+    var state = { category: "memories", star: 4, developed: false, token: null };
+    var CATEGORIES = [
+      ["memories", "Memories"],
+      ["weapons", "Weapons"],
+      ["partners", "Partners"],
+      ["items", "Items"]
+    ];
+
+    var categoryRow = document.createElement("div");
+    categoryRow.className = "seg";
+    categoryRow.setAttribute("role", "group");
+    categoryRow.setAttribute("aria-label", "Category");
+
+    var confirmRow;
+    var applyBtn;
+
+    CATEGORIES.forEach(function (pair) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "seg__btn";
+      button.textContent = pair[1];
+      button.setAttribute("aria-pressed", pair[0] === state.category ? "true" : "false");
+      button.addEventListener("click", function () {
+        state.category = pair[0];
+        state.token = null;
+        Array.prototype.forEach.call(categoryRow.children, function (node) {
+          node.setAttribute("aria-pressed", node === button ? "true" : "false");
+        });
+        reset();
+      });
+      categoryRow.appendChild(button);
+    });
+
+    var starRow = document.createElement("div");
+    starRow.className = "field__row";
+    starRow.innerHTML = '<span class="field__label">Delete up to star<span class="field__hint">nothing above this is touched</span></span>';
+
+    var starInput = document.createElement("input");
+    starInput.className = "input input--mono";
+    starInput.type = "number";
+    starInput.value = String(state.star);
+    starRow.appendChild(window.SelenaUI.stepper(starInput, { label: "the star limit", min: 3, max: 6, value: String(state.star) }, function () {
+      state.star = Number(starInput.value) || 4;
+      state.token = null;
+      reset();
+    }));
+
+    var devRow = document.createElement("label");
+    devRow.className = "check";
+    var devBox = document.createElement("input");
+    devBox.type = "checkbox";
+    devBox.addEventListener("change", function () {
+      state.developed = devBox.checked;
+      state.token = null;
+      reset();
+    });
+    devRow.appendChild(devBox);
+    devRow.appendChild(document.createTextNode("Also delete levelled and promoted entries"));
+
+    var previewBtn = document.createElement("button");
+    previewBtn.type = "button";
+    previewBtn.className = "btn btn--primary";
+    previewBtn.id = "cleanupPreview";
+    previewBtn.textContent = "Preview";
+
+    var result = document.createElement("div");
+    result.className = "cleanup__result";
+    result.id = "cleanupResult";
+    result.hidden = true;
+
+    confirmRow = document.createElement("div");
+    confirmRow.className = "cleanup__confirm";
+
+    var confirmInput = document.createElement("input");
+    confirmInput.className = "input";
+    confirmInput.type = "text";
+    confirmInput.placeholder = "Type CONFIRM CLEANUP";
+    confirmInput.setAttribute("aria-label", "Confirmation phrase");
+
+    applyBtn = document.createElement("button");
+    applyBtn.type = "button";
+    applyBtn.className = "btn";
+    applyBtn.id = "cleanupApply";
+    applyBtn.textContent = "Delete";
+    applyBtn.disabled = true;
+
+    confirmRow.appendChild(confirmInput);
+    confirmRow.appendChild(applyBtn);
+
+    var actions = document.createElement("div");
+    actions.className = "cleanup__actions";
+    actions.appendChild(previewBtn);
+
+    host.appendChild(categoryRow);
+    host.appendChild(starRow);
+    host.appendChild(devRow);
+    host.appendChild(actions);
+    host.appendChild(result);
+    host.appendChild(confirmRow);
+
+    function reset() {
+      result.hidden = true;
+      result.textContent = "";
+      confirmInput.value = "";
+      applyBtn.disabled = true;
+    }
+
+    confirmInput.addEventListener("input", function () {
+      applyBtn.disabled = !state.token || confirmInput.value.trim().toUpperCase() !== "CONFIRM CLEANUP";
+    });
+
+    function entryFor(args, ok, detail) {
+      performed += 1;
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, { name: "cleanup", args: args }, ok, detail);
+      $("#consoleMeta").textContent = opusLabel(performed);
+      if (ok) window.SelenaAudio.chord(); else window.SelenaAudio.low();
+      refreshStatus();
+    }
+
+    function parse(payload) {
+      var text = payload && payload.msg ? payload.msg : "";
+      try {
+        return JSON.parse(text);
+      } catch (err) {
+        return null;
+      }
+    }
+
+    previewBtn.addEventListener("click", async function () {
+      var args = ["preview", state.category, state.star, state.developed ? 1 : 0];
+      previewBtn.disabled = true;
+      $("#meter").dataset.state = "running";
+
+      try {
+        var payload = await window.SelenaAPI.command("cleanup", args);
+        var data = parse(payload);
+        entryFor(args, true, data && data.ok
+          ? data.eligible + " eligible / " + data.items + " stacks / " + data.quantity + " units"
+          : (payload && payload.msg) || "no preview data");
+
+        if (data && data.ok) {
+          state.token = data.token;
+          var counts = document.createElement("div");
+          counts.className = "cleanup__counts";
+
+          [["Eligible", data.eligible], ["Stacks", data.items], ["Units", data.quantity]].forEach(function (pair) {
+            var cell = document.createElement("div");
+            var value = document.createElement("strong");
+            value.textContent = Number(pair[1]).toLocaleString();
+            var label = document.createElement("span");
+            label.textContent = pair[0];
+            cell.appendChild(value);
+            cell.appendChild(label);
+            counts.appendChild(cell);
+          });
+
+          result.textContent = "";
+          result.appendChild(counts);
+
+          if (data.sample && data.sample.length) {
+            var list = document.createElement("ul");
+            list.className = "cleanup__sample";
+            data.sample.forEach(function (line) {
+              var item = document.createElement("li");
+              item.textContent = line;
+              list.appendChild(item);
+            });
+            result.appendChild(list);
+          }
+
+          result.hidden = false;
+          confirmRow.hidden = false;
+        } else {
+          result.textContent = payload && payload.msg ? payload.msg : "Preview returned nothing usable.";
+          result.hidden = false;
+        }
+      } catch (err) {
+        entryFor(args, false, err.message);
+        result.textContent = err.message;
+        result.hidden = false;
+      } finally {
+        $("#meter").dataset.state = "idle";
+        previewBtn.disabled = false;
+      }
+    });
+
+    applyBtn.addEventListener("click", async function () {
+      if (!state.token) return;
+      var args = ["apply", state.category, state.star, state.developed ? 1 : 0, "confirm=" + state.token];
+      applyBtn.disabled = true;
+      $("#meter").dataset.state = "running";
+
+      try {
+        var payload = await window.SelenaAPI.command("cleanup", args);
+        var data = parse(payload);
+        entryFor(args, true, data && data.ok
+          ? "removed " + data.removed + " stacks (" + (data.items || 0) + " units)"
+          : (payload && payload.msg) || "no result");
+
+        result.textContent = "";
+        var done = document.createElement("p");
+        done.textContent = data && data.ok
+          ? "Removed " + Number(data.removed).toLocaleString() + " stacks (" + Number(data.items || 0).toLocaleString() + " units)."
+          : (payload && payload.msg) || "The server did not confirm the cleanup.";
+        result.appendChild(done);
+        result.hidden = false;
+
+        state.token = null;
+        confirmInput.value = "";
+        celebrate(applyBtn);
+      } catch (err) {
+        entryFor(args, false, err.message);
+        result.textContent = err.message;
+        result.hidden = false;
+      } finally {
+        $("#meter").dataset.state = "idle";
+        applyBtn.disabled = !state.token || confirmInput.value.trim().toUpperCase() !== "CONFIRM CLEANUP";
+      }
+    });
+  }
+
   function renderSection(key) {
     current = key;
     values = {};
@@ -240,6 +476,19 @@
 
     var host = $("#formFields");
     host.textContent = "";
+
+    /* Custom sections own their own actions, so the generic score preview and
+     * Perform button step aside instead of showing a command that cannot run. */
+    var isCustom = Boolean(section.custom);
+    $("#preview").hidden = isCustom;
+    $("#runBtn").hidden = isCustom;
+    var previewLabel = $("#previewLabel");
+    if (previewLabel) previewLabel.hidden = isCustom;
+
+    if (section.custom === "cleanup") {
+      renderCleanup(host);
+      return;
+    }
 
     section.fields.forEach(function (field) {
       var wrap = document.createElement("label");

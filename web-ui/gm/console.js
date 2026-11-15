@@ -77,7 +77,9 @@
     bc: "Send a broadcast payload to the account's in-game mailbox."
   };
 
-  var RAIL_SCALE = [523.25, 587.33, 659.25, 783.99];
+  /* One note per rail entry, ascending: a C major scale is exactly seven steps,
+   * so every section sounds different instead of wrapping back after four. */
+  var RAIL_SCALE = [523.25, 587.33, 659.25, 698.46, 783.99, 880.0, 987.77, 1046.5];
 
   function initRailTips() {
     var items = document.querySelectorAll(".rail__item[data-section]");

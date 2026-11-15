@@ -25,6 +25,7 @@ COMMANDS = [
     ("stage", "Clear stages"),
     ("bc", "Grant Black Cards"),
     ("save", "Save the current account"),
+    ("cleanup", "Inventory cleanup (preview/apply)"),
 ]
 
 TOKEN = "mock-token-0001"
@@ -83,6 +84,33 @@ class Handler(BaseHTTPRequestHandler):
             args = body.get("args") or []
             if name not in [c for c, _ in COMMANDS]:
                 return self._send({"msg": "Command does not exists!"}, 404)
+
+            # Inventory cleanup fixture: preview is side-effect free and returns a
+            # token; apply must echo that token, exactly like the real handler is
+            # specified in docs/stage-b.md.
+            if name == "cleanup":
+                op = (args[0] if args else "").lower()
+                if op == "preview":
+                    payload = {
+                        "ok": True,
+                        "eligible": 37,
+                        "items": 41,
+                        "quantity": 1203,
+                        "token": "MOCK-PREVIEW-8741",
+                        "sample": [
+                            "Memory: Condelina (4*) x3",
+                            "Weapon: Kuji no Sada (5*) x1",
+                            "Partner: Chassis (3*) x2",
+                        ],
+                    }
+                    return self._send({"msg": json.dumps(payload)})
+                if op == "apply":
+                    token = next((a.split("=", 1)[1] for a in args if str(a).startswith("confirm=")), "")
+                    if token != "MOCK-PREVIEW-8741":
+                        return self._send({"msg": "Confirmation token mismatch. Preview again."}, 400)
+                    return self._send({"msg": json.dumps({"ok": True, "removed": 37, "items": 41})})
+                return self._send({"msg": "Usage: cleanup <preview|apply> ..."}, 400)
+
             return self._send({"msg": "OK (mock): %s %s" % (name, " ".join(str(a) for a in args))})
 
         return self._send({"code": -1, "msg": "not found"}, 404)
