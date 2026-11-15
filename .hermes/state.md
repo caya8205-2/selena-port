@@ -10,7 +10,7 @@ moment they cost time. A stale note is worse than no note, because it is trusted
 session starts without its earlier context, read this file first, then `git log -5`, then the
 files it names. Do not rely on memory for ports, paths or column names.
 
-Last updated: Phase F updates - check local HEAD against GitHub, apply with backup/pull/build/restart.
+Last updated: Phase D started - the rank genes are settled and the progression command is tested.
 
 ---
 
@@ -81,6 +81,27 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
   Weapons or Memories section grants every equip of both kinds. Say so in the tooltip.
 - Catalog endpoints: Node `desktop/main.js` (`/api/panel/catalog/<kind>`, `/api/panel/accounts`,
   now `/api/panel/memory-sets`) and, for parity, `AscNet.WebPanel/Catalog.cs`.
+- **A construct has three progression genes, not one**: `Grade` (rarity ladder, `CharacterGrade.tsv`
+  with `GradeName` such as "Private I"/"Sergeant I", promoted by `UseItemKey`/`UseItemCount`),
+  `Quality` 1..6 (the rank ladder, promoted with `CharacterQualityFragment.PromoteUseCoin` of
+  `PromoteItemId`) and `Star` 0..N inside that quality (shards of the construct's own
+  `CharacterTable.ItemId`, cost `StarUseCount[Star]`). A quality step resets `Star` to 0.
+  The plan's "S0..S10 then SS/SSS/SSS+" is this ladder, not a single field.
+- Shard costs per star are 1/2/3/9/18 for qualities 1-5 (identical for all ten steps of that
+  quality); promotions cost 20000/40000/60000/80000/100000 Cogs; quality 6 has no star steps and
+  no promotion. The PPC's 50-per-construct price is the shop price, not the upgrade cost.
+- The memory "hypertune" the plan describes is the game's **awaken**: `EquipAwakeRequest` adds a
+  slot to `EquipData.AwakeSlotList` against a recipe, and `AwarenessModule.LeveledEvents` reads
+  `1 + awakened slots` as the grid event level (Magic 763745000, +1% per level). Two awakened
+  slots per memory are the 12% ceiling for six memories; Harmony memories cannot be resonated.
+- **Harmony is a weapon overrun effect, not an extra slot**: `WeaponOverrun.tsv` rows carry
+  `ConsumeItemIds[1]` 34000 x25, `ActiveSuitItemId` 47 x1200 and the text "Harmony Absorption:
+  Piece count for Memory Set effects +2". `EquipData.WeaponOverrunData` persists
+  `Level`, `ActiveSuits`, `ChoseSuit`.
+- Resonance pools come from `EquipResonance.tsv` keyed by the equip id: a memory uses
+  `AttribPoolId[1..3]` (slot 1) and `CharacterSkillPoolId[1..2]` (slot 2, chosen with
+  `SelectSkillIds`); a 6-star weapon uses `WeaponSkillPoolId[1..3]`, and the pool row's
+  `CharacterId` plus `SkillId` list is what gates a class-specific node.
 - A mail is a `PlayerMail` with `Type` 0 and `GroupId` 0, exactly like `Configs/system_mails.json`;
   `ExpireTime` 0 never expires and the claim key falls back to `mail:{id}`. An online player gets
   `NotifyMails` pushed at delivery, an offline one gets the row at the next login.
@@ -120,6 +141,13 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
   listening; the same run against the real upstream aborted at pull with git's own
   "Not possible to fast-forward" and still restarted the stack; the Config "Rebuild server"
   button recompiled (dll mtime moved) with the stack originally running and came back up.
+- Phase D, first half: `character info <id>` (progression, next step and its cost, shards,
+  equipped memories and weapons with resonance/awaken/overrun), `character rank <id>
+  [next|star|quality|max]` and `character shards <id> <count>` run through
+  `AscNet.GameServer/CharacterProgression.cs`. `--character-builder-only` verifies them offline:
+  one shard step, the refused early quality step, a greedy walk that spends exactly the table
+  totals (300 shards and 240000 Cogs for Lee), a short balance that stops with the shortfall,
+  and parity with `CharacterActivateStarRequest` on an identical player.
 
 
 ### Scroll containers (one rule, keep it)
@@ -236,6 +264,13 @@ override and every height reads short (a 764 window measured 429 and looked like
   success, so print the document before and after.
 - `uv run --with pymongo python -` reads or patches the database with nothing installed into the
   project; no mongosh ships with the MongoDB zip.
+- This machine has the .NET 10 SDK and only the 10 runtime: a net8.0 test binary refuses to start
+  ("You must install or update .NET") unless `DOTNET_ROLL_FORWARD=Major` is set. The server itself
+  is launched by the control centre, which sets up its environment.
+- `AscNet.Test` does not load the command layer by itself: call
+  `CommandFactory.LoadCommands()` before `CreateCommand`, or every lookup returns null.
+- `Inventory.Do(id, negative)` clamps at zero instead of refusing, so every spend in a command
+  has to check the balance first or it grants the rank and eats the stack down to nothing.
 - The shell page served over HTTP has no `window.selena` (the bridge is Electron IPC), so a
   layout or flow test needs `Page.addScriptToEvaluateOnNewDocument` with a stub that returns the
   real token from `admin-token.txt`. That worked for the whole Mail tab, send included.
@@ -245,8 +280,12 @@ override and every height reads short (a 764 window measured 429 and looked like
 Plan order is A, B, C, E, F, D (see `plans/2026-11-15_112155-inventory-ops-dashboard.md`);
 A, B, C, E and F are done.
 
-- D character builder is next and last: read model, rank from shards, memory build, weapon
-  resonance, sliders. Its open questions are being settled from the code, not guessed.
+- D character builder: the read model, the rank walk and the shard grant are done and tested
+  (`--character-builder-only`). Left: the memory build (level via `EquipLevelUp`/`EquipBreakThrough`,
+  resonance slots through `EquipResonanceRequest`'s own rules, awaken through `EquipAwakeRequest`'s
+  `CanAwakeEquipSlot`/`TryResolveAwakeCosts` helpers), the weapon overrun nodes, and the slider UI
+  in a new Inventory view. Those helpers are private statics in `EquipModule`; widen them to
+  `internal` instead of copying their rules.
 - Mail left open by design: the in-game claim check, and no delete/unread management in the
   panel (the plan scoped sending only).
 - Accounts still needs currency, unlock character and max character through the admin channel.
