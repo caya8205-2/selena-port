@@ -732,4 +732,23 @@
 
   $("#consoleMeta").textContent = opusLabel(0);
   if (window.SelenaAPI.account) refreshStatus();
+
+  /* Keep the rail honest without waiting for an action: poll the server while the
+   * tab is visible, and first refresh any session that predates the client's first
+   * login so an old tab becomes usable on its own. */
+  setInterval(function () {
+    if (document.visibilityState !== "visible") return;
+    if (!window.SelenaAPI.account) return;
+
+    var acc = window.SelenaAPI.account();
+    if (!acc.playerToken) {
+      window.SelenaAPI.verify().then(function (next) {
+        if (next) refreshStatus();
+      }).catch(function () { /* stay signed in; the next poll retries */ });
+      return;
+    }
+
+    refreshStatus();
+  }, 10000);
+
 })();

@@ -74,6 +74,33 @@
     return data;
   }
 
+
+  /* Re-read the session from the server: /api/AscNet/verify takes the account token
+   * and answers with the same shape as login, including the player token the game
+   * created. This is what lets a panel session opened before the client ever logged
+   * in become usable without signing out. */
+  async function verify() {
+    var acc = account();
+    if (!acc || !acc.token) return null;
+
+    var data = await request("/api/AscNet/verify", {
+      method: "POST",
+      auth: false,
+      body: { token: acc.token }
+    });
+
+    if (!data || data.code !== 0 || !data.account) return null;
+
+    var next = {
+      uid: data.account.Uid,
+      username: data.account.Username,
+      token: data.account.Token,
+      playerToken: data.account.PlayerToken || null
+    };
+    setAccount(next);
+    return next;
+  }
+
   async function login(username, password, register) {
     var data = await request(register ? "/api/AscNet/register" : "/api/AscNet/login", {
       method: "POST",
@@ -120,10 +147,20 @@
 
   async function command(name, args) {
     if (!account()) throw new Error("Log in first");
-    return request("/api/AscNet/command/" + encodeURIComponent(name), {
-      method: "POST",
-      body: { args: (args || []).map(String) }
-    });
+
+    var path = "/api/AscNet/command/" + encodeURIComponent(name);
+    var payload = { method: "POST", body: { args: (args || []).map(String) } };
+
+    try {
+      return await request(path, payload);
+    } catch (err) {
+      /* An old tab can hold a session from before the game login existed. Refresh
+       * the session once and retry; only then report the failure. */
+      if (err && err.status === 401 && (await verify())) {
+        return request(path, payload);
+      }
+      throw err;
+    }
   }
 
   /* Small credential modal, so the GM page (which has no login form) can ask
@@ -211,6 +248,7 @@
     commands: commands,
     command: command,
     coatings: coatings,
+    verify: verify,
     status: status
   };
 })();
