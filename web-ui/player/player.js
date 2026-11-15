@@ -194,6 +194,11 @@
       status.classList.add("is-offline");
       text.textContent = "Not in game";
       if (status) status.setAttribute("data-tip", "No live session: the game is not connected, so commands will fail until you log in there.");
+    } else if (result.state === "account-only") {
+      status.classList.remove("is-online");
+      status.classList.add("is-offline");
+      text.textContent = "Account ready · game login required";
+      if (status) status.setAttribute("data-tip", "This account exists, but the server only authorises commands for a player the game has created. Log in from the client once, then commands work.");
     }
   }
 

@@ -188,7 +188,10 @@
       await command("save", []);
       return { state: "in-game" };
     } catch (err) {
-      if (err && err.status === 401) return { state: "signed-out" };
+      /* A 401 here does not mean the panel session died: the account token is
+       * valid, but the server only authorises commands for a player record that
+       * the game creates on login. Report that state instead of logging out. */
+      if (err && err.status === 401 && account()) return { state: "account-only", detail: err.message };
       if (err && err.status === 400) return { state: "not-in-game", detail: err.message };
       return { state: "unknown", detail: (err && err.message) || "probe failed" };
     }
