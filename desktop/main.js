@@ -387,7 +387,8 @@ function tuneCatalog() {
   for (const cells of equips.rows) {
     const id = Number(cells[equipIdAt])
     const site = Number(cells[siteAt])
-    const entry = { id, name: cells[equipNameAt], star: Number(cells[starAt] || 0) }
+    const typeAt2 = equips.header.indexOf('Type')
+    const entry = { id, name: cells[equipNameAt], star: Number(cells[starAt] || 0), type: Number(cells[typeAt2] || 0) }
     if (site === 0) weaponRows.push(entry)
     else if (site > 0) memoryRows.push(Object.assign({ site }, entry))
   }
@@ -454,7 +455,12 @@ function tuneCharacter(characterId) {
 
   // The level curve lives in the server's database templates rather than a TSV here, so the
   // slider offers the game's ceiling and the server clamps to the curve it actually keeps.
-  return { characterId, maxLevel: maxLevel || 80, stars, promotions }
+  // A weapon belongs to a construct through Equip.Type matching Character.EquipType, which is how
+  // the game decides which weapons a construct may carry at all.
+  const equipTypeAt = characters.header.indexOf('EquipType')
+  const equipType = Number(character[equipTypeAt] || 0)
+
+  return { characterId, maxLevel: maxLevel || 80, stars, promotions, equipType }
 }
 
 // Which resonances a slot can hold, from the game's own pools: a memory takes a stat on slot 1

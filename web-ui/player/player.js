@@ -1237,8 +1237,10 @@
 
       // weapon, its three resonances and its harmony
       const weaponSection = section("Weapon");
-      const weaponPicker = window.SelenaUI.select([{ value: 0, label: "empty" }].concat((state.catalog.weapons || [])
-        .sort((left, right) => String(left.name).localeCompare(String(right.name)))
+      const equipType = (state.detail && state.detail.equipType) || 0;
+      const carried = (state.catalog.weapons || []).filter((weapon) => !equipType || weapon.type === equipType);
+      const weaponPicker = window.SelenaUI.select([{ value: 0, label: "empty" }].concat(carried
+        .sort((left, right) => left.star - right.star || String(left.name).localeCompare(String(right.name)))
         .map((weapon) => ({ value: weapon.id, label: weapon.name + " · " + weapon.star + "★" }))), {
         value: design.weapon.templateId,
         search: "Filter weapons",
