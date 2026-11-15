@@ -542,14 +542,11 @@ function resonanceEntries(templateId, slot, characterId) {
   // instead of a wrong one.
   // The game lists the twelve in the pool's own order, so the label follows the position rather
   // than the id: the first six carry the same name in every class, the rest are class business.
-  const WEAPON_UNIVERSAL = [
-    'Incandescence',
-    'Dead Line Timing',
-    'Matrix Lightning',
-    'Shock Saturation',
-    'Nsec Transmission',
-    'Shock Echo',
-  ];
+  // The first three of the twelve are named by frame kind, not by class: an Omniframe gets the
+  // omniframe trio, a Uniframe the vanguard trio. The next three carry the same name everywhere.
+  const WEAPON_UNIVERSAL_OMNI = ['Incandescence', 'Dead Line Timing', 'Matrix Lightning'];
+  const WEAPON_UNIVERSAL_UNI = ['Matrix Outburst', 'Overload Signal', 'Limit Break'];
+  const WEAPON_UNIVERSAL_TAIL = ['Shock Saturation', 'Nsec Transmission', 'Shock Echo'];
   const AMPLIFIER_SET = [
     'Glorious Spear',
     'Superconducting Axial Ray',
@@ -596,8 +593,11 @@ function resonanceEntries(templateId, slot, characterId) {
         const skillId = at >= 0 ? Number(cells[at] || 0) : 0
         if (skillId <= 0 || seen.has(skillId)) continue
         seen.add(skillId)
-        const classNames = WEAPON_CLASS_NAMES[characterCareer(characterId)] || [];
-        const name = WEAPON_UNIVERSAL[entries.length] || classNames[entries.length - WEAPON_UNIVERSAL.length] || 'Class Resonance';
+        const career = characterCareer(characterId);
+        const head = career === 'vanguard' ? WEAPON_UNIVERSAL_UNI : WEAPON_UNIVERSAL_OMNI;
+        const universal = [...head, ...WEAPON_UNIVERSAL_TAIL];
+        const classNames = WEAPON_CLASS_NAMES[career] || [];
+        const name = universal[entries.length] || classNames[entries.length - universal.length] || 'Class Resonance';
         entries.push({ kind: 'weapon', id: skillId, name: name, meta: '' })
       }
     }
