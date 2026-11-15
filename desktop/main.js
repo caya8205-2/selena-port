@@ -1343,11 +1343,14 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', async () => {
-  await stopAll()
+  // In development the stack outlives this window: the server and the game client were started
+  // separately, and closing the console must not take them down.
+  if (!isDev) await stopAll()
   app.quit()
 })
 
 app.on('before-quit', () => {
+  if (isDev) return
   for (const key of ['server', 'mongo']) {
     const child = running[key]
     if (child && !child.killed) child.kill()
