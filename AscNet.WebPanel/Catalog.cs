@@ -20,17 +20,17 @@ public sealed class Catalog
         Star,
     }
 
-    private static readonly Dictionary<string, (string File, string IdColumn, string NameColumn, Extra Extra, string? ZeroColumn, bool Invert)> Sources =
+    private static readonly Dictionary<string, (string File, string IdColumn, string NameColumn, Extra Extra, string? ZeroColumn, bool Invert, string? SlotColumn)> Sources =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["items"] = ("share/item/Item.tsv", "Id", "Name", Extra.None, null, false),
-            ["characters"] = ("share/character/Character.tsv", "Id", "Name", Extra.TradeName, null, false),
-            ["equips"] = ("share/equip/Equip.tsv", "Id", "Name", Extra.Star, null, false),
-            ["stages"] = ("share/fuben/Stage.tsv", "StageId", "Name", Extra.None, null, false),
-            ["scenes"] = ("share/photomode/Background.tsv", "Id", "Name", Extra.None, null, false),
+            ["items"] = ("share/item/Item.tsv", "Id", "Name", Extra.None, null, false, null),
+            ["characters"] = ("share/character/Character.tsv", "Id", "Name", Extra.TradeName, null, false, null),
+            ["equips"] = ("share/equip/Equip.tsv", "Id", "Name", Extra.Star, null, false, null),
+            ["stages"] = ("share/fuben/Stage.tsv", "StageId", "Name", Extra.None, null, false, null),
+            ["scenes"] = ("share/photomode/Background.tsv", "Id", "Name", Extra.None, null, false, null),
             // A weapon is the only equip with a weapon skill; memories hold 0 there.
-            ["weapons"] = ("share/equip/Equip.tsv", "Id", "Name", Extra.Star, "WeaponSkillId", true),
-            ["memories"] = ("share/equip/Equip.tsv", "Id", "Name", Extra.Star, "WeaponSkillId", false),
+            ["weapons"] = ("share/equip/Equip.tsv", "Id", "Name", Extra.Star, "WeaponSkillId", true, null),
+            ["memories"] = ("share/equip/Equip.tsv", "Id", "Name", Extra.Star, "Site", true, "Site"),
         };
 
     private readonly ConcurrentDictionary<string, (DateTime Stamp, CatalogEntry[] Entries)> _cache = new();
@@ -65,7 +65,7 @@ public sealed class Catalog
             return true;
         }
 
-        entries = Parse(path, source.IdColumn, source.NameColumn, source.Extra, source.ZeroColumn, source.Invert);
+        entries = Parse(path, source.IdColumn, source.NameColumn, source.Extra, source.ZeroColumn, source.Invert, source.SlotColumn);
         _cache[kind] = (stamp, entries);
         return true;
     }
@@ -139,7 +139,7 @@ public sealed class Catalog
         return entries;
     }
 
-    private static CatalogEntry[] Parse(string path, string idColumn, string nameColumn, Extra extra, string? zeroColumn = null, bool invert = false)
+    private static CatalogEntry[] Parse(string path, string idColumn, string nameColumn, Extra extra, string? zeroColumn = null, bool invert = false, string? slotColumn = null)
     {
         var lines = File.ReadAllLines(path);
         if (lines.Length < 2)
@@ -163,9 +163,10 @@ public sealed class Catalog
         };
         var extraIndex = extraColumn is null ? -1 : Find(header, extraColumn);
         var zeroIndex = zeroColumn is null ? -1 : Find(header, zeroColumn);
+        var slotIndex = slotColumn is null ? -1 : Find(header, slotColumn);
 
         var result = new List<CatalogEntry>(lines.Length - 1);
-        var widest = Math.Max(idIndex, Math.Max(nameIndex, Math.Max(extraIndex, zeroIndex)));
+        var widest = Math.Max(idIndex, Math.Max(nameIndex, Math.Max(extraIndex, Math.Max(zeroIndex, slotIndex))));
 
         for (var i = 1; i < lines.Length; i++)
         {
@@ -203,6 +204,17 @@ public sealed class Catalog
                 Extra.Star when extraIndex >= 0 && int.TryParse(row[extraIndex].Trim(), out var star) => $"{star}\u2605",
                 _ => string.Empty,
             };
+
+            // A memory's grid number decides which of the six slots it may occupy, so the
+            // card has to carry it the same way the Node server does.
+            if (slotIndex >= 0)
+            {
+                var slot = row[slotIndex].Trim();
+                if (slot.Length > 0 && slot != "0")
+                {
+                    meta = meta.Length > 0 ? $"{meta} \u00b7 Slot {slot}" : $"Slot {slot}";
+                }
+            }
 
             result.Add(new CatalogEntry(id, name, meta));
         }

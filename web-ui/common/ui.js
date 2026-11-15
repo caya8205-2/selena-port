@@ -352,6 +352,7 @@
 
     var cards = document.createElement("div");
     cards.className = "grid__cards";
+    if (field.columns === 3) cards.classList.add("grid__cards--three");
     cards.setAttribute("role", "listbox");
     cards.setAttribute("aria-label", field.label || "Entries");
 
@@ -496,7 +497,93 @@
     };
   }
 
-  window.SelenaUI = { combo: combo, stepper: stepper, entry: entry, resetLog: resetLog, initTooltips: initTooltips, hideTip: hideTip, grid: grid };
+
+  // -------------------------------------------------------------- memory sets
+  // Six memories share a SuitId and each one may occupy exactly one slot. Which four a
+  // construct equips differs per build, so this grants the whole set instead of guessing
+  // a layout. It hides itself when the server cannot answer, rather than showing an empty
+  // control that looks broken.
+  function memorySetGrant(runSet) {
+    var wrap = document.createElement("div");
+    wrap.className = "field";
+
+    var labelRow = document.createElement("span");
+    labelRow.className = "field__label";
+    var labelText = document.createElement("span");
+    labelText.textContent = "Memory set";
+    labelRow.appendChild(labelText);
+    var hint = document.createElement("span");
+    hint.className = "field__hint";
+    hint.textContent = "all six slots at once";
+    labelRow.appendChild(hint);
+    wrap.appendChild(labelRow);
+
+    var row = document.createElement("div");
+    row.className = "actions";
+
+    var select = document.createElement("select");
+    select.className = "input";
+    select.setAttribute("aria-label", "Memory set");
+
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn btn--primary";
+    button.textContent = "Grant set";
+    button.disabled = true;
+
+    var status = document.createElement("span");
+    status.className = "field__note";
+    status.setAttribute("aria-live", "polite");
+
+    row.appendChild(select);
+    row.appendChild(button);
+    row.appendChild(status);
+    wrap.appendChild(row);
+
+    var sets = [];
+
+    fetch("/api/panel/memory-sets")
+      .then(function (response) { if (!response.ok) throw new Error("unavailable"); return response.json(); })
+      .then(function (payload) {
+        sets = (payload && payload.sets) || [];
+        if (sets.length === 0) { wrap.hidden = true; return; }
+
+        sets.forEach(function (set) {
+          var option = document.createElement("option");
+          option.value = String(set.id);
+          option.textContent = set.name + " (" + set.meta + ")";
+          select.appendChild(option);
+        });
+
+        button.disabled = false;
+        status.textContent = sets.length + " sets";
+      })
+      .catch(function () { wrap.hidden = true; });
+
+    button.addEventListener("click", function () {
+      var chosen = sets.filter(function (set) { return String(set.id) === select.value; })[0];
+      if (!chosen) return;
+
+      button.disabled = true;
+      select.disabled = true;
+      status.textContent = "granting six slots...";
+
+      Promise.resolve(runSet(chosen))
+        .then(function (results) {
+          var list = results || [];
+          var failed = list.filter(function (result) { return !result.ok; });
+          status.textContent = failed.length === 0
+            ? "all six granted"
+            : (list.length - failed.length) + " of " + list.length + " granted";
+        })
+        .catch(function (error) { status.textContent = "failed: " + error.message; })
+        .then(function () { button.disabled = false; select.disabled = false; });
+    });
+
+    return { node: wrap };
+  }
+
+  window.SelenaUI = { combo: combo, stepper: stepper, entry: entry, resetLog: resetLog, initTooltips: initTooltips, hideTip: hideTip, grid: grid, memorySetGrant: memorySetGrant };
 })();
 
 window.SelenaUI.initTooltips();

@@ -204,16 +204,17 @@ const catalogSources = {
   equips: { file: 'share/equip/Equip.tsv', id: 'Id', name: 'Name', extra: 'Star' },
   // A weapon is the only equip with a weapon skill; memories carry 0 in that column.
   weapons: { file: 'share/equip/Equip.tsv', id: 'Id', name: 'Name', extra: 'Star', owner: 'WeaponSkillId', invert: true },
-  memories: { file: 'share/equip/Equip.tsv', id: 'Id', name: 'Name', extra: 'Star', owner: 'WeaponSkillId' },
+  // Site 0 is a weapon, 1..6 is the memory slot, so memories are the non-zero rows.
+  memories: { file: 'share/equip/Equip.tsv', id: 'Id', name: 'Name', extra: 'Star', owner: 'Site', invert: true, slot: 'Site' },
   stages: { file: 'share/fuben/Stage.tsv', id: 'StageId', name: 'Name', extra: null },
   scenes: { file: 'share/photomode/Background.tsv', id: 'Id', name: 'Name', extra: 'Quality' },
 }
 
 const cache = new Map()
 
-function parseTsv(file, idColumn, nameColumn, extraColumn, ownerColumn, filterOwner, invertOwner = false) {
+function parseTsv(file, idColumn, nameColumn, extraColumn, ownerColumn, filterOwner, invertOwner = false, slotColumn = null) {
   const stat = fs.statSync(file)
-  const key = `${file}:${ownerColumn || ''}:${filterOwner || ''}:${invertOwner}`
+  const key = `${file}:${ownerColumn || ''}:${filterOwner || ''}:${invertOwner}:${slotColumn || ''}`
   const hit = cache.get(key)
   if (hit && hit.stamp === stat.mtimeMs) return hit.entries
 
@@ -230,6 +231,7 @@ function parseTsv(file, idColumn, nameColumn, extraColumn, ownerColumn, filterOw
 
   const extraIndex = extraColumn ? at(extraColumn) : -1
   const ownerIndex = ownerColumn ? at(ownerColumn) : -1
+  const slotIndex = slotColumn ? at(slotColumn) : -1
 
   const entries = []
   for (let i = 1; i < lines.length; i += 1) {
@@ -252,6 +254,13 @@ function parseTsv(file, idColumn, nameColumn, extraColumn, ownerColumn, filterOw
       else meta = raw
     }
 
+    // A memory's grid number is its Site column, and it decides which of the six slots
+    // it may occupy, so the catalog has to carry it.
+    if (slotIndex >= 0) {
+      const slot = (row[slotIndex] || '').trim()
+      if (slot && slot !== '0') meta = meta ? `${meta} · Slot ${slot}` : `Slot ${slot}`
+    }
+
     entries.push({ id, name, meta })
   }
 
@@ -264,7 +273,46 @@ function catalog(kind) {
   if (!source) return null
   const file = path.join(config.tableDir, ...source.file.split('/'))
   if (!fs.existsSync(file)) return null
-  return parseTsv(file, source.id, source.name, source.extra, source.owner, source.owner ? 0 : undefined, Boolean(source.invert))
+  return parseTsv(file, source.id, source.name, source.extra, source.owner, source.owner ? 0 : undefined, Boolean(source.invert), source.slot)
+}
+
+// Every memory set is six entries sharing a SuitId, one per slot. Slot layouts differ
+// per construct, so the panel grants the whole set and the player picks which four to equip.
+function memorySets() {
+  const file = path.join(config.tableDir, 'share', 'equip', 'Equip.tsv')
+  if (!fs.existsSync(file)) return null
+
+  const stat = fs.statSync(file)
+  const hit = cache.get('memory-sets')
+  if (hit && hit.stamp === stat.mtimeMs) return hit.sets
+
+  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean)
+  const header = lines[0].split('\t').map((h) => h.trim().toLowerCase())
+  const col = (name) => header.indexOf(name.toLowerCase())
+  const idAt = col('Id'), siteAt = col('Site'), suitAt = col('SuitId'), nameAt = col('Name'), starAt = col('Star')
+  if ([idAt, siteAt, suitAt, nameAt].some((i) => i < 0)) return []
+
+  const bySuit = new Map()
+  for (let i = 1; i < lines.length; i += 1) {
+    const row = lines[i].split('\t')
+    const site = Number((row[siteAt] || '').trim())
+    if (!Number.isFinite(site) || site < 1 || site > 6) continue
+
+    const suitId = Number((row[suitAt] || '').trim())
+    const id = Number((row[idAt] || '').trim())
+    if (!Number.isFinite(suitId) || !Number.isFinite(id)) continue
+
+    if (!bySuit.has(suitId)) bySuit.set(suitId, { id: suitId, name: (row[nameAt] || '').trim(), star: (row[starAt] || '').trim(), slots: [] })
+    bySuit.get(suitId).slots.push({ site, id })
+  }
+
+  const sets = [...bySuit.values()]
+    .filter((set) => set.slots.length === 6)
+    .map((set) => ({ id: set.id, name: set.name, meta: `${set.star}★ · 6 memories`, slots: set.slots.sort((a, b) => a.site - b.site) }))
+    .sort((a, b) => a.name.localeCompare(b.name) || b.id - a.id)
+
+  cache.set('memory-sets', { stamp: stat.mtimeMs, sets })
+  return sets
 }
 
 function coatings(characterId) {
@@ -339,6 +387,12 @@ function startUiServer() {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
       const url = new URL(req.url, 'http://127.0.0.1')
+
+      if (url.pathname === '/api/panel/memory-sets') {
+        const sets = memorySets()
+        if (!sets) return sendJson(res, { code: -1, msg: 'memory table not found' }, 404)
+        return sendJson(res, { code: 0, sets })
+      }
 
       if (url.pathname === '/api/panel/accounts') {
         const file = path.join(config.serverDir || '', 'admin-token.txt')

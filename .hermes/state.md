@@ -4,7 +4,13 @@ Notes for whoever picks this up next, written by the agent that built it. `plans
 this file holds task plans; this file holds what the code and the machine actually do,
 so a fresh session does not have to rediscover it.
 
-Last updated: after commit `2e17384` (weapons/memories split, acting-account picker, rail scroll).
+**Rule: update this file at the end of every piece of finished work.** Move items from
+"work in progress" to "done and verified", correct any fact that changed, add new traps the
+moment they cost time. A stale note is worse than no note, because it is trusted. When a
+session starts without its earlier context, read this file first, then `git log -5`, then the
+files it names. Do not rely on memory for ports, paths or column names.
+
+Last updated: memory slots, three-column wardrobe and the set grant (commit pending).
 
 ---
 
@@ -89,34 +95,28 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
   acting-account picker reads the admin list on both panels; rail nav scrolls at 1024x720
   (client 598 vs scroll 743) while the status foot stays pinned.
 
-## 6. Work in progress (uncommitted when this note was written)
+## 6. Memory slots, wardrobe columns, set grant (finished, one test outstanding)
 
-Feature: memory slot numbers, three-column wardrobe, grant-whole-set button.
-
-Already edited on disk, additive and safe:
-
-1. `desktop/main.js`
-   - catalog source `memories` now filters on `Site` and passes `slot: 'Site'`;
-     `parseTsv` takes a `slotColumn` and appends `· Slot N` to the card meta.
-   - new `memorySets()` groups Equip.tsv by `SuitId`, keeps suits with six slots,
-     returns `{id, name, meta: "6★ · 6 memories", slots:[{site,id}]}` sorted by name.
-   - new route `GET /api/panel/memory-sets` (404 when the table is missing).
-2. `web-ui/common/ui.js` - `grid()` adds `grid__cards--three` when `field.columns === 3`.
-3. `web-ui/common/theme.css` - `.grid__cards--three { repeat(3, minmax(0,1fr)) }` plus comment.
-
-Still to do for this feature:
-
-- `web-ui/common/ui.js`: add a `memorySetGrant(onGrant)` widget (select of sets + "Grant set"
-  button + status line) that reads `/api/panel/memory-sets` and calls `onGrant(slots)`.
-- `web-ui/gm/console.js` and `web-ui/player/player.js`: on the `memories` section set
-  `columns: 3` on the grid field, add `setGrant: true`, mount the widget after the fields
-  loop, and run one `SelenaAPI.command("equip", ["add", id])` per slot in order, logging the
-  six results as one line. Disable the button while it runs.
-- `AscNet.WebPanel/Catalog.cs`: mirror the `· Slot N` meta so the .NET panel does not disagree
-  (the set endpoint can stay Node-only; the widget must hide itself when it 404s).
-- Verify: `/api/panel/catalog/memories` shows slot meta, `/api/panel/memory-sets` returns
-  sets with six slots, wardrobe is three columns, set grant sends six commands.
-- Restart the Electron app after renderer edits; then commit.
+- `Site` now drives the memory catalog in both servers: 0 is a weapon, 1..6 is the slot.
+  690 memories ship with meta like `6★ \u00b7 Slot 2`; the Node source needs `invert: true`
+  on the Site filter, because the rows that match `Site == 0` are the weapons (that mistake
+  shipped once and made the memories catalog list 252 weapons).
+- `GET /api/panel/memory-sets` (Node) returns 114 sets built from Equip.tsv by grouping on
+  `SuitId`, keeping only suits with all six slots, e.g. Burana 1649 -> 3016049..3066049.
+  This endpoint is Node-only; the .NET panel has no equivalent, so the widget hides there.
+- `web-ui/common/ui.js` has `memorySetGrant(runSet)`: a select of sets, a "Grant set" button,
+  a live status line, disabled while running, hidden when the endpoint is missing.
+- `grid()` honours `field.columns === 3` (`.grid__cards--three`), so the memories wardrobe
+  reads three per row, slots 1-3 above 4-6, the same order as the game.
+- Both panels: `memories` section carries `setGrant: true` and `columns: 3`;
+  `grantMemorySet(set)` sends one `equip add <id>` per slot in order and reports
+  "all six granted" or "N of 6 granted".
+- Verified in the running app: GM and player both show 3 columns, 600 cards drawn of 690 with
+  the remainder stated, card meta `1★ \u00b7 Slot 1`, widget listing 114 sets starting at
+  Aife, no console errors.
+- Outstanding: the grant itself has never been executed against a live session, because the
+  client was not logged in. It needs one click with the game online. GM keeps its Tutti; the
+  player panel has no Tutti by design.
 
 ## 7. Traps that cost time before
 
@@ -135,6 +135,12 @@ Still to do for this feature:
 - Browser automation cannot reach the Electron IPC bridge (`window.selena.adminToken`), so the
   Accounts tab can be verified by endpoint (curl) but not click-by-click there.
 - MSYS path conversion is off: pass `C:/...` to native tools, not `/c/...`.
+- The two panels keep separate section tables with slightly different shapes (`gm/console.js`
+  has `allArgs`, `player/player.js` does not). A patch written against one silently does not
+  apply to the other, and the panel then throws `Cannot read properties of undefined
+  (reading 'title')` when that rail item is clicked. Patch both, then click every rail item.
+- A wrong filter direction fails quietly: `catalog/memories` returned 252 weapons and looked
+  plausible until the names were read. Check a catalog by a known row, not by length alone.
 
 ## 8. Next after this feature
 

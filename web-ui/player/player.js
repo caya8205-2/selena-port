@@ -25,10 +25,17 @@
       fields: [{ key: "character", type: "grid", catalog: "characters", label: "Character", placeholder: "Search construct, trade name or ID", required: true }],
       build: function (v) { return ["add", v.character.id]; }
     },
-    equipment: {
-      title: "Equipment",
+    weapons: {
+      title: "Weapons",
       command: "equip",
-      fields: [{ key: "equip", type: "grid", catalog: "equips", label: "Equipment", placeholder: "Search weapon or memory, or filter by star", required: true }],
+      fields: [{ key: "equip", type: "grid", catalog: "weapons", label: "Weapon", placeholder: "Search weapon name or ID", required: true }],
+      build: function (v) { return ["add", v.equip.id]; }
+    },
+    memories: {
+      title: "Memories",
+      command: "equip",
+      setGrant: true,
+      fields: [{ key: "equip", type: "grid", catalog: "memories", label: "Memory", placeholder: "Search memory name, slot or ID", columns: 3, required: true }],
       build: function (v) { return ["add", v.equip.id]; }
     },
     coatings: {
@@ -228,6 +235,22 @@
   }
 
   /* ---------------------------------------------------------------- catalogs */
+
+
+  // A memory set is six records, one per slot; slot layouts differ per construct.
+  async function grantMemorySet(set) {
+    var results = [];
+    for (var i = 0; i < set.slots.length; i += 1) {
+      var slot = set.slots[i];
+      try {
+        await window.SelenaAPI.command("equip", ["add", String(slot.id)]);
+        results.push({ site: slot.site, id: slot.id, ok: true });
+      } catch (error) {
+        results.push({ site: slot.site, id: slot.id, ok: false, error: error.message });
+      }
+    }
+    return results;
+  }
 
   async function catalog(kind) {
     if (catalogCache[kind]) return catalogCache[kind];
@@ -545,6 +568,10 @@
 
       host.appendChild(wrap);
     });
+
+    if (section.setGrant) {
+      host.appendChild(window.SelenaUI.memorySetGrant(grantMemorySet).node);
+    }
 
     if (section.note) {
       var note = document.createElement("p");

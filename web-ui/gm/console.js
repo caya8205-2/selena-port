@@ -38,7 +38,8 @@
     memories: {
       title: "Memories",
       command: "equip",
-      fields: [{ key: "equip", type: "grid", catalog: "memories", label: "Memory", placeholder: "Search memory name or ID", required: true }],
+      setGrant: true,
+      fields: [{ key: "equip", type: "grid", catalog: "memories", label: "Memory", placeholder: "Search memory name, slot or ID", columns: 3, required: true }],
       build: function (v) { return ["add", v.equip.id]; },
       allArgs: function () { return ["add", "all"]; }
     },
@@ -214,6 +215,22 @@
   }
 
   /* ---------------------------------------------------------------- catalogs */
+
+
+  // A memory set is six records, one per slot; slot layouts differ per construct.
+  async function grantMemorySet(set) {
+    var results = [];
+    for (var i = 0; i < set.slots.length; i += 1) {
+      var slot = set.slots[i];
+      try {
+        await window.SelenaAPI.command("equip", ["add", String(slot.id)]);
+        results.push({ site: slot.site, id: slot.id, ok: true });
+      } catch (error) {
+        results.push({ site: slot.site, id: slot.id, ok: false, error: error.message });
+      }
+    }
+    return results;
+  }
 
   async function catalog(kind) {
     if (catalogCache[kind]) return catalogCache[kind];
@@ -518,6 +535,10 @@
 
     /* Sections that accept an "all" form get the bulk button; the rest keep it
      * hidden rather than showing a control that cannot do anything. */
+    if (section.setGrant) {
+      host.appendChild(window.SelenaUI.memorySetGrant(grantMemorySet).node);
+    }
+
     var allBtn = $("#allBtn");
     var hasAll = typeof section.allArgs === "function";
     allBtn.hidden = !hasAll;

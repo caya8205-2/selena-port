@@ -673,3 +673,7 @@ a { color: inherit; text-decoration: none; }
 /* Armed state for bulk actions: the label already says "press again", the border
  * says it without relying on colour alone. */
 .btn.is-armed { border-color: var(--gold); color: var(--gold); }
+
+/* Memories are numbered 1 to 6 and the game lays them out three per row, so the wardrobe
+   reads in the same order the player equips them. */
+.grid__cards--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
