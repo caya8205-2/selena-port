@@ -301,14 +301,37 @@ A, B, C, E and F are done.
 - G dorm and H guild are planned in `plans/2026-11-15_112155-inventory-ops-dashboard.md` (tasks,
   open questions and verification each); both need server handlers or command wrappers over the
   modules that already exist.
-- D character builder: the read model, the rank walk and the shard grant are done and tested
-  (`--character-builder-only`). Left: the memory build (level via `EquipLevelUp`/`EquipBreakThrough`,
-  resonance slots through `EquipResonanceRequest`'s own rules, awaken through `EquipAwakeRequest`'s
-  `CanAwakeEquipSlot`/`TryResolveAwakeCosts` helpers), the weapon overrun nodes, and the slider UI
-  in a new Inventory view. Those helpers are private statics in `EquipModule`; widen them to
-  `internal` instead of copying their rules.
+- D character builder is done: the read model, the rank walk, the memory build (level, breakthrough,
+  awaken, resonance) and the weapon overrun all run the game's own handlers, the panel's Construct
+  tab drives them, and `--character-builder-only` / `--equip-builder-only` prove both halves.
 - Mail left open by design: the in-game claim check, and no delete/unread management in the
   panel (the plan scoped sending only).
 - Accounts still needs currency, unlock character and max character through the admin channel.
 - Character builder needs the rank and resonance model (S0-S10, SS, PPC skulls, memory
   resonance presets per construct) before any UI is worth building.
+
+
+## 9. Construct builder (phase D)
+
+- `character info <id>` reads a build: progression, the `next` step with its cost, the account's
+  memories (worn first, then the spare pile) and the weapons.
+- `character rank <id> [next|star|quality|max]` walks `Grade`/`Quality`/`Star` with the table's
+  costs. Every step pre-checks the balance because `Inventory.Do(id, -n)` clamps to zero instead
+  of refusing, so a short stack would otherwise eat the shards and grant nothing.
+- `equip feed|break|awake|resonate|overrun` are thin commands over `RequestBridge`: the handler the
+  game registers for `Equip*Request` runs with a real session, so a command cannot invent a cost,
+  a level curve or a refusal. `--equip-builder-only` covers all five end to end.
+- The panel's Construct tab reads the build and then edits one piece at a time: rank buttons,
+  feed to cap, breakthrough, awaken (only enabled for a slot that already holds a resonance,
+  because the handler needs one), resonance picked from `/api/panel/resonance/<template>/<slot>`,
+  and weapon overrun. Every control carries a tooltip.
+- The memory pile can run to hundreds of rows (`uid 2` holds 654 spare memories from grant tests),
+  so the table shows a filtered window of 40 and says how many it hid.
+- `/api/panel/resonance` also reports `selectItemId`: `EquipResonanceUseItem.tsv` often has an
+  empty `SelectSkillItemId[1]` for generic sets, and the server refuses every resonate request for
+  such an equip - the panel disables the button and says why instead of offering a dead action.
+- Tables worth remembering: a memory's pools are `EquipResonance.tsv` columns `AttribPoolId[slot]`
+  and `CharacterSkillPoolId[slot]`; a weapon's is `WeaponSkillPoolId[slot]` resolved through
+  `WeaponSkillPool.tsv`. Generic sets carry four attrib entries on both slots.
+- An admin `equip add` leaves a memory unbound (`CharacterId` 0); the game binds it when the client
+  equips it. The panel marks those rows `spare`, so a build made of grants reads honestly.

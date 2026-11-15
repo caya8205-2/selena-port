@@ -289,6 +289,96 @@ function parseTsv(file, idColumn, nameColumn, extraColumn, ownerColumn, filterOw
   return entries
 }
 
+// A raw table read for the resonance picker: header, rows and an accessor for the generated
+// `Name[1]` style columns the game's tables use for arrays.
+function tableRows(relativePath) {
+  const file = path.join(config.tableDir, ...relativePath.split('/'))
+  if (!fs.existsSync(file)) return null
+
+  const stat = fs.statSync(file)
+  const key = 'table:' + file
+  const hit = cache.get(key)
+  if (hit && hit.stamp === stat.mtimeMs) return hit.table
+
+  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter((line) => line.length > 0)
+  if (lines.length === 0) return { header: [], rows: [] }
+
+  const header = lines[0].split('\t').map((name) => name.trim())
+  const table = {
+    header,
+    rows: lines.slice(1).map((line) => line.split('\t')),
+    column: (name, ordinal = 1) => header.findIndex((column) => column.toLowerCase() === `${name.toLowerCase()}[${ordinal}]`),
+  }
+  cache.set(key, { stamp: stat.mtimeMs, table })
+  return table
+}
+
+// Which resonances a slot can hold, from the game's own pools: a memory takes a stat on slot 1
+// and one of its construct's skills on slot 2, a weapon takes a class skill.
+function resonanceEntries(templateId, slot) {
+  const resonance = tableRows('share/equip/EquipResonance.tsv')
+  if (!resonance) return null
+
+  const idAt = resonance.header.indexOf('Id')
+  const row = resonance.rows.find((cells) => Number(cells[idAt]) === templateId)
+  if (!row) return []
+
+  const attribPoolId = Number(row[resonance.column('AttribPoolId', slot)] || 0)
+  const skillPoolId = Number(row[resonance.column('CharacterSkillPoolId', slot)] || 0)
+  const weaponPoolId = Number(row[resonance.column('WeaponSkillPoolId', slot)] || 0)
+
+  if (attribPoolId > 0) {
+    const attribs = tableRows('share/attrib/AttribPool.tsv')
+    if (!attribs) return []
+    const poolAt = attribs.header.indexOf('PoolId')
+    const idIndex = attribs.header.indexOf('Id')
+    const nameIndex = attribs.header.indexOf('Name')
+    const descIndex = attribs.header.indexOf('Description')
+    return attribs.rows
+      .filter((cells) => Number(cells[poolAt]) === attribPoolId)
+      .map((cells) => ({
+        kind: 'attrib',
+        id: Number(cells[idIndex]),
+        name: (cells[nameIndex] || '').trim() || `stat ${cells[idIndex]}`,
+        meta: (cells[descIndex] || '').trim(),
+      }))
+  }
+
+  if (skillPoolId > 0) {
+    const skills = tableRows('share/character/skill/CharacterSkillPool.tsv')
+    if (!skills) return []
+    const poolAt = skills.header.indexOf('PoolId')
+    const skillAt = skills.header.indexOf('SkillId')
+    const seen = new Set()
+    return skills.rows
+      .filter((cells) => Number(cells[poolAt]) === skillPoolId)
+      .filter((cells) => Number(cells[skillAt]) > 0 && !seen.has(Number(cells[skillAt])) && seen.add(Number(cells[skillAt])))
+      .map((cells) => ({ kind: 'skill', id: Number(cells[skillAt]), name: `skill ${cells[skillAt]}`, meta: `pool ${skillPoolId}` }))
+  }
+
+  if (weaponPoolId > 0) {
+    const pools = tableRows('share/equip/WeaponSkillPool.tsv')
+    if (!pools) return []
+    const poolAt = pools.header.indexOf('PoolId')
+    const entries = []
+    const seen = new Set()
+    for (const cells of pools.rows) {
+      if (Number(cells[poolAt]) !== weaponPoolId) continue
+      const classAt = pools.header.indexOf('CharacterId')
+      for (let ordinal = 1; ordinal <= 16; ordinal += 1) {
+        const at = pools.column('SkillId', ordinal)
+        const skillId = at >= 0 ? Number(cells[at]) : 0
+        if (skillId <= 0 || seen.has(skillId)) continue
+        seen.add(skillId)
+        entries.push({ kind: 'weapon', id: skillId, name: `skill ${skillId}`, meta: `class ${cells[classAt]}` })
+      }
+    }
+    return entries
+  }
+
+  return []
+}
+
 function catalog(kind) {
   const source = catalogSources[kind]
   if (!source) return null
@@ -455,6 +545,30 @@ function startUiServer() {
             .catch((err) => sendJson(res, { ok: false, msg: err.message }, 502))
         })
         return
+      }
+
+      if (url.pathname.startsWith('/api/panel/resonance/')) {
+        const parts = url.pathname.split('/')
+        const templateId = Number(parts[4])
+        const slot = Number(parts[5])
+        const entries = resonanceEntries(templateId, slot)
+        if (entries === null) return sendJson(res, { code: -1, msg: 'resonance tables not found' }, 404)
+        // The pool alone is not enough: without a select item row the server refuses the request,
+        // so the panel says so instead of offering a button that cannot work.
+        const useItems = tableRows('share/equip/EquipResonanceUseItem.tsv')
+        let selectItemId = 0
+        let selectItemCount = 0
+        if (useItems) {
+          const idAt = useItems.header.indexOf('Id')
+          const itemAt = useItems.column('SelectSkillItemId', 1)
+          const countAt = useItems.column('SelectSkillItemCount', 1)
+          const row = useItems.rows.find((cells) => Number(cells[idAt]) === templateId)
+          if (row) {
+            selectItemId = itemAt >= 0 ? Number(row[itemAt] || 0) : 0
+            selectItemCount = countAt >= 0 ? Number(row[countAt] || 0) : 0
+          }
+        }
+        return sendJson(res, { code: 0, templateId, slot, count: entries.length, selectItemId, selectItemCount, entries })
       }
 
       if (url.pathname.startsWith('/api/panel/catalog/')) {

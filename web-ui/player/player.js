@@ -96,6 +96,11 @@
       build: function (v) { return [v.stage.id]; },
       allArgs: function () { return ["all"]; }
     },
+    build: {
+      title: "Construct",
+      command: "equip",
+      custom: "build"
+    },
     cleanup: {
       title: "Cleanup",
       command: "cleanup",
@@ -120,6 +125,7 @@
     stages: "Unlock stages and bosses so they can be selected in game.",
     commandant: "Set the Commandant level, the account-wide progression value shown in your profile.",
     bc: "Send a broadcast payload to the account's in-game mailbox.",
+    build: "Read a construct's build and act on one piece: rank, memory level, breakthrough, awaken and resonance, weapon overrun.",
     cleanup: "Remove duplicates and low-star leftovers from your inventory. Preview first; nothing is deleted until you confirm."
   };
 
@@ -674,6 +680,11 @@
       allBtn.setAttribute("aria-label", "Tutti: run this command for every entry (press twice)");
     }
 
+    if (section.custom === "build") {
+      renderBuild(host);
+      return;
+    }
+
     if (section.custom === "cleanup") {
       renderCleanup(host);
       return;
@@ -812,6 +823,397 @@
       run.disabled = false;
       updatePreview();
     }
+  }
+
+  /* ---------------------------------------------------------------- build */
+
+  /* The builder reads the construct first, then acts on one piece at a time. Every action is the
+   * game's own request (level feed, breakthrough, awaken, resonance, weapon overrun), so a button
+   * here cannot invent a cost or a rule: the server answers with its own code. */
+  function renderBuild(host) {
+    var state = { info: null, characterId: null, selected: null, filter: "" };
+    var picker = null;
+
+    var pickerWrap = document.createElement("label");
+    pickerWrap.className = "field";
+    var pickerLabel = document.createElement("span");
+    pickerLabel.className = "field__label";
+    pickerLabel.textContent = "Construct";
+    pickerWrap.appendChild(pickerLabel);
+    host.appendChild(pickerWrap);
+
+    picker = window.SelenaUI.combo(
+      { key: "build", catalog: "characters", placeholder: "Search construct, trade name or ID" },
+      function () { return catalog("characters"); },
+      function () {
+        var pick = picker.value();
+        if (pick) load(pick.id);
+      }
+    );
+    pickerWrap.appendChild(picker.node);
+
+    var view = document.createElement("div");
+    view.className = "build";
+    host.appendChild(view);
+
+    function entryFor(commandName, args, ok, detail) {
+      performed += 1;
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed,
+        { name: commandName, args: args }, ok, detail);
+      $("#consoleMeta").textContent = opusLabel(performed);
+      if (ok) window.SelenaAudio.chord(); else window.SelenaAudio.low();
+    }
+
+    function act(label, tip, commandName, args) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn btn--quiet";
+      button.textContent = label;
+      button.setAttribute("data-tip", tip);
+      button.addEventListener("click", async function () {
+        button.disabled = true;
+        $("#meter").dataset.state = "running";
+        try {
+          var response = await command(commandName, args);
+          var detail = JSON.stringify((response && response.data) || (response && response.msg) || "OK", null, 2);
+          if (response && response.live === false) detail += "\nstored in the database - the client shows it at its next login";
+          entryFor(commandName, args, true, detail);
+        } catch (err) {
+          entryFor(commandName, args, false, (err && err.message) || "Request failed");
+        } finally {
+          $("#meter").dataset.state = "idle";
+          button.disabled = false;
+          await load(state.characterId);
+        }
+      });
+      return button;
+    }
+
+    function label(text, hint) {
+      var node = document.createElement("span");
+      node.className = "field__label";
+      var name = document.createElement("span");
+      name.className = "build__label-text";
+      name.textContent = text;
+      node.appendChild(name);
+      if (hint) {
+        node.setAttribute("data-tip", hint);
+        var note = document.createElement("span");
+        note.className = "field__hint";
+        note.textContent = hint;
+        node.appendChild(note);
+      }
+      return node;
+    }
+
+    async function load(characterId) {
+      state.characterId = characterId;
+      view.textContent = "";
+      view.appendChild(label("Reading the build…"));
+      try {
+        var response = await command("character", ["info", String(characterId)]);
+        state.info = (response && response.data) || null;
+        if (state.info && state.info.memories && state.info.memories.length > 0) {
+          var stillThere = state.info.memories.some(function (memory) { return memory.equipId === state.selected; });
+          if (!stillThere) state.selected = state.info.memories[0].equipId;
+        } else {
+          state.selected = null;
+        }
+      } catch (err) {
+        state.info = null;
+        render((err && err.message) || "Could not read this construct.");
+        return;
+      }
+      render();
+    }
+
+    function rows(entries) {
+      var box = document.createElement("div");
+      box.className = "build__rows";
+      entries.forEach(function (entry) {
+        var line = document.createElement("div");
+        line.className = "field__row";
+        var key = document.createElement("span");
+        key.textContent = entry[0];
+        var value = document.createElement("b");
+        value.textContent = entry[1];
+        line.append(key, value);
+        box.appendChild(line);
+      });
+      return box;
+    }
+
+    function loadResonance(templateId, slot) {
+      return fetch("/api/panel/resonance/" + templateId + "/" + slot)
+        .then(function (response) {
+          return response.ok ? response.json() : { entries: [] };
+        })
+        .then(function (payload) {
+          return {
+            entries: (payload && payload.entries) || [],
+            selectItemId: (payload && payload.selectItemId) || 0
+          };
+        })
+        .catch(function () { return { entries: [], selectItemId: 0 }; });
+    }
+
+    function resonanceEditor(equip, slot, characterId, entries, selectItemId) {
+      var wrap = document.createElement("div");
+      wrap.className = "build__resonance";
+
+      var select = document.createElement("select");
+      select.className = "input";
+      select.setAttribute("aria-label", "Resonance slot " + slot + " of " + equip.name);
+      entries.forEach(function (entry) {
+        var option = document.createElement("option");
+        option.value = entry.kind + ":" + entry.id;
+        option.textContent = entry.name + (entry.meta ? " — " + entry.meta : "");
+        select.appendChild(option);
+      });
+
+      var resonate = document.createElement("button");
+      resonate.type = "button";
+      resonate.className = "btn btn--quiet";
+      resonate.textContent = "Resonate slot " + slot;
+      if (selectItemId > 0) {
+        resonate.setAttribute("data-tip", "Spend item " + selectItemId + " and store the chosen entry on slot " + slot + ". The server refuses an entry outside the pool or an unowned item.");
+      } else {
+        resonate.disabled = true;
+        resonate.setAttribute("data-tip", "The tables give this equip no resonance item, so the server refuses every slot " + slot + " request. Point it at an equip whose row carries one.");
+      }
+      resonate.addEventListener("click", async function () {
+        var value = select.value;
+        if (!value) return;
+        var parts = value.split(":");
+        resonate.disabled = true;
+        $("#meter").dataset.state = "running";
+        try {
+          var response = await command("equip", ["resonate", String(equip.equipId), String(slot), parts[0], parts[1], String(characterId)]);
+          var detail = JSON.stringify((response && response.data) || "OK", null, 2);
+          if (response && response.live === false) detail += "\nstored in the database - the client shows it at its next login";
+          entryFor("equip", ["resonate", String(equip.equipId), String(slot), parts[0], parts[1]], true, detail);
+        } catch (err) {
+          entryFor("equip", ["resonate", String(equip.equipId), String(slot), parts[0], parts[1]], false, (err && err.message) || "Request failed");
+        } finally {
+          resonate.disabled = false;
+          $("#meter").dataset.state = "idle";
+          await load(state.characterId);
+        }
+      });
+
+      wrap.append(
+        label("Slot " + slot, entries.length + (entries.length === 1 ? " entry in this pool" : " entries in this pool")),
+        select,
+        resonate
+      );
+      return wrap;
+    }
+
+    async function render(problem) {
+      view.textContent = "";
+
+      if (problem) {
+        var error = document.createElement("p");
+        error.className = "hint-block";
+        error.textContent = problem;
+        view.appendChild(error);
+        return;
+      }
+
+      if (!state.info) {
+        var empty = document.createElement("p");
+        empty.className = "hint-block";
+        empty.textContent = "Pick a construct to read its build: progression, the six memories, and the equipped weapon.";
+        view.appendChild(empty);
+        return;
+      }
+
+      var character = state.info.character;
+      var next = state.info.next || {};
+      view.appendChild(rows([
+        ["Construct", character.name + (character.tradeName ? " · " + character.tradeName : "")],
+        ["Level", String(character.level)],
+        ["Rank", "quality " + character.quality + " · star " + character.star],
+        ["Shards", character.shards + " · item " + character.shardItemId],
+        ["Next step", next.kind === "none" ? (next.reason || "nothing left") : next.kind + " · " + next.cost + " × " + next.itemName + " (have " + next.have + ")"],
+      ]));
+
+      var rankRow = document.createElement("div");
+      rankRow.className = "actions";
+      rankRow.append(
+        act("Star +1", "Spend the shard ladder for one star step.", "character", ["rank", String(character.id), "star"]),
+        act("Quality +1", "Promote one rank with cogs. Refused while the shard ladder is unspent, because the reset would waste it.", "character", ["rank", String(character.id), "quality"]),
+        act("Rank to max", "Walk as far as the shards and cogs allow, stopping at the first shortfall.", "character", ["rank", String(character.id), "max"])
+      );
+      view.appendChild(rankRow);
+
+      var memories = state.info.memories || [];
+      var worn = memories.filter(function (memory) { return memory.equippedTo === character.id; }).length;
+      view.appendChild(label(
+        "Memories (" + memories.length + (worn > 0 ? " · " + worn + " worn" : "") + ")",
+        "filter by name or slot; a worn memory is the one this construct actually carries"
+      ));
+
+      if (memories.length === 0) {
+        var none = document.createElement("p");
+        none.className = "hint-block";
+        none.textContent = "This account holds no memories. Grant a set from the Memories tab first.";
+        view.appendChild(none);
+      } else {
+        // The pile can be hundreds of rows, so the table shows a filtered window instead of a wall.
+        var filter = document.createElement("input");
+        filter.className = "input";
+        filter.type = "search";
+        filter.placeholder = "Filter by name, slot, level or worn";
+        filter.value = state.filter || "";
+        view.appendChild(filter);
+
+        var table = document.createElement("table");
+        table.className = "table table--pick";
+        var head = document.createElement("thead");
+        var headRow = document.createElement("tr");
+        ["Slot", "Memory", "Level", "Awaken", "Resonance", "Owned"].forEach(function (name) {
+          var cell = document.createElement("th");
+          cell.textContent = name;
+          headRow.appendChild(cell);
+        });
+        head.appendChild(headRow);
+        table.appendChild(head);
+
+        var body = document.createElement("tbody");
+        table.appendChild(body);
+
+        var note = document.createElement("p");
+        note.className = "build__note";
+
+        var paint = function () {
+          var needle = (state.filter || "").trim().toLowerCase();
+          var matches = memories.filter(function (memory) {
+            if (!needle) return true;
+            var owned = memory.equippedTo === character.id ? "worn" : "spare";
+            return (memory.name + " " + memory.site + " " + memory.level + " " + owned).toLowerCase().indexOf(needle) >= 0;
+          });
+          var shown = matches.slice(0, 40);
+          body.textContent = "";
+          shown.forEach(function (memory) {
+            var isWorn = memory.equippedTo === character.id;
+            var row = document.createElement("tr");
+            if (memory.equipId === state.selected) row.className = "is-selected";
+            row.setAttribute("data-tip", (isWorn ? "Worn by " + character.name + ". " : "Spare in this account. ") + "Click to edit it.");
+            row.addEventListener("click", function () {
+              state.selected = memory.equipId;
+              render();
+            });
+            [
+              String(memory.site),
+              memory.name,
+              memory.level + (memory.breakthrough > 0 ? " · bt " + memory.breakthrough : ""),
+              (memory.awakeSlots || []).length === 0 ? "none" : (memory.awakeSlots || []).join(", "),
+              (memory.resonance || []).length === 0 ? "none" : (memory.resonance || []).map(function (entry) { return entry.slot + ":" + entry.templateId; }).join("  "),
+              isWorn ? "worn" : "spare",
+            ].forEach(function (value, index) {
+              var cell = document.createElement("td");
+              cell.textContent = value;
+              if ((index > 1 && value === "none") || value === "spare") cell.className = "dim";
+              row.appendChild(cell);
+            });
+            body.appendChild(row);
+          });
+          note.textContent = matches.length > shown.length
+            ? "showing " + shown.length + " of " + matches.length + " — narrow the filter"
+            : matches.length + (matches.length === 1 ? " memory" : " memories");
+        };
+
+        filter.addEventListener("input", function () {
+          state.filter = filter.value;
+          paint();
+        });
+        paint();
+        var scroll = document.createElement("div");
+        scroll.className = "build__scroll";
+        scroll.appendChild(table);
+        view.appendChild(scroll);
+        view.appendChild(note);
+
+        var selected = memories.filter(function (memory) { return memory.equipId === state.selected; })[0];
+        if (selected) {
+          view.appendChild(label("Editing " + selected.name + " · slot " + selected.site));
+
+          var filled = {};
+          (selected.resonance || []).forEach(function (entry) { filled[entry.slot] = true; });
+          var awakeTip = function (slot) {
+            return filled[slot]
+              ? "Awaken resonance slot " + slot + ": needs the memory at its last breakthrough and the recipe items."
+              : "Slot " + slot + " holds no resonance yet, so there is nothing to awaken. Resonate it first.";
+          };
+
+          var actions = document.createElement("div");
+          actions.className = "actions";
+          var awakeOne = act("Awaken 1", awakeTip(1), "equip", ["awake", String(selected.equipId), "1", "1"]);
+          var awakeTwo = act("Awaken 2", awakeTip(2), "equip", ["awake", String(selected.equipId), "2", "1"]);
+          if (!filled[1]) awakeOne.disabled = true;
+          if (!filled[2]) awakeTwo.disabled = true;
+          actions.append(
+            act("Feed to cap", "Feed the material you already hold until this breakthrough's level limit. The exp curve and the coin cost are the game's.", "equip", ["feed", String(selected.equipId)]),
+            act("Breakthrough", "Spend the breakthrough material for the next step.", "equip", ["break", String(selected.equipId)]),
+            awakeOne,
+            awakeTwo
+          );
+          view.appendChild(actions);
+
+          var resonanceHost = document.createElement("div");
+          resonanceHost.className = "build__resonances";
+          view.appendChild(resonanceHost);
+          Promise.all([1, 2].map(function (slot) {
+            return loadResonance(selected.templateId, slot).then(function (pool) { return { slot: slot, pool: pool }; });
+          })).then(function (pairs) {
+            var usable = pairs.filter(function (pair) { return pair.pool.entries.length > 0; });
+            if (usable.length === 0) {
+              var nothing = document.createElement("p");
+              nothing.className = "build__note";
+              nothing.textContent = "The tables ship no resonance pool for this memory, so its awaken slots cannot be filled.";
+              resonanceHost.appendChild(nothing);
+              return;
+            }
+            usable.forEach(function (pair) {
+              resonanceHost.appendChild(resonanceEditor(selected, pair.slot, character.id, pair.pool.entries, pair.pool.selectItemId));
+            });
+          });
+        }
+      }
+
+      var weapons = state.info.weapons || [];
+      if (weapons.length > 0) {
+        var weapon = weapons[0];
+        view.appendChild(label("Weapon", "one weapon at a time; overrun nodes are class-specific"));
+        view.appendChild(rows([
+          ["Weapon", weapon.name + " · " + weapon.star + "★"],
+          ["Overrun", "level " + weapon.overrunLevel + (weapon.overrunChoseSuit ? " · suit " + weapon.overrunChoseSuit : "")],
+        ]));
+
+        var weaponActions = document.createElement("div");
+        weaponActions.className = "actions";
+        weaponActions.append(
+          act("Overrun +1", "Raise the weapon's overrun one node, spending its chips and the active-suit item.", "equip", ["overrun", String(weapon.equipId), "1"])
+        );
+        view.appendChild(weaponActions);
+
+        loadResonance(weapon.templateId, 1).then(function (pool) {
+          if (pool.entries.length === 0) {
+            var nothing = document.createElement("p");
+            nothing.className = "build__note";
+            nothing.textContent = "The tables ship no weapon skill pool for this weapon.";
+            view.appendChild(nothing);
+            return;
+          }
+          view.appendChild(resonanceEditor(weapon, 1, character.id, pool.entries, pool.selectItemId));
+        });
+      }
+
+      window.SelenaUI.initTooltips();
+    }
+
+    render();
   }
 
   /* ---------------------------------------------------------------- tutti */

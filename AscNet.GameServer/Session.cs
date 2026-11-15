@@ -54,6 +54,15 @@ namespace AscNet.GameServer
         private const int MaxReceivePacketLength = PacketCodec.MaxFrameLength;
         private static readonly object BigWorldPacketDumpLock = new();
         private readonly object outboundLock = new();
+
+        /// <summary>
+        /// Set while the administrative command bridge runs a request handler: the handler answers
+        /// through SendResponse, and keeping those packets is what lets the caller report the
+        /// handler's own code instead of guessing whether the request was accepted. Off by default,
+        /// so an ordinary session never pays for it.
+        /// </summary>
+        internal bool CaptureOutbound;
+        internal readonly List<Packet> CapturedOutbound = new();
         private readonly PacketWriter? writer;
         private static readonly ConcurrentDictionary<long, object> PlayerOperationLocks = new();
         public Task Completion { get; private set; } = Task.CompletedTask;
@@ -668,7 +677,10 @@ namespace AscNet.GameServer
         private void Send(Packet packet)
         {
             lock (outboundLock)
+            {
+                if (CaptureOutbound) CapturedOutbound.Add(packet);
                 writer?.Enqueue(packet);
+            }
         }
 
 

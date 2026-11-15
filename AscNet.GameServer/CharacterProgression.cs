@@ -182,9 +182,13 @@ namespace AscNet.GameServer
             Step step = NextStep(session, character);
             Dictionary<int, EquipTable> equips = TableReaderV2.Parse<EquipTable>().ToDictionary(equip => equip.Id);
 
+            // The account's memory pile, worn ones first: the game binds a memory to a construct
+            // by equipping it, and an admin grant leaves it unbound, so both are listed and the
+            // panel marks which is worn.
             List<object> memories = session.character.Equips
                 .Where(equip => equips.TryGetValue((int)equip.TemplateId, out EquipTable? table) && table.Site > 0)
-                .OrderBy(equip => equips[(int)equip.TemplateId].Site)
+                .OrderBy(equip => equip.CharacterId == characterId ? 0 : 1)
+                .ThenBy(equip => equips[(int)equip.TemplateId].Site)
                 .Select(equip => (object)new
                 {
                     equipId = equip.Id,
@@ -204,6 +208,7 @@ namespace AscNet.GameServer
 
             List<object> weapons = session.character.Equips
                 .Where(equip => equips.TryGetValue((int)equip.TemplateId, out EquipTable? table) && table.Site == 0)
+                .OrderBy(equip => equip.CharacterId == characterId ? 0 : 1)
                 .Select(equip => (object)new
                 {
                     equipId = equip.Id,

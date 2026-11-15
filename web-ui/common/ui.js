@@ -74,6 +74,14 @@
 
           var name = document.createElement("span");
           name.textContent = entry.name;
+          // The second fact a table gives (a trade name, a star rating) is what tells two
+          // entries apart; the id alone is not.
+          if (entry.meta) {
+            var meta = document.createElement("span");
+            meta.className = "combo__meta";
+            meta.textContent = entry.meta;
+            li.appendChild(meta);
+          }
           var id = document.createElement("span");
           id.className = "combo__id";
           id.textContent = String(entry.id);

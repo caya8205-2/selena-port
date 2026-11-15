@@ -376,8 +376,8 @@ namespace AscNet.GameServer.Handlers
 
     internal partial class EquipModule
     {
-        private const int EquipFeedOperationTypeLevelUp = 1;
-        private const int EquipFeedOperationTypeBreakthrough = 2;
+        internal const int EquipFeedOperationTypeLevelUp = 1;
+        internal const int EquipFeedOperationTypeBreakthrough = 2;
         private const int MaxReturnedEquipCount = 10_000;
 
         [RequestPacketHandler("EquipLevelUpRequest")]
