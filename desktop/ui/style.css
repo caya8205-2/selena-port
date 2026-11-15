@@ -16,7 +16,7 @@
 
 * { box-sizing: border-box; }
 
-html, body { height: 100%; margin: 0; }
+html, body { height: 100%; margin: 0; overflow: hidden; }
 
 body {
   font: 13px/1.5 'Segoe UI', system-ui, sans-serif;
@@ -75,7 +75,7 @@ body {
 
 .main { position: relative; min-width: 0; }
 
-.view { display: none; height: 100vh; overflow: auto; }
+.view { display: none; height: calc(100vh - 52px); overflow: hidden; }
 .view.is-active { display: block; }
 
 .view[data-view="console"] { padding: 26px 28px; }
@@ -145,7 +145,7 @@ body {
   white-space: pre-wrap;
 }
 
-.frame { width: 100%; height: 100vh; border: 0; background: var(--ink); }
+.frame { width: 100%; height: 100%; border: 0; display: block; background: var(--ink); }
 
 /* ------------------------------------------------------------ top bar */
 
@@ -196,7 +196,7 @@ body {
 .view[data-view="console"],
 .view[data-view="accounts"],
 .view[data-view="config"],
-.view[data-view="update"] { padding: 26px 28px; }
+.view[data-view="update"] { padding: 26px 28px; overflow-y: auto; }
 
 .form { display: grid; gap: 16px; max-width: 760px; }
 .field { display: grid; gap: 7px; }
@@ -220,7 +220,7 @@ body {
 }
 
 .input:focus { outline: none; border-color: var(--accent); }
-.frame { height: calc(100vh - 52px); }
+.frame { height: 100%; }
 
 /* ------------------------------------------------------------ scrollbars */
 

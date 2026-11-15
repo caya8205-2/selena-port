@@ -47,10 +47,10 @@
   --r-md: 4px;
 
   /* scrollbars */
-  --scroll-size: 10px;
+  --scroll-size: 7px;
   --scroll-track: transparent;
-  --scroll-thumb: rgba(106, 127, 219, 0.34);
-  --scroll-thumb-hover: rgba(212, 175, 55, 0.5);
+  --scroll-thumb: rgba(106, 127, 219, 0.18);
+  --scroll-thumb-hover: rgba(212, 175, 55, 0.38);
 
   /* type */
   --serif: "Cinzel", "Playfair Display", "EB Garamond", ui-serif, Georgia, "Times New Roman", serif;
@@ -631,13 +631,12 @@ a { color: inherit; text-decoration: none; }
 .grid__search::placeholder { color: var(--text-faint); }
 .grid__search:focus { outline: none; border-color: var(--accent); }
 
+/* No inner scroll: the catalog grows and the tab's own bar carries it. Nesting a second
+   bar inside the tab is what made three scrollbars appear on one screen. */
 .grid__cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
   gap: 6px;
-  max-height: 268px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
   padding: 2px 6px 2px 2px;
 }
 

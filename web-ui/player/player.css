@@ -6,7 +6,8 @@
 .app {
   display: grid;
   grid-template-columns: var(--rail) minmax(0, 1fr);
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   --rail: 228px;
 }
 
@@ -165,7 +166,7 @@
 
 /* ------------------------------------------------------------ main */
 
-.main { display: flex; flex-direction: column; min-width: 0; }
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
 
 
 .topbar {
@@ -204,7 +205,13 @@
 
 .topbar__staff { position: relative; z-index: 19; }
 
+/* The tab's only scroll container. Everything above it is fixed, so the panel never
+   scrolls as a page and never asks for a second bar. */
 .workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   display: grid;
   grid-template-columns: minmax(300px, 396px) minmax(0, 1fr);
   gap: 18px;

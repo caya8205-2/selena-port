@@ -10,7 +10,7 @@ moment they cost time. A stale note is worse than no note, because it is trusted
 session starts without its earlier context, read this file first, then `git log -5`, then the
 files it names. Do not rely on memory for ports, paths or column names.
 
-Last updated: memory slots, three-column wardrobe and the set grant (commit pending).
+Last updated: scroll containers collapsed to two, scrollbars thinned.
 
 ---
 
@@ -95,6 +95,22 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
   acting-account picker reads the admin list on both panels; rail nav scrolls at 1024x720
   (client 598 vs scroll 743) while the status foot stays pinned.
 
+
+### Scroll containers (one rule, keep it)
+
+A panel shows **two** scrollbars at most: the rail nav when its entries exceed the window,
+and the tab's own `.workspace`. Nothing else scrolls, including the page.
+
+- panels: `.app { height: 100vh; overflow: hidden }`, `.main { min-height: 0; overflow: hidden }`,
+  `.workspace { flex: 1 1 auto; min-height: 0; overflow-y: auto }`
+- shell: `html, body { overflow: hidden }`, `.view { height: calc(100vh - 52px); overflow: hidden }`,
+  `.frame { height: 100% }`; only the padded views (console/accounts/config/update) scroll
+- the card grid has **no** own scroll (`max-height` removed); it grows inside the tab
+- scrollbar look: `--scroll-size: 7px`, thumb `rgba(106,127,219,0.18)`, hover gold 0.38
+
+Measured at 1366x764: GM one scroller (workspace 598/12744), player two
+(rail__nav 642/743 and workspace 595/743), shell page zero, frame 1366x712.
+
 ## 6. Memory slots, wardrobe columns, set grant (finished, one test outstanding)
 
 - `Site` now drives the memory catalog in both servers: 0 is a weapon, 1..6 is the slot.
@@ -139,6 +155,9 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
   has `allArgs`, `player/player.js` does not). A patch written against one silently does not
   apply to the other, and the panel then throws `Cannot read properties of undefined
   (reading 'title')` when that rail item is clicked. Patch both, then click every rail item.
+- Nested scroll containers add up fast: a page-height `.app`, an `overflow: auto` view in the
+  shell and a `max-height` card grid produced four bars on one screen. Fix the container
+  heights, not the scrollbar styling.
 - A wrong filter direction fails quietly: `catalog/memories` returned 252 weapons and looked
   plausible until the names were read. Check a catalog by a known row, not by length alone.
 
