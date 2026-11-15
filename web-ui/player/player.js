@@ -1246,7 +1246,10 @@
         onChange: function (value) {
           design.weapon.templateId = Number(value);
           design.weaponResonances = [];
+          const star = weaponStar(design.weapon.templateId);
+          if (star < 6) design.weapon.harmonySuit = 0;
           paintWeaponResonances();
+          paintHarmonyGate();
         },
       });
       weaponSection.appendChild(weaponPicker.node);
@@ -1259,9 +1262,16 @@
       weaponSection.appendChild(weaponGrid);
       body.appendChild(weaponSection);
 
+      function weaponStar(templateId) {
+        const weapon = (state.catalog.weapons || []).find((entry) => entry.id === Number(templateId));
+        return weapon ? Number(weapon.star || 0) : 0;
+      }
+
       function paintWeaponResonances() {
         weaponGrid.textContent = "";
         const templateId = design.weapon.templateId;
+        const star = weaponStar(templateId);
+        const custom = star >= 6;
         for (let slot = 1; slot <= 3; slot += 1) {
           const cell = document.createElement("div");
           cell.className = "tune__cell";
@@ -1274,6 +1284,14 @@
             empty.className = "tune__pick";
             empty.textContent = "no weapon";
             cell.appendChild(empty);
+            weaponGrid.appendChild(cell);
+            continue;
+          }
+          if (!custom) {
+            const flat = document.createElement("span");
+            flat.className = "tune__pick";
+            flat.textContent = star === 5 ? "flat attack only" : "default weapon";
+            cell.appendChild(flat);
             weaponGrid.appendChild(cell);
             continue;
           }
@@ -1309,6 +1327,15 @@
         onChange: function (value) { design.weapon.harmonySuit = Number(value); },
       });
       harmony.appendChild(harmonyPicker.node);
+
+      // A five star and a four star take no harmony, so the picker says that instead of offering
+      // a choice the server would refuse.
+      function paintHarmonyGate() {
+        const star = design.weapon.templateId ? weaponStar(design.weapon.templateId) : 0;
+        harmonyPicker.setDisabled(star > 0 && star < 6);
+      }
+      paintHarmonyGate();
+
       fetch("/api/panel/memory-sets")
         .then((response) => (response.ok ? response.json() : { sets: [] }))
         .then((payload) => {

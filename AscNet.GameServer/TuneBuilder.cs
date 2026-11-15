@@ -145,6 +145,11 @@ namespace AscNet.GameServer
             if (!equipRows.TryGetValue(request.TemplateId, out EquipTable? weaponRow) || weaponRow.Site != 0)
                 throw new InvalidOperationException($"weapon {request.TemplateId} is not a weapon in Equip.tsv.");
 
+            // Rarity decides what the weapon can carry: only a six star takes a chosen resonance and a
+            // harmony. A five star resonates flat attack, a four star is the default weapon.
+            if (weaponRow.Star < 6 && (request.Resonance.Count > 0 || request.HarmonySuit > 0))
+                throw new InvalidOperationException($"{weaponRow.Name} is a {weaponRow.Star} star weapon: only a 6 star takes custom resonance and harmony.");
+
             EquipData equip = ResolveEquip(session, character, request.TemplateId, 0, 0);
             ApplyEquipProgression(equip, weaponRow, request.Level);
             equip.CharacterId = (int)character.Id;
