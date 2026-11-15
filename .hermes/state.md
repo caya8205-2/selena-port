@@ -10,7 +10,7 @@ moment they cost time. A stale note is worse than no note, because it is trusted
 session starts without its earlier context, read this file first, then `git log -5`, then the
 files it names. Do not rely on memory for ports, paths or column names.
 
-Last updated: shared action row, stacked memory-set control with an amount.
+Last updated: dev hot reload for the desktop shell.
 
 ---
 
@@ -36,7 +36,8 @@ Server stack (mongod + server + panel), from `tools/`:
 
 Desktop app (Electron shell that serves the panels and supervises everything):
 
-    cd desktop && ./node_modules/electron/dist/electron.exe .
+    cd desktop && npm run dev      # dev mode: reloads the window on save, F12 devtools
+    cd desktop && npm start        # same window without the file watcher
 
 The shell picks a random port and writes it to `%APPDATA%\Selena-port\logs\ui-port.txt`.
 Pages: `/ui/index.html` (Console/GM/Player/Accounts/Config/Update), `/gm/index.html`,
@@ -173,6 +174,9 @@ override and every height reads short (a 764 window measured 429 and looked like
 - Nested scroll containers add up fast: a page-height `.app`, an `overflow: auto` view in the
   shell and a `max-height` card grid produced four bars on one screen. Fix the container
   heights, not the scrollbar styling.
+- In dev the shell watches `desktop/ui`, `web-ui` and `web-ui/common` and reloads the window
+  (and therefore the iframes) on save, debounced 180ms; the log prints `[dev] reloaded: <file>`.
+  Restarting the whole app is only needed for `main.js` itself.
 - The app serves its own CSS/JS, and Chromium cached them: a stylesheet fix looked like it had
   no effect while the old layout kept rendering. `serveFile` now sends `Cache-Control: no-store`.
   If a layout change seems ignored, check the served headers before editing the CSS again.

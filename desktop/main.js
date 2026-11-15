@@ -22,6 +22,9 @@ const { createBackup, listBackups } = require('./backup')
 // ---------------------------------------------------------------- settings
 
 const isPackaged = app.isPackaged
+// Dev means running from the repo. In that case the renderer files are watched and the
+// window reloads itself on save, so a CSS or JS edit does not need a manual restart.
+const isDev = !isPackaged
 const resources = isPackaged ? process.resourcesPath : path.join(__dirname, '..')
 
 const defaults = {
@@ -669,6 +672,50 @@ async function createWindow() {
 
   await mainWindow.loadURL(`http://127.0.0.1:${uiPort}/ui/index.html`)
   mainWindow.on('closed', () => { mainWindow = null })
+
+  watchRenderer()
+}
+
+// ---------------------------------------------------------------- hot reload
+
+let reloadTimer = null
+
+function reloadRenderer(reason) {
+  clearTimeout(reloadTimer)
+  reloadTimer = setTimeout(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    // Reloading the shell recreates the iframes, so the panels come back with the new files.
+    mainWindow.webContents.reloadIgnoringCache()
+    console.log(`[dev] reloaded: ${reason}`)
+  }, 180)
+}
+
+function watchRenderer() {
+  if (!isDev) return
+
+  const watched = [path.join(__dirname, 'ui'), config.webUi, path.join(__dirname, '..', 'web-ui', 'common')]
+  const seen = new Set()
+
+  for (const dir of watched) {
+    if (!fs.existsSync(dir) || seen.has(dir)) continue
+    seen.add(dir)
+    try {
+      fs.watch(dir, { recursive: true }, (_event, file) => {
+        if (file && /[\\/](node_modules|release|runtime)[\\/]/.test(String(file))) return
+        reloadRenderer(`${path.basename(dir)}/${file || 'change'}`)
+      })
+    } catch (error) {
+      console.log(`[dev] cannot watch ${dir}: ${error.message}`)
+    }
+  }
+
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return
+    if (input.key === 'F12') { mainWindow.webContents.toggleDevTools(); event.preventDefault() }
+    if (input.key === 'r' && (input.control || input.meta)) { reloadRenderer('manual'); event.preventDefault() }
+  })
+
+  console.log(`[dev] watching ${[...seen].join(', ')} - save a file to reload, F12 for devtools`)
 }
 
 app.whenReady().then(async () => {

@@ -9,7 +9,8 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis portable"
+    "dist": "electron-builder --win nsis portable",
+    "dev": "electron . --dev"
   },
   "devDependencies": {
     "electron": "^33.4.11",
@@ -28,11 +29,20 @@
       "web-ui/**"
     ],
     "extraResources": [
-      { "from": "../Resources/table", "to": "table" },
-      { "from": "runtime", "to": "runtime" }
+      {
+        "from": "../Resources/table",
+        "to": "table"
+      },
+      {
+        "from": "runtime",
+        "to": "runtime"
+      }
     ],
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "../web-ui/icon.webp"
     },
     "nsis": {
