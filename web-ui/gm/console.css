@@ -65,7 +65,9 @@
   color: var(--text-faint);
 }
 
-.rail__nav { display: flex; flex-direction: column; gap: 16px; }
+/* Only the nav scrolls: at 768p the player rail carries eleven entries, and the
+   page itself must not move when the list is longer than the window. */
+.rail__nav { display: flex; flex-direction: column; gap: 16px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 
 .rail__group { display: flex; flex-direction: column; gap: 1px; }
 
@@ -254,3 +256,21 @@
   .topbar__hint { display: none; }
   .workspace { padding: 14px; gap: 14px; }
 }
+
+/* Account picker: reads the admin list, so choosing an account needs no sign-in. */
+.topbar__account { display: flex; align-items: center; gap: 8px; }
+.topbar__account-label { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-faint); }
+.topbar__account select {
+  appearance: none;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  min-width: 150px;
+  cursor: pointer;
+}
+.topbar__account select:hover { border-color: var(--accent); }
+.topbar__account select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

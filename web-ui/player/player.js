@@ -73,7 +73,8 @@
   var SECTION_TIPS = {
     items: "Grant items to the selected account. The amount is the stack size the server receives.",
     characters: "Unlock a construct. The server grants it at the level it decides, not a copy of someone else's.",
-    equipment: "Grant weapons and memories by star. Equipped slots stay untouched.",
+    weapons: "Grant weapons by star. Equipped slots stay untouched.",
+    memories: "Grant memories by star. Equipped slots stay untouched.",
     coatings: "Unlock every coating that belongs to the chosen construct.",
     scenes: "Unlock scene backgrounds and lobby views for the account.",
     stages: "Unlock stages and bosses so they can be selected in game.",
@@ -752,3 +753,37 @@
   }, 10000);
 
 })();
+
+  // ------------------------------------------------------------ account picker
+  // The list comes from the server's admin endpoints, so it appears as soon as the
+  // server runs; nothing here requires a signed-in game session.
+  function initAccountSelector() {
+    var select = document.getElementById("accountSelect");
+    if (!select) return;
+
+    fetch("/api/panel/accounts")
+      .then(function (response) { if (!response.ok) throw new Error("unavailable"); return response.json(); })
+      .then(function (payload) {
+        var accounts = (payload && payload.accounts) || [];
+        if (accounts.length === 0) { select.parentElement.hidden = true; return; }
+
+        accounts.forEach(function (account) {
+          var option = document.createElement("option");
+          option.value = String(account.uid);
+          option.textContent = account.username + " / UID " + account.uid;
+          select.appendChild(option);
+        });
+
+        var stored = null;
+        try { stored = JSON.parse(localStorage.getItem("selena.activeAccount") || "null"); } catch (error) { stored = null; }
+        if (stored) select.value = String(stored.uid);
+
+        select.addEventListener("change", function () {
+          var chosen = accounts.filter(function (a) { return String(a.uid) === select.value; })[0];
+          if (chosen) localStorage.setItem("selena.activeAccount", JSON.stringify({ uid: chosen.uid, username: chosen.username }));
+        });
+      })
+      .catch(function () { select.parentElement.hidden = true; });
+  }
+
+  document.addEventListener("DOMContentLoaded", initAccountSelector);

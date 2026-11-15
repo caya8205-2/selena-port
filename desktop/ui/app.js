@@ -117,7 +117,7 @@ async function loadAccounts() {
 
   try {
     const payload = await adminRequest('/api/admin/accounts')
-    note.textContent = `${payload.total} account${payload.total === 1 ? '' : 's'} · no sign-in needed`
+    note.textContent = `${payload.total} account${payload.total === 1 ? '' : 's'}`
 
     for (const account of payload.accounts) {
       const row = document.createElement('tr')
@@ -133,7 +133,7 @@ async function loadAccounts() {
       if (!account.playerPresent) player.className = 'dim'
 
       const level = document.createElement('td')
-      level.textContent = account.playerPresent ? account.level : '—'
+      level.textContent = account.playerPresent ? account.level : 'none'
 
       const actions = document.createElement('td')
       actions.className = 'table__actions'
@@ -160,7 +160,7 @@ async function loadAccounts() {
       body.appendChild(row)
     }
   } catch (err) {
-    note.textContent = ''
+    note.textContent = 'accounts unavailable'
     appendTo('accountsLog', 'could not list accounts: ' + err.message)
   }
 }

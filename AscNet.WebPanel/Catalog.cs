@@ -20,14 +20,17 @@ public sealed class Catalog
         Star,
     }
 
-    private static readonly Dictionary<string, (string File, string IdColumn, string NameColumn, Extra Extra)> Sources =
+    private static readonly Dictionary<string, (string File, string IdColumn, string NameColumn, Extra Extra, string? ZeroColumn, bool Invert)> Sources =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["items"] = ("share/item/Item.tsv", "Id", "Name", Extra.None),
-            ["characters"] = ("share/character/Character.tsv", "Id", "Name", Extra.TradeName),
-            ["equips"] = ("share/equip/Equip.tsv", "Id", "Name", Extra.Star),
-            ["stages"] = ("share/fuben/Stage.tsv", "StageId", "Name", Extra.None),
-            ["scenes"] = ("share/photomode/Background.tsv", "Id", "Name", Extra.None),
+            ["items"] = ("share/item/Item.tsv", "Id", "Name", Extra.None, null, false),
+            ["characters"] = ("share/character/Character.tsv", "Id", "Name", Extra.TradeName, null, false),
+            ["equips"] = ("share/equip/Equip.tsv", "Id", "Name", Extra.Star, null, false),
+            ["stages"] = ("share/fuben/Stage.tsv", "StageId", "Name", Extra.None, null, false),
+            ["scenes"] = ("share/photomode/Background.tsv", "Id", "Name", Extra.None, null, false),
+            // A weapon is the only equip with a weapon skill; memories hold 0 there.
+            ["weapons"] = ("share/equip/Equip.tsv", "Id", "Name", Extra.Star, "WeaponSkillId", true),
+            ["memories"] = ("share/equip/Equip.tsv", "Id", "Name", Extra.Star, "WeaponSkillId", false),
         };
 
     private readonly ConcurrentDictionary<string, (DateTime Stamp, CatalogEntry[] Entries)> _cache = new();
@@ -62,7 +65,7 @@ public sealed class Catalog
             return true;
         }
 
-        entries = Parse(path, source.IdColumn, source.NameColumn, source.Extra);
+        entries = Parse(path, source.IdColumn, source.NameColumn, source.Extra, source.ZeroColumn, source.Invert);
         _cache[kind] = (stamp, entries);
         return true;
     }
@@ -126,6 +129,7 @@ public sealed class Catalog
                 continue;
             }
 
+
             var quality = qualityIndex >= 0 ? row[qualityIndex].Trim() : string.Empty;
             result.Add(new CatalogEntry(id, name, quality.Length > 0 ? "tier " + quality : string.Empty));
         }
@@ -135,7 +139,7 @@ public sealed class Catalog
         return entries;
     }
 
-    private static CatalogEntry[] Parse(string path, string idColumn, string nameColumn, Extra extra)
+    private static CatalogEntry[] Parse(string path, string idColumn, string nameColumn, Extra extra, string? zeroColumn = null, bool invert = false)
     {
         var lines = File.ReadAllLines(path);
         if (lines.Length < 2)
@@ -158,9 +162,10 @@ public sealed class Catalog
             _ => null,
         };
         var extraIndex = extraColumn is null ? -1 : Find(header, extraColumn);
+        var zeroIndex = zeroColumn is null ? -1 : Find(header, zeroColumn);
 
         var result = new List<CatalogEntry>(lines.Length - 1);
-        var widest = Math.Max(idIndex, Math.Max(nameIndex, extraIndex));
+        var widest = Math.Max(idIndex, Math.Max(nameIndex, Math.Max(extraIndex, zeroIndex)));
 
         for (var i = 1; i < lines.Length; i++)
         {
@@ -179,6 +184,15 @@ public sealed class Catalog
             if (name.Length == 0)
             {
                 continue;
+            }
+
+            if (zeroIndex >= 0)
+            {
+                var isZero = row[zeroIndex].Trim() is "0" or "";
+                if (invert ? isZero : !isZero)
+                {
+                    continue;
+                }
             }
 
             // The second line of a card comes straight from the table: a construct's

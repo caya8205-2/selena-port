@@ -194,6 +194,7 @@ body {
 .main { height: calc(100vh - 52px); }
 
 .view[data-view="console"],
+.view[data-view="accounts"],
 .view[data-view="config"],
 .view[data-view="update"] { padding: 26px 28px; }
 

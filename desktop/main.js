@@ -202,15 +202,18 @@ const catalogSources = {
   items: { file: 'share/item/Item.tsv', id: 'Id', name: 'Name', extra: null },
   characters: { file: 'share/character/Character.tsv', id: 'Id', name: 'Name', extra: 'TradeName' },
   equips: { file: 'share/equip/Equip.tsv', id: 'Id', name: 'Name', extra: 'Star' },
+  // A weapon is the only equip with a weapon skill; memories carry 0 in that column.
+  weapons: { file: 'share/equip/Equip.tsv', id: 'Id', name: 'Name', extra: 'Star', owner: 'WeaponSkillId', invert: true },
+  memories: { file: 'share/equip/Equip.tsv', id: 'Id', name: 'Name', extra: 'Star', owner: 'WeaponSkillId' },
   stages: { file: 'share/fuben/Stage.tsv', id: 'StageId', name: 'Name', extra: null },
   scenes: { file: 'share/photomode/Background.tsv', id: 'Id', name: 'Name', extra: 'Quality' },
 }
 
 const cache = new Map()
 
-function parseTsv(file, idColumn, nameColumn, extraColumn, ownerColumn, filterOwner) {
+function parseTsv(file, idColumn, nameColumn, extraColumn, ownerColumn, filterOwner, invertOwner = false) {
   const stat = fs.statSync(file)
-  const key = `${file}:${ownerColumn || ''}:${filterOwner || ''}`
+  const key = `${file}:${ownerColumn || ''}:${filterOwner || ''}:${invertOwner}`
   const hit = cache.get(key)
   if (hit && hit.stamp === stat.mtimeMs) return hit.entries
 
@@ -233,7 +236,8 @@ function parseTsv(file, idColumn, nameColumn, extraColumn, ownerColumn, filterOw
     const row = lines[i].split('\t')
     if (row.length <= Math.max(idIndex, nameIndex)) continue
     if (ownerIndex >= 0 && filterOwner !== undefined) {
-      if (Number(row[ownerIndex]) !== Number(filterOwner)) continue
+      const same = Number(row[ownerIndex]) === Number(filterOwner)
+      if (invertOwner ? same : !same) continue
     }
 
     const id = Number(row[idIndex])
@@ -260,7 +264,7 @@ function catalog(kind) {
   if (!source) return null
   const file = path.join(config.tableDir, ...source.file.split('/'))
   if (!fs.existsSync(file)) return null
-  return parseTsv(file, source.id, source.name, source.extra)
+  return parseTsv(file, source.id, source.name, source.extra, source.owner, source.owner ? 0 : undefined, Boolean(source.invert))
 }
 
 function coatings(characterId) {
@@ -335,6 +339,16 @@ function startUiServer() {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
       const url = new URL(req.url, 'http://127.0.0.1')
+
+      if (url.pathname === '/api/panel/accounts') {
+        const file = path.join(config.serverDir || '', 'admin-token.txt')
+        if (!fs.existsSync(file)) return sendJson(res, { code: -1, msg: 'admin token not found - start the server once' }, 404)
+        const token = fs.readFileSync(file, 'utf8').trim()
+        fetch('http://127.0.0.1:' + config.sdkPort + '/api/admin/accounts', { headers: { 'X-Admin-Token': token } })
+          .then((r) => r.json().then((body) => sendJson(res, body, r.status)))
+          .catch((err) => sendJson(res, { code: -1, msg: err.message }, 502))
+        return
+      }
 
       if (url.pathname.startsWith('/api/panel/catalog/')) {
         const kind = url.pathname.split('/').pop()

@@ -24,9 +24,13 @@
           <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="5.6" r="2.6"/><path d="M3.2 13c.6-2.4 2.5-3.6 4.8-3.6s4.2 1.2 4.8 3.6"/></svg></span>
           Characters
         </button>
-        <button class="rail__item" data-section="equipment">
-          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2l5 2v4.2c0 2.6-2 4.6-5 5.8-3-1.2-5-3.2-5-5.8V4l5-2z"/></svg></span>
-          Equipment
+        <button class="rail__item" data-section="weapons">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 11l8-8 2 2-8 8H3v-2z"/><path d="M10.6 3.4l2 2"/></svg></span>
+          Weapons
+        </button>
+        <button class="rail__item" data-section="memories">
+          <span class="rail__icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="4.6"/><path d="M8 3.4v9.2M3.4 8h9.2"/></svg></span>
+          Memories
         </button>
       </div>
 
@@ -98,6 +102,10 @@
     <header class="topbar">
       <h1 class="topbar__title" id="sectionTitle">Items</h1>
       <div class="topbar__spacer"></div>
+      <label class="topbar__account">
+        <span class="topbar__account-label">Acting as</span>
+        <select id="accountSelect" aria-label="Acting account"></select>
+      </label>
       <button class="icon-btn" id="soundBtn" type="button" aria-pressed="false" data-tip="Sound cues: a string pluck when you change sections, a short chord on success, a low note when you clear the log.">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 6.4h2.2L8.4 3.8v8.4L5.2 9.6H3z"/><path class="soundBtn__wave" d="M10.6 6.2a2.6 2.6 0 010 3.6"/><path class="soundBtn__wave" d="M12.2 4.8a4.8 4.8 0 010 6.4"/></svg>
       </button>
