@@ -232,6 +232,43 @@
     updatePreview();
   }
 
+  /* The account picker is the panel's own dropdown. The element behind it still holds the value,
+   * because every command reads it, but it is hidden: a native popup would be the only OS control
+   * left on the page. */
+  var accountMirror = null;
+
+  function buildAccountMirror(accounts) {
+    var native = $("#accountSelect");
+    var host = $("#accountPicker");
+    if (!host || !native) return;
+
+    if (!accountMirror) {
+      accountMirror = window.SelenaUI.select([], {
+        value: native.value,
+        search: "Filter accounts",
+        tip: "Pick the account the panel writes to. It comes from the database, not from a sign-in.",
+        onChange: function (value) {
+          native.value = value;
+          native.dispatchEvent(new Event("change", { bubbles: true }));
+        },
+      });
+      host.appendChild(accountMirror.node);
+      native.classList.add("is-mirrored");
+      native.tabIndex = -1;
+      native.setAttribute("aria-hidden", "true");
+    }
+
+    accountMirror.setOptions(Array.from(native.options).map(function (option) {
+      return { value: option.value, label: option.textContent };
+    }), native.value);
+  }
+
+  function syncAccountMirror() {
+    var native = $("#accountSelect");
+    if (!accountMirror || !native) return;
+    accountMirror.setValue(native.value);
+  }
+
   /* The list comes from the server's admin endpoints, so it appears as soon as the server runs:
    * nothing here needs a signed-in game session. */
   async function loadAccounts() {
@@ -264,8 +301,12 @@
         ? String(stored.uid)
         : String(accounts[0].uid);
 
+      buildAccountMirror(accounts);
       selectAccount(accounts);
-      select.addEventListener("change", function () { selectAccount(accounts); });
+      select.addEventListener("change", function () {
+        syncAccountMirror();
+        selectAccount(accounts);
+      });
     } catch (error) {
       select.parentElement.hidden = true;
       fillPreviewPlaceholder("account list unavailable - is the server running?");
@@ -568,31 +609,28 @@
     }
 
     if (field.type === "select") {
-      var select = document.createElement("select");
-      select.className = "input";
-      select.setAttribute("aria-label", field.label || "");
-      var placeholder = document.createElement("option");
-      placeholder.value = "";
-      placeholder.textContent = field.placeholder || "None";
-      select.appendChild(placeholder);
+      // The panel draws its own dropdown here too: a native popup is the one OS control that does
+      // not follow the console.
+      var picker = window.SelenaUI.select([{ value: "", label: field.placeholder || "None" }], {
+        value: "",
+        search: field.label || "Filter",
+        tip: field.hint || field.label || "",
+        onChange: function (value) {
+          values[field.key] = value;
+          bump();
+        },
+      });
       values[field.key] = "";
 
       (field.options || function () { return Promise.resolve([]); })()
         .then(function (list) {
-          (list || []).forEach(function (item) {
-            var option = document.createElement("option");
-            option.value = String(item.value);
-            option.textContent = item.label;
-            select.appendChild(option);
-          });
+          picker.setOptions([{ value: "", label: field.placeholder || "None" }].concat((list || []).map(function (item) {
+            return { value: String(item.value), label: item.label };
+          })), "");
         })
         .catch(function () { /* placeholder stays; Perform has nothing to send */ });
 
-      select.addEventListener("change", function () {
-        values[field.key] = select.value;
-        bump();
-      });
-      wrap.appendChild(select);
+      wrap.appendChild(picker.node);
       return;
     }
 

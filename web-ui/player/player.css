@@ -441,3 +441,6 @@
   .tune__slider { grid-template-columns: 1fr; gap: 6px; }
 }
 
+/* The native account select stays as the value holder and is never shown. */
+.account-picker { min-width: 220px; }
+.is-mirrored { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
