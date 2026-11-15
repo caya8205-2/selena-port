@@ -10,7 +10,7 @@ moment they cost time. A stale note is worse than no note, because it is trusted
 session starts without its earlier context, read this file first, then `git log -5`, then the
 files it names. Do not rely on memory for ports, paths or column names.
 
-Last updated: Phase D started - the rank genes are settled and the progression command is tested.
+Last updated: the acting-account channel - commands run for a database-picked account, no sign-in.
 
 ---
 
@@ -61,6 +61,7 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
 | Admin token | `<server build dir>\admin-token.txt`, generated at startup, sent as `X-Admin-Token` |
 | Backups | `%APPDATA%\Selena-port\backups\<stamp>_<reason>\{data,Configs}`, newest 5 kept |
 | Panel design system | `web-ui/common/theme.css` (+ `ui.js`, `api.js`, `sound.js`) |
+| Admin command channel | `POST /api/admin/command/{name}` (`AdminController.cs` -> `AdminSession.cs`), proxied to the pages as `/api/panel/command/{name}` by `desktop/main.js` |
 | Panel markup/JS | `web-ui/gm/*`, `web-ui/player/*` |
 | Desktop shell | `desktop/main.js`, `preload.js`, `verify.js`, `backup.js`, `ui/*` |
 
@@ -90,6 +91,12 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
 - Shard costs per star are 1/2/3/9/18 for qualities 1-5 (identical for all ten steps of that
   quality); promotions cost 20000/40000/60000/80000/100000 Cogs; quality 6 has no star steps and
   no promotion. The PPC's 50-per-construct price is the shop price, not the upgrade cost.
+- The panel's "Acting as" is a database pick, not a sign-in: `AdminSession.Open(uid)` returns the
+  live session when the player is in game and otherwise builds a socketless `Session` over the
+  same `Player`/`Character`/`Inventory` documents, so `Command.Execute` runs unchanged. The
+  response says `live: false` when the write only exists in the database.
+- An offline session must never be built for a player who has a live one: two writers for the same
+  documents would overwrite each other on the next save.
 - The memory "hypertune" the plan describes is the game's **awaken**: `EquipAwakeRequest` adds a
   slot to `EquipData.AwakeSlotList` against a recipe, and `AwarenessModule.LeveledEvents` reads
   `1 + awakened slots` as the grid event level (Magic 763745000, +1% per level). Two awakened
@@ -148,6 +155,14 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
   one shard step, the refused early quality step, a greedy walk that spends exactly the table
   totals (300 shards and 240000 Cogs for Lee), a short balance that stops with the shortfall,
   and parity with `CharacterActivateStarRequest` on an identical player.
+- Acting-account channel: `Session` learned to exist without a socket (nullable writer, one
+  `internal` constructor), `AdminSession` picks live-or-database, and
+  `/api/admin/command/{name}` (proxy `/api/panel/command/{name}`) runs any command for a uid.
+  Verified by curl: item add and character info for an offline uid (both `live: false`), bad args,
+  unknown command 404, no token 401. The player page now has no sign-in at all: the account panel
+  and the rail's sign-in/status block are gone, the "Acting as" dropdown drives every command, and
+  the shared action row gained Tutti (arm, then confirm within five seconds) for every section
+  that can speak for all entries.
 
 
 ### Scroll containers (one rule, keep it)
@@ -267,6 +282,9 @@ override and every height reads short (a 764 window measured 429 and looked like
 - This machine has the .NET 10 SDK and only the 10 runtime: a net8.0 test binary refuses to start
   ("You must install or update .NET") unless `DOTNET_ROLL_FORWARD=Major` is set. The server itself
   is launched by the control centre, which sets up its environment.
+- A socketless `Session` is enough for the command layer, but only because `writer` is nullable and
+  every send path checks it; anything that assumes a client (disconnect, packet probes) must stay
+  on the socket path.
 - `AscNet.Test` does not load the command layer by itself: call
   `CommandFactory.LoadCommands()` before `CreateCommand`, or every lookup returns null.
 - `Inventory.Do(id, negative)` clamps at zero instead of refusing, so every spend in a command
@@ -280,6 +298,9 @@ override and every height reads short (a 764 window measured 429 and looked like
 Plan order is A, B, C, E, F, D (see `plans/2026-11-15_112155-inventory-ops-dashboard.md`);
 A, B, C, E and F are done.
 
+- G dorm and H guild are planned in `plans/2026-11-15_112155-inventory-ops-dashboard.md` (tasks,
+  open questions and verification each); both need server handlers or command wrappers over the
+  modules that already exist.
 - D character builder: the read model, the rank walk and the shard grant are done and tested
   (`--character-builder-only`). Left: the memory build (level via `EquipLevelUp`/`EquipBreakThrough`,
   resonance slots through `EquipResonanceRequest`'s own rules, awaken through `EquipAwakeRequest`'s

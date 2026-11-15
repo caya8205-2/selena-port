@@ -54,7 +54,7 @@ namespace AscNet.GameServer
         private const int MaxReceivePacketLength = PacketCodec.MaxFrameLength;
         private static readonly object BigWorldPacketDumpLock = new();
         private readonly object outboundLock = new();
-        private readonly PacketWriter writer;
+        private readonly PacketWriter? writer;
         private static readonly ConcurrentDictionary<long, object> PlayerOperationLocks = new();
         public Task Completion { get; private set; } = Task.CompletedTask;
         private static long BigWorldPacketDumpOrdinal;
@@ -75,6 +75,23 @@ namespace AscNet.GameServer
                     log.Warn("Outbound packet delivery failed; disconnecting peer.", exception);
                 DisconnectProtocol();
             });
+        }
+
+        /// <summary>
+        /// A session with no socket, for one administrative command run for an account chosen
+        /// from the database. Pushes go nowhere (there is no client), while the documents are the
+        /// same ones a logged-in session would hold, so the command layer runs unchanged.
+        /// Only created when the player has no live session: see <see cref="AdminSession"/>.
+        /// </summary>
+        internal Session(string id, Player player, Character character, Inventory inventory)
+        {
+            this.id = id;
+            client = null!;
+            this.player = player;
+            this.character = character;
+            this.inventory = inventory;
+            stage = default!;
+            log = new(typeof(Session), id, LogLevel.DEBUG, LogLevel.DEBUG);
         }
 
         public void Start()
@@ -210,13 +227,13 @@ namespace AscNet.GameServer
             catch (ObjectDisposedException)
             {
                 DisconnectProtocol();
-                await writer.CompleteAsync();
+                if (writer is not null) await writer.CompleteAsync();
                 return;
             }
             catch (InvalidOperationException) when (!client.Connected)
             {
                 DisconnectProtocol();
-                await writer.CompleteAsync();
+                if (writer is not null) await writer.CompleteAsync();
                 return;
             }
             int prevBuf = 0;
@@ -370,7 +387,7 @@ namespace AscNet.GameServer
             }
 
             DisconnectProtocol();
-            await writer.CompleteAsync();
+            if (writer is not null) await writer.CompleteAsync();
         }
 
         private void GrowReceiveBufferForPacket(ref byte[] buffer, int packetLen)
@@ -651,7 +668,7 @@ namespace AscNet.GameServer
         private void Send(Packet packet)
         {
             lock (outboundLock)
-                writer.Enqueue(packet);
+                writer?.Enqueue(packet);
         }
 
 
@@ -713,7 +730,7 @@ namespace AscNet.GameServer
             finally
             {
                 log.Warn($"{id} disconnected");
-                _ = writer.CompleteAsync();
+                if (writer is not null) _ = writer.CompleteAsync();
                 Server.Instance.Sessions.TryRemove(id, out _);
             }
         }

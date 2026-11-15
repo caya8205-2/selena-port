@@ -150,6 +150,45 @@ namespace AscNet.SDKServer.Controllers
                     }).ToList(),
                 });
             });
+
+            // The command layer, for an account chosen from the database instead of a signed-in
+            // game session: the player panel's acting-account picker and the character builder
+            // both go through here. AdminSession reuses the live session when the game is
+            // connected, so a command's pushes still reach the client.
+            app.MapPost("/api/admin/command/{name}", (HttpContext ctx, string name, [FromBody] AdminCommandRequest request) =>
+            {
+                if (!Authorised(ctx)) return Unauthorised(ctx);
+
+                AscNet.GameServer.Commands.Command? command;
+                bool live;
+                try
+                {
+                    AdminSession.Handle handle = AdminSession.Open(request.Uid);
+                    live = handle.Live;
+                    command = AscNet.GameServer.Commands.CommandFactory.CreateCommand(
+                        name,
+                        handle.Session,
+                        (request.Args ?? new()).ToArray());
+                }
+                catch (Exception ex)
+                {
+                    return Json(new { ok = false, msg = ex.InnerException?.Message ?? ex.Message }, 400);
+                }
+
+                if (command is null)
+                    return Json(new { ok = false, msg = "Command does not exist!" }, 404);
+
+                try
+                {
+                    command.Execute();
+                }
+                catch (Exception ex)
+                {
+                    return Json(new { ok = false, msg = ex.InnerException?.Message ?? ex.Message }, 400);
+                }
+
+                return Json(new { ok = true, msg = "OK", data = command.Payload, live });
+            });
         }
 
         private static Account? Find(long uid) =>
@@ -198,6 +237,12 @@ namespace AscNet.SDKServer.Controllers
     {
         public string? Name { get; set; }
         public long? Level { get; set; }
+    }
+
+    public sealed class AdminCommandRequest
+    {
+        public long Uid { get; set; }
+        public List<string>? Args { get; set; }
     }
 
     public sealed class SendMailRequest

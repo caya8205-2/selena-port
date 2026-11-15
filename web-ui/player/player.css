@@ -139,31 +139,6 @@
 
 .rail__foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
 
-.rail__account {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.rail__account span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.rail__account button {
-  flex: 0 0 auto;
-  border: 1px solid var(--line);
-  border-radius: var(--r-xs);
-  background: none;
-  color: var(--text-dim);
-  padding: 4px 9px;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.rail__account button:hover { color: var(--silver); border-color: var(--gold-soft); }
-
 /* ------------------------------------------------------------ main */
 
 .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
@@ -224,22 +199,6 @@
   align-items: center;
   gap: 10px;
 }
-
-/* ------------------------------------------------------------ account */
-
-.account-form { display: flex; flex-direction: column; gap: 12px; }
-
-.account-form .actions { justify-content: flex-start; }
-
-.account-note { margin: 0; font-size: 12px; color: var(--text-faint); line-height: 1.55; }
-
-.account-id {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.account-id strong { color: var(--silver); font-weight: 500; }
 
 /* ------------------------------------------------------------ action */
 

@@ -82,14 +82,6 @@
 
     <div class="rail__foot">
       <div class="staff" aria-hidden="true"></div>
-      <div class="status" id="connStatus" aria-live="polite">
-        <span class="status__dot"></span>
-        <span id="connText">Signed out</span>
-      </div>
-      <div class="rail__account">
-        <span id="accountLabel">No account</span>
-        <button id="accountBtn" type="button">Sign in</button>
-      </div>
     </div>
   </aside>
 
@@ -102,7 +94,7 @@
     <header class="topbar">
       <h1 class="topbar__title" id="sectionTitle">Items</h1>
       <div class="topbar__spacer"></div>
-      <label class="topbar__account">
+      <label class="topbar__account" data-tip="Acting as: the account every grant below applies to. The list comes from the server database, not from a sign-in, and a player who is in game receives the change at once.">
         <span class="topbar__account-label">Acting as</span>
         <select id="accountSelect" aria-label="Acting account"></select>
       </label>
@@ -115,39 +107,6 @@
 
     <div class="workspace">
       <div>
-        <section class="panel" aria-labelledby="accountTitle">
-          <div class="panel__head">
-            <div class="panel__title" id="accountTitle">Your account</div>
-            <div class="panel__meta" id="accountMeta">local only</div>
-          </div>
-          <div class="panel__body">
-            <form class="account-form" id="accountForm" autocomplete="off">
-              <label class="field">
-                <span class="field__label">Game account</span>
-                <input class="input" id="username" name="username" autocomplete="username" required maxlength="128">
-              </label>
-              <label class="field">
-                <span class="field__label">Password</span>
-                <input class="input" id="password" name="password" type="password" autocomplete="current-password" required maxlength="128">
-              </label>
-              <div class="actions">
-                <button class="btn btn--primary" type="submit" id="signInBtn">Sign in</button>
-                <button class="btn btn--quiet" type="button" id="registerBtn">Create account</button>
-              </div>
-              <p class="account-note">Accounts are created inside the game. This page never asks for a Kuro account and never creates admin rights.</p>
-              <p class="panel__meta" id="accountError" role="status"></p>
-            </form>
-
-            <div id="accountPanel" hidden>
-              <p class="account-id">Signed in as <strong id="accountName"></strong></p>
-              <p class="panel__meta" id="accountUid"></p>
-              <div class="actions" style="margin-top:12px">
-                <button class="btn btn--quiet" type="button" id="signOutBtn">Sign out</button>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <section class="panel" aria-labelledby="formTitle">
           <div class="panel__head">
             <div class="panel__title" id="formTitle">Score</div>
@@ -162,6 +121,7 @@
               </div>
               <div class="actions" id="sectionActions" style="margin-top:16px">
                 <button class="btn btn--primary" type="submit" id="runBtn" disabled>Perform</button>
+                <button class="btn btn--quiet" type="button" id="allBtn" hidden>Tutti · all</button>
                 <button class="btn btn--quiet" type="button" id="clearBtn">Silence</button>
                 <span class="field__hint" id="runHint"></span>
               </div>
@@ -210,7 +170,6 @@
   </main>
 </div>
 
-<script src="/common/api.js"></script>
 <script src="/common/ui.js"></script>
   <script src="/common/sound.js"></script>
 <script src="player.js"></script>

@@ -1,8 +1,9 @@
 /* Selena-port player page.
  *
- * Grants to your own account through the same AscNet chat commands the GM page
- * and the in-game `/help` use. The account comes from a local username and
- * password; there is no other player to target, by design of the command layer.
+ * Grants to the acting account through the same AscNet commands the GM page and the in-game
+ * `/help` use. The account is picked from the server database, not from a sign-in: the panel
+ * posts to /api/panel/command/<name> with that uid, and the server serves it from the live
+ * session when the player is in game or from an offline session over the same documents.
  */
 (function () {
   "use strict";
@@ -17,19 +18,22 @@
         { key: "item", type: "combo", catalog: "items", label: "Item", placeholder: "Search item name or ID", required: true },
         { key: "qty", type: "number", label: "Amount", value: "1", min: 1, max: 999999999, hint: "server clamps to the item limit" }
       ],
-      build: function (v) { return ["add", v.item.id, v.qty]; }
+      build: function (v) { return ["add", v.item.id, v.qty]; },
+      allArgs: function (v) { return ["add", "all", v.qty || "max"]; }
     },
     characters: {
       title: "Characters",
       command: "character",
       fields: [{ key: "character", type: "grid", catalog: "characters", label: "Character", placeholder: "Search construct, trade name or ID", required: true }],
-      build: function (v) { return ["add", v.character.id]; }
+      build: function (v) { return ["add", v.character.id]; },
+      allArgs: function () { return ["add", "all"]; }
     },
     weapons: {
       title: "Weapons",
       command: "equip",
       fields: [{ key: "equip", type: "grid", catalog: "weapons", label: "Weapon", placeholder: "Search weapon name or ID", required: true }],
-      build: function (v) { return ["add", v.equip.id]; }
+      build: function (v) { return ["add", v.equip.id]; },
+      allArgs: function () { return ["add", "all"]; }
     },
     memories: {
       title: "Memories",
@@ -59,7 +63,8 @@
         }
         if (v.memory) return [{ name: "equip", args: ["add", String(v.memory.id), qty] }];
         return [];
-      }
+      },
+      allArgs: function () { return ["add", "all"]; }
     },
     coatings: {
       title: "Coatings",
@@ -68,13 +73,15 @@
         { key: "owner", type: "grid", catalog: "characters", label: "Construct", placeholder: "Search construct, trade name or ID", required: true },
         { key: "coating", type: "grid", catalogFrom: function (v) { return loadCoatings(v.owner && v.owner.id); }, dependsOn: "owner", label: "Coating", placeholder: "Search coating name", required: true, hint: "shown for the chosen construct" }
       ],
-      build: function (v) { return ["unlock", v.owner.id, v.coating.id]; }
+      build: function (v) { return ["unlock", v.owner.id, v.coating.id]; },
+      allArgs: function () { return ["unlock", "all"]; }
     },
     scenes: {
       title: "Scenes",
       command: "scene",
       fields: [{ key: "scene", type: "grid", catalog: "scenes", label: "Scene background", placeholder: "Search scene name or ID", required: true }],
-      build: function (v) { return ["unlock", v.scene.id]; }
+      build: function (v) { return ["unlock", v.scene.id]; },
+      allArgs: function () { return ["unlock", "all"]; }
     },
     commandant: {
       title: "Commandant",
@@ -86,7 +93,8 @@
       title: "Stages",
       command: "stage",
       fields: [{ key: "stage", type: "combo", catalog: "stages", label: "Stage", placeholder: "Search stage name or ID", required: true }],
-      build: function (v) { return [v.stage.id]; }
+      build: function (v) { return [v.stage.id]; },
+      allArgs: function () { return ["all"]; }
     },
     cleanup: {
       title: "Cleanup",
@@ -178,114 +186,100 @@
   }
 
 
-  /* ---------------------------------------------------------------- account */
+  /* ---------------------------------------------------------------- acting account */
 
-  function renderAccount() {
-    var acc = window.SelenaAPI.account;
-    var status = $("#connStatus");
-    var text = $("#connText");
-    var label = $("#accountLabel");
-    var btn = $("#accountBtn");
+  /* The account comes from the server database, not from a sign-in. The panel posts the uid with
+   * every command, and the server runs it against the live session when the player is in game or
+   * against an offline session built from the same documents when they are not. */
+  var acting = { uid: null, username: "" };
 
-    $("#accountForm").hidden = !!acc;
-    $("#accountPanel").hidden = !acc;
+  function actingUid() {
+    return acting.uid ? Number(acting.uid) : null;
+  }
 
-    if (acc) {
-      status.classList.add("is-online");
-      status.classList.remove("is-offline");
-      text.textContent = "Signed in";
-      label.textContent = acc.username + " · UID " + acc.uid;
-      $("#accountName").textContent = acc.username;
-      $("#accountUid").textContent = "UID " + acc.uid + " · commands apply to this account";
-      btn.textContent = "Sign out";
-    } else {
-      status.classList.remove("is-online");
-      status.classList.add("is-offline");
-      text.textContent = "Signed out";
-      label.textContent = "No account";
-      btn.textContent = "Sign in";
-      $("#accountError").textContent = "";
-    }
+  function command(name, args) {
+    var uid = actingUid();
+    if (!uid) return Promise.reject(new Error("Pick the acting account first."));
 
+    return fetch("/api/panel/command/" + encodeURIComponent(name), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({ Uid: uid, Args: (args || []).map(String) })
+    }).then(function (response) {
+      return response.json().catch(function () { return null; }).then(function (payload) {
+        if (!response.ok || !payload || payload.ok === false) {
+          var failure = new Error((payload && payload.msg) || ("HTTP " + response.status));
+          failure.data = payload;
+          throw failure;
+        }
+        return { msg: payload.msg, data: payload.data, live: payload.live };
+      });
+    });
+  }
+
+  function selectAccount(accounts) {
+    var select = $("#accountSelect");
+    var chosen = accounts.filter(function (a) { return String(a.uid) === select.value; })[0];
+    acting = chosen ? { uid: chosen.uid, username: chosen.username } : { uid: null, username: "" };
+    try { localStorage.setItem("selena.activeAccount", JSON.stringify(acting)); } catch (error) { /* private mode */ }
     updatePreview();
   }
 
-  /* Ask the server whether this account actually has a live session. */
-  async function refreshStatus() {
-    var status = $("#connStatus");
-    var text = $("#connText");
-    if (!window.SelenaAPI.account) return;
+  /* The list comes from the server's admin endpoints, so it appears as soon as the server runs:
+   * nothing here needs a signed-in game session. */
+  async function loadAccounts() {
+    var select = $("#accountSelect");
 
-    var result = await window.SelenaAPI.status();
-    if (result.state === "in-game") {
-      status.classList.add("is-online");
-      status.classList.remove("is-offline");
-      text.textContent = "In game";
-      if (status) status.setAttribute("data-tip", "Live session: the server accepted a save probe for this account.");
-    } else if (result.state === "not-in-game") {
-      status.classList.remove("is-online");
-      status.classList.add("is-offline");
-      text.textContent = "Not in game";
-      if (status) status.setAttribute("data-tip", "No live session: the game is not connected, so commands will fail until you log in there.");
-    } else if (result.state === "account-only") {
-      status.classList.remove("is-online");
-      status.classList.add("is-offline");
-      text.textContent = "Account ready · game login required";
-      if (status) status.setAttribute("data-tip", "This account exists, but the server only authorises commands for a player the game has created. Log in from the client once, then commands work.");
+    try {
+      var response = await fetch("/api/panel/accounts", { cache: "no-store" });
+      if (!response.ok) throw new Error("unavailable");
+      var payload = await response.json();
+      var accounts = (payload && payload.accounts) || [];
+
+      if (accounts.length === 0) {
+        select.parentElement.hidden = true;
+        fillPreviewPlaceholder("no account in the database yet - create one from the Accounts tab");
+        return;
+      }
+
+      var stored = null;
+      try { stored = JSON.parse(localStorage.getItem("selena.activeAccount") || "null"); } catch (error) { stored = null; }
+
+      select.textContent = "";
+      accounts.forEach(function (account) {
+        var option = document.createElement("option");
+        option.value = String(account.uid);
+        option.textContent = account.username + " · UID " + account.uid + (account.playerPresent ? "" : " · no player yet");
+        select.appendChild(option);
+      });
+
+      select.value = stored && accounts.some(function (a) { return String(a.uid) === String(stored.uid); })
+        ? String(stored.uid)
+        : String(accounts[0].uid);
+
+      selectAccount(accounts);
+      select.addEventListener("change", function () { selectAccount(accounts); });
+    } catch (error) {
+      select.parentElement.hidden = true;
+      fillPreviewPlaceholder("account list unavailable - is the server running?");
     }
   }
 
-  async function authenticate(register) {
-    var user = $("#username").value.trim();
-    var pass = $("#password").value;
-    var errorBox = $("#accountError");
-
-    if (!user || !pass) {
-      errorBox.textContent = "Enter both a username and a password.";
-      return;
-    }
-
-    errorBox.textContent = "Contacting the server…";
-    try {
-      await window.SelenaAPI.login(user, pass, register);
-      $("#password").value = "";
-      errorBox.textContent = "";
-      renderAccount();
-      refreshStatus();
-    } catch (err) {
-      var message = (err && err.message) || "Sign in failed";
-      if (register && /already/i.test(message)) message = "That username is already registered - sign in instead.";
-      errorBox.textContent = message;
-    }
+  function fillPreviewPlaceholder(text) {
+    var preview = $("#previewText");
+    if (preview) preview.textContent = text;
   }
 
   /* ---------------------------------------------------------------- catalogs */
 
 
-  // A memory set is six records, one per slot; slot layouts differ per construct.
-  async function grantMemorySet(set, copies) {
-    var amount = Math.max(1, copies || 1);
-    var results = [];
-    for (var i = 0; i < set.slots.length; i += 1) {
-      var slot = set.slots[i];
-      var ok = true;
-      var error = "";
-      for (var copy = 0; copy < amount && ok; copy += 1) {
-        try {
-          await window.SelenaAPI.command("equip", ["add", String(slot.id)]);
-        } catch (err) {
-          ok = false;
-          error = (err && err.message) || "Request failed";
-        }
-      }
-      results.push({ site: slot.site, id: slot.id, ok: ok, error: error });
-    }
-    return results;
-  }
-
   async function catalog(kind) {
     if (catalogCache[kind]) return catalogCache[kind];
-    var entries = await window.SelenaAPI.catalog(kind);
+    var response = await fetch("/api/panel/catalog/" + kind, { cache: "no-store" });
+    if (!response.ok) throw new Error("catalog unavailable");
+    var payload = await response.json();
+    var entries = (payload && payload.entries) || [];
     catalogCache[kind] = entries;
     return entries;
   }
@@ -416,7 +410,6 @@
       window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, { name: "cleanup", args: args }, ok, detail);
       $("#consoleMeta").textContent = opusLabel(performed);
       if (ok) window.SelenaAudio.chord(); else window.SelenaAudio.low();
-      refreshStatus();
     }
 
     /* The server answers { msg, data }; the dev mock can still answer JSON in msg,
@@ -437,7 +430,7 @@
       $("#meter").dataset.state = "running";
 
       try {
-        var payload = await window.SelenaAPI.command("cleanup", args);
+        var payload = await command("cleanup", args);
         var data = parse(payload);
         entryFor(args, true, data && data.ok
           ? data.eligible + " eligible / " + data.items + " stacks / " + data.quantity + " units"
@@ -496,7 +489,7 @@
       $("#meter").dataset.state = "running";
 
       try {
-        var payload = await window.SelenaAPI.command("cleanup", args);
+        var payload = await command("cleanup", args);
         var data = parse(payload);
         entryFor(args, true, data && data.ok
           ? "removed " + data.removed + " stacks (" + (data.items || 0) + " units)"
@@ -668,6 +661,19 @@
     var previewLabel = document.querySelector("#previewLabel");
     if (previewLabel) previewLabel.hidden = isCustom;
 
+    /* Tutti exists only where a section can speak for every entry at once. It arms on the first
+     * press and fires on the second one inside five seconds; the shared button never carries a
+     * half-armed state into the next section. */
+    var allBtn = $("#allBtn");
+    var hasAll = typeof section.allArgs === "function" && !isCustom;
+    allBtn.hidden = !hasAll;
+    allBtn.disabled = false;
+    disarmAll();
+    if (hasAll) {
+      allBtn.setAttribute("data-tip", "Tutti: apply this tab to every entry at once. Press twice to confirm.");
+      allBtn.setAttribute("aria-label", "Tutti: run this command for every entry (press twice)");
+    }
+
     if (section.custom === "cleanup") {
       renderCleanup(host);
       return;
@@ -753,7 +759,7 @@
     text.textContent = label;
     preview.dataset.ready = "true";
     run.disabled = false;
-    $("#runHint").textContent = window.SelenaAPI.account ? "" : "sign in to perform";
+    $("#runHint").textContent = actingUid() ? "" : "pick an acting account";
   }
 
   async function perform(event) {
@@ -762,9 +768,8 @@
     var plan = buildPlan();
     if (plan.length === 0) return;
 
-    if (!window.SelenaAPI.account) {
-      $("#accountError").textContent = "Sign in first, then perform the action.";
-      $("#username").focus();
+    if (!actingUid()) {
+      $("#runHint").textContent = "pick an acting account";
       return;
     }
 
@@ -775,21 +780,29 @@
 
     var lines = [];
     var failures = 0;
+    /* The server answers whether the change reached a live session; when it did not, the client
+     * only shows it after its next login, and saying so beats a silent "OK". */
+    var offlineOnly = false;
 
     try {
       for (var i = 0; i < plan.length; i += 1) {
         var step = plan[i];
         try {
-          var response = await window.SelenaAPI.command(step.name, step.args);
-          lines.push("/" + step.name + " " + step.args.join(" ") + " -> " + ((response && response.msg) || "OK"));
+          var response = await command(step.name, step.args);
+          if (response && response.live === false) offlineOnly = true;
+          /* One command reads as its result; a set of six (a memory set) needs its own line each,
+           * otherwise the log shows the same command twice. */
+          var result = (response && response.msg) || "OK";
+          lines.push(plan.length > 1 ? step.name + " " + step.args.join(" ") + " -> " + result : result);
         } catch (stepError) {
           failures += 1;
           lines.push("/" + step.name + " " + step.args.join(" ") + " -> " + ((stepError && stepError.message) || "failed"));
         }
       }
 
+      if (offlineOnly) lines.push("stored in the database - the game client shows it at its next login");
+
       performed += 1;
-      refreshStatus();
       window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, { name: plan[0].name, args: plan[0].args }, failures === 0, lines.join("\n"));
       $("#consoleMeta").textContent = opusLabel(performed);
       if (failures === 0) { celebrate(run); window.SelenaAudio.chord(); } else { window.SelenaAudio.low(); }
@@ -801,34 +814,81 @@
     }
   }
 
+  /* ---------------------------------------------------------------- tutti */
+
+  var allArmed = false;
+  var allTimer = null;
+
+  function disarmAll(reason) {
+    allArmed = false;
+    clearTimeout(allTimer);
+    var button = $("#allBtn");
+    if (button) {
+      button.classList.remove("is-armed");
+      button.textContent = "Tutti · all";
+    }
+    /* Only the timeout is a real event worth a sound; changing section is not. */
+    if (reason === "timeout" && window.SelenaAudio) window.SelenaAudio.standDown();
+  }
+
+  async function performAll() {
+    var section = SECTIONS[current];
+    if (!section || typeof section.allArgs !== "function") return;
+
+    var button = $("#allBtn");
+
+    if (!allArmed) {
+      allArmed = true;
+      button.classList.add("is-armed");
+      button.textContent = "Tutti · press again";
+      window.SelenaAudio.arm();
+      allTimer = setTimeout(function () { disarmAll("timeout"); }, 5000);
+      return;
+    }
+
+    disarmAll("confirm");
+
+    if (!actingUid()) {
+      $("#runHint").textContent = "pick an acting account";
+      return;
+    }
+
+    var cmd = { name: section.command, args: section.allArgs(values).map(String) };
+    button.disabled = true;
+    $("#meter").dataset.state = "running";
+
+    try {
+      var response = await command(cmd.name, cmd.args);
+      performed += 1;
+      var detail = (response && response.data) ? JSON.stringify(response.data, null, 2) : (response && response.msg) || "OK";
+      if (response && response.live === false) detail += "\nstored in the database - the game client shows it at its next login";
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, true, detail);
+      $("#consoleMeta").textContent = opusLabel(performed);
+      celebrate(button);
+      window.SelenaAudio.chord();
+    } catch (err) {
+      performed += 1;
+      var failure = (err && (err.message || String(err))) || "Request failed";
+      if (err && err.data) failure += "\n" + JSON.stringify(err.data, null, 2);
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, false, failure);
+      $("#consoleMeta").textContent = opusLabel(performed);
+      window.SelenaAudio.low();
+    } finally {
+      $("#meter").dataset.state = "idle";
+      button.disabled = false;
+      updatePreview();
+    }
+  }
+
   /* ---------------------------------------------------------------- wiring */
 
   document.querySelectorAll(".rail__item[data-section]").forEach(function (el) {
     el.addEventListener("click", function () { renderSection(el.dataset.section); });
   });
 
-  $("#accountForm").addEventListener("submit", function (event) {
-    event.preventDefault();
-    authenticate(false);
-  });
-
-  $("#registerBtn").addEventListener("click", function () { authenticate(true); });
-
-  $("#signOutBtn").addEventListener("click", function () {
-    window.SelenaAPI.logout();
-    renderAccount();
-  });
-
-  $("#accountBtn").addEventListener("click", function () {
-    if (window.SelenaAPI.account) {
-      window.SelenaAPI.logout();
-      renderAccount();
-    } else {
-      $("#username").focus();
-    }
-  });
-
   $("#actionForm").addEventListener("submit", perform);
+
+  $("#allBtn").addEventListener("click", performAll);
 
   $("#clearBtn").addEventListener("click", function () {
     performed = 0;
@@ -843,7 +903,7 @@
     if ((event.ctrlKey || event.metaKey) && event.key === "Enter") perform(event);
   });
 
-  renderAccount();
+  loadAccounts();
   renderSection("items");
   /* One delegated listener: rail clicks are re-rendered often, so binding per
    * element would stack handlers and play several plucks at once. */
@@ -861,9 +921,8 @@
   /* Static controls get their own explanation, because these are exactly the
    * buttons people guess at. */
   var CONTROLS = {
-    runBtn: "Send this command to the server. Ctrl + Enter does the same.",
-    clearBtn: "Clear the performance log and start a new opus. Nothing is sent to the server.",
-    accountBtn: "Sign in with a local server account, or sign out of this panel."
+    runBtn: "Perform this tab's command for the acting account. Ctrl + Enter does the same.",
+    clearBtn: "Clear the performance log and start a new opus. Nothing is sent to the server."
   };
 
   Object.keys(CONTROLS).forEach(function (id) {
@@ -880,58 +939,5 @@
   });
 
   $("#consoleMeta").textContent = opusLabel(0);
-  if (window.SelenaAPI.account) refreshStatus();
-
-  /* Keep the rail honest without waiting for an action: poll the server while the
-   * tab is visible, and first refresh any session that predates the client's first
-   * login so an old tab becomes usable on its own. */
-  setInterval(function () {
-    if (document.visibilityState !== "visible") return;
-    if (!window.SelenaAPI.account) return;
-
-    var acc = window.SelenaAPI.account();
-    if (!acc.playerToken) {
-      window.SelenaAPI.verify().then(function (next) {
-        if (next) refreshStatus();
-      }).catch(function () { /* stay signed in; the next poll retries */ });
-      return;
-    }
-
-    refreshStatus();
-  }, 10000);
 
 })();
-
-  // ------------------------------------------------------------ account picker
-  // The list comes from the server's admin endpoints, so it appears as soon as the
-  // server runs; nothing here requires a signed-in game session.
-  function initAccountSelector() {
-    var select = document.getElementById("accountSelect");
-    if (!select) return;
-
-    fetch("/api/panel/accounts")
-      .then(function (response) { if (!response.ok) throw new Error("unavailable"); return response.json(); })
-      .then(function (payload) {
-        var accounts = (payload && payload.accounts) || [];
-        if (accounts.length === 0) { select.parentElement.hidden = true; return; }
-
-        accounts.forEach(function (account) {
-          var option = document.createElement("option");
-          option.value = String(account.uid);
-          option.textContent = account.username + " / UID " + account.uid;
-          select.appendChild(option);
-        });
-
-        var stored = null;
-        try { stored = JSON.parse(localStorage.getItem("selena.activeAccount") || "null"); } catch (error) { stored = null; }
-        if (stored) select.value = String(stored.uid);
-
-        select.addEventListener("change", function () {
-          var chosen = accounts.filter(function (a) { return String(a.uid) === select.value; })[0];
-          if (chosen) localStorage.setItem("selena.activeAccount", JSON.stringify({ uid: chosen.uid, username: chosen.username }));
-        });
-      })
-      .catch(function () { select.parentElement.hidden = true; });
-  }
-
-  document.addEventListener("DOMContentLoaded", initAccountSelector);

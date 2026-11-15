@@ -179,6 +179,90 @@ Slider-driven, per construct. No give-all anywhere in this phase.
 | F | Pull + rebuild + restart leaves stack healthy and data intact |
 | D | S0 → SS0 consumes the documented shard count and shows in game; Amplifier refuses an Attacker-only weapon resonance; Harmony unlocks 2 slots with a 6-star weapon; memory at 44 cannot be hypertuned, at 45 with 2 resonance the build total moves 2%; no bulk touches resonance or hypertune |
 
+
+---
+
+## Phase G — Dorm (player panel)
+
+**Goal:** fill a dorm instead of hunting shop tabs one furniture piece at a time, from the panel
+that already grants everything else.
+
+What exists: `Player.Dorm` (`PlayerDormState`), the dorm shop tabs returned by
+`GetShopBaseInfoRequest` from curated catalogs, the dormitory furniture tables, and
+`GuildDormRoomService` for the guild dorm (separate, KCP closed).
+
+### Task G1: `dorm info`
+**Files:** new `AscNet.GameServer/Commands/DormCommand.cs`
+1. Payload: every furniture template the account owns (count), every placed instance (room, slot,
+   template), the current layout, and the templates the furniture table has but the account does
+   not own.
+2. Read-only. No DB write, no client push.
+
+### Task G2: `dorm fill <room|all>`
+**Files:** `DormCommand.cs`
+1. Grant the blueprint/furniture item ids the tables name for the missing pieces, through
+   `RewardHandler`/`Inventory` so caps and pushes behave like every other grant.
+2. `all` fills every room; a room id fills that room. Unknown room ids are refused with the
+   table's own ids listed.
+3. Placement stays client-side: the panel grants ownership, the game places.
+
+### Task G3: Dorm section in the player panel
+**Files:** `web-ui/player/index.html`, `player.js`
+1. A normal section (`fields` + `build`), so Perform and Tutti work without a custom renderer.
+2. Tutti = `dorm fill all`.
+3. Tooltip states that placement happens in game and that the section fills only what the table
+   defines.
+
+**Open questions (settle before writing G2):** which column holds the blueprint item id for a
+furniture row; whether ownership needs the matching blueprint item at all; whether dorm furniture
+is shop-only (then a fill would have to spend currency or be a labelled AscNet grant).
+
+**Verify:** `--dorm-compat-only` on a fixture player (info lists the missing set, fill grants only
+table ids, a second fill is a no-op); in game after the client is available.
+
+## Phase H — Guild (player panel)
+
+**Goal:** give a guild the resources and experience the game asks for, for the account the panel
+acts as.
+
+What exists: `GuildModule` (membership, ranks, donations, exp, funds), `GuildModule.Management`,
+the guild level/exp tables, and `AccountModule` pushes for guild identity.
+
+### Task H1: `guild info`
+**Files:** new `AscNet.GameServer/Commands/GuildCommand.cs`
+1. Payload: guild id/name/level/exp/funds, the acting player's rank and contribution, and the
+   caps that apply (`GuildLevel` row).
+2. Membership is read through `GuildModule`, never re-derived.
+
+### Task H2: `guild grant <exp|fund|contribution> <n>`
+**Files:** `GuildCommand.cs`
+1. Go through `GuildModule`'s own mutation path so limits, receipts and pushes stay identical to
+   what the game does; refuse a non-member (the module's own code) and report the code.
+2. A GM action may exceed the daily donation limit only when the command says so explicitly
+   (`confirm`), because the game's own path counts donations.
+3. No new guild rows and no invented level curve: the cap comes from `GuildLevel`.
+
+### Task H3: Guild section in the player panel
+**Files:** `web-ui/player/index.html`, `player.js`
+1. Normal section, Perform for one resource type, Tutti for all resource types the command
+   accepts.
+
+**Open questions:** which table caps exp per level and whether exp over the cap carries over;
+whether contribution points are per member or per day; whether `GuildModule` exposes a path for
+funds that does not also count a donation.
+
+**Verify:** `--guild-grant-compat-only` (member vs non-member, cap refusal, push shape); in game
+after the client is available.
+
+## The acting-account channel (needed by D, G and H)
+
+`POST /api/admin/command/{name}` takes `{ uid, args }` and runs the existing command layer for
+that account: `AdminSession.Open(uid)` returns the live session when the player is in game, else a
+socketless session over the same `Player`/`Character`/`Inventory` documents. The player panel
+posts to `/api/panel/command/{name}` (the shell injects the token), so no sign-in exists on that
+page and every section targets the account picked in "Acting as". The response carries
+`live: false` when the change only exists in the database, and the panel says so in the log.
+
 ## Risks / open questions
 
 1. **Rank field**: confirm whether rank lives in `Quality` or a shard-owned value before D2; a blind write desyncs the client badge.

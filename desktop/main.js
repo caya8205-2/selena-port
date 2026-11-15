@@ -380,6 +380,13 @@ const MIME = {
   '.svg': 'image/svg+xml',
 }
 
+// The admin token lives beside the server build; both panel proxies below inject it so the
+// pages never hold it.
+function readAdminToken() {
+  const file = path.join(config.serverDir || '', 'admin-token.txt')
+  return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim() : null
+}
+
 function sendJson(res, payload, statusCode = 200) {
   const body = JSON.stringify(payload)
   res.writeHead(statusCode, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-store' })
@@ -421,12 +428,32 @@ function startUiServer() {
       }
 
       if (url.pathname === '/api/panel/accounts') {
-        const file = path.join(config.serverDir || '', 'admin-token.txt')
-        if (!fs.existsSync(file)) return sendJson(res, { code: -1, msg: 'admin token not found - start the server once' }, 404)
-        const token = fs.readFileSync(file, 'utf8').trim()
+        const token = readAdminToken()
+        if (!token) return sendJson(res, { code: -1, msg: 'admin token not found - start the server once' }, 404)
         fetch('http://127.0.0.1:' + config.sdkPort + '/api/admin/accounts', { headers: { 'X-Admin-Token': token } })
           .then((r) => r.json().then((body) => sendJson(res, body, r.status)))
           .catch((err) => sendJson(res, { code: -1, msg: err.message }, 502))
+        return
+      }
+
+      // The player panel picks an account from the database instead of signing in, so it runs
+      // commands through the admin channel; the token stays in the main process.
+      if (url.pathname.startsWith('/api/panel/command/')) {
+        const token = readAdminToken()
+        if (!token) return sendJson(res, { ok: false, msg: 'admin token not found - start the server once' }, 404)
+
+        const name = url.pathname.slice('/api/panel/command/'.length)
+        let body = ''
+        req.on('data', (chunk) => { body += chunk })
+        req.on('end', () => {
+          fetch('http://127.0.0.1:' + config.sdkPort + '/api/admin/command/' + encodeURIComponent(name), {
+            method: 'POST',
+            headers: { 'X-Admin-Token': token, 'Content-Type': 'application/json' },
+            body: body || '{}',
+          })
+            .then((response) => response.json().then((payload) => sendJson(res, payload, response.status)))
+            .catch((err) => sendJson(res, { ok: false, msg: err.message }, 502))
+        })
         return
       }
 
