@@ -587,7 +587,9 @@ async function backupNow(reason) {
   // the previous running state restored afterwards.
   const wasRunning = await portOpen(config.mongoPort)
   if (wasRunning) {
-    await stopAll()
+    // stopStackFor, not stopAll: a stack started from tools/ is not this app's child, and
+    // copying a locked database fails with EDOM.
+    if (!(await stopStackFor())) throw new Error('the stack is still running - stop it before backing up')
     log('database stopped for the snapshot')
   }
 
@@ -629,9 +631,11 @@ function buildServer() {
 // This app only owns the processes it spawned itself. A stack started from tools/ belongs to
 // the control centre, and the port - not the child list - is what tells us it is gone.
 async function stopStackFor(seconds = 25) {
+  const listening = async () => (await portOpen(config.sdkPort)) || (await portOpen(config.mongoPort))
+
   await stopAll()
 
-  if (await portOpen(config.sdkPort)) {
+  if (await listening()) {
     const script = path.join(config.repoRoot || path.join(__dirname, '..'), 'tools', 'SelenaPort-ControlCenter.ps1')
     if (fs.existsSync(script)) {
       await new Promise((resolve) => {
@@ -644,10 +648,10 @@ async function stopStackFor(seconds = 25) {
   }
 
   const deadline = Date.now() + seconds * 1000
-  while (Date.now() < deadline && await portOpen(config.sdkPort))
+  while (Date.now() < deadline && await listening())
     await new Promise((resolve) => setTimeout(resolve, 500))
 
-  return !(await portOpen(config.sdkPort))
+  return !(await listening())
 }
 
 async function rebuildServer() {
