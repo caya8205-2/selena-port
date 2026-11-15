@@ -1,0 +1,44 @@
+{
+  "name": "selena-port",
+  "productName": "Selena-port",
+  "version": "0.1.0",
+  "description": "Desktop console for a local Punishing: Gray Raven server",
+  "main": "main.js",
+  "author": "Caya8205",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis portable"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "dev.selena.port",
+    "productName": "Selena-port",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "ui/**",
+      "web-ui/**"
+    ],
+    "extraResources": [
+      { "from": "../Resources/table", "to": "table" },
+      { "from": "runtime", "to": "runtime" }
+    ],
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "../web-ui/icon.webp"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    }
+  }
+}
