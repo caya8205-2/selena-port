@@ -796,43 +796,35 @@
   // ------------------------------------------------------------ account picker
   // The list comes from the server's admin endpoints, so it appears as soon as the
   // server runs; nothing here requires a signed-in game session.
-  /* The native element holds the value every command reads; the visible control is the panel's
-   * own dropdown, so no OS popup appears in this console. */
-  var accountMirror = null;
+  /* The acting account picker is the panel's own dropdown and the only control: there is no hidden
+   * native select behind it, so the visible label always comes from the account list itself. */
+  var accountPicker = null;
 
-  function buildAccountMirror() {
-    var native = document.getElementById("accountSelect");
+  function paintAccountPicker(accounts, value) {
     var host = document.getElementById("accountPicker");
-    if (!native || !host) return;
+    if (!host) return;
 
-    if (!accountMirror) {
-      accountMirror = window.SelenaUI.select([], {
-        value: native.value,
+    if (!accountPicker) {
+      accountPicker = window.SelenaUI.select([], {
+        value: value,
         search: "Filter accounts",
         tip: "Pick the account this console writes to. It comes from the database, not from a sign-in.",
-        onChange: function (value) {
-          native.value = value;
-          native.dispatchEvent(new Event("change", { bubbles: true }));
+        onChange: function (picked) {
+          var chosen = accounts.filter(function (account) { return String(account.uid) === String(picked); })[0];
+          if (chosen) localStorage.setItem("selena.activeAccount", JSON.stringify({ uid: chosen.uid, username: chosen.username }));
         },
       });
-      host.appendChild(accountMirror.node);
-      native.classList.add("is-mirrored");
-      native.tabIndex = -1;
-      native.setAttribute("aria-hidden", "true");
+      host.appendChild(accountPicker.node);
     }
 
-    accountMirror.setOptions(Array.from(native.options).map(function (option) {
-      return { value: option.value, label: option.textContent };
-    }), native.value);
-  }
-
-  function syncAccountMirror() {
-    var native = document.getElementById("accountSelect");
-    if (!accountMirror || !native) return;
-    accountMirror.setValue(native.value);
+    accountPicker.setOptions(accounts.map(function (account) {
+      return { value: String(account.uid), label: account.username + " / UID " + account.uid };
+    }), value);
   }
 
   function initAccountSelector() {
+    // The native select stays until the custom picker is proven here: it is the one control that
+    // cannot be allowed to go blank.
     var select = document.getElementById("accountSelect");
     if (!select) return;
 
@@ -851,15 +843,19 @@
 
         var stored = null;
         try { stored = JSON.parse(localStorage.getItem("selena.activeAccount") || "null"); } catch (error) { stored = null; }
-        if (stored) select.value = String(stored.uid);
+        var chosen = stored && accounts.some(function (a) { return String(a.uid) === String(stored.uid); })
+          ? String(stored.uid)
+          : String(accounts[0].uid);
 
+        select.value = chosen;
         select.addEventListener("change", function () {
-          var chosen = accounts.filter(function (a) { return String(a.uid) === select.value; })[0];
-          if (chosen) localStorage.setItem("selena.activeAccount", JSON.stringify({ uid: chosen.uid, username: chosen.username }));
-          syncAccountMirror();
+          var picked = accounts.filter(function (a) { return String(a.uid) === select.value; })[0];
+          if (picked) localStorage.setItem("selena.activeAccount", JSON.stringify({ uid: picked.uid, username: picked.username }));
         });
 
-        buildAccountMirror();
+        paintAccountPicker(accounts, chosen);
+        var start = accounts.filter(function (a) { return String(a.uid) === chosen; })[0];
+        if (start) localStorage.setItem("selena.activeAccount", JSON.stringify({ uid: start.uid, username: start.username }));
       })
       .catch(function () { select.parentElement.hidden = true; });
   }
