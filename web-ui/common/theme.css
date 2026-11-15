@@ -669,3 +669,7 @@ a { color: inherit; text-decoration: none; }
 
 .grid__status { margin: 0; font-size: 11px; color: var(--text-faint); }
 .grid__empty { margin: 0; font-size: 11.5px; color: var(--text-faint); }
+
+/* Armed state for bulk actions: the label already says "press again", the border
+ * says it without relying on colour alone. */
+.btn.is-armed { border-color: var(--gold); color: var(--gold); }

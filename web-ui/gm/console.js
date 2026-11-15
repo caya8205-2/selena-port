@@ -18,25 +18,29 @@
         { key: "item", type: "combo", catalog: "items", label: "Item", placeholder: "Search item name or ID", required: true },
         { key: "qty", type: "number", label: "Amount", value: "1", min: 1, max: 99999, hint: "server clamps to the item limit" }
       ],
-      build: function (v) { return ["add", v.item.id, v.qty]; }
+      build: function (v) { return ["add", v.item.id, v.qty]; },
+      allArgs: function (v) { return ["add", "all", v.qty || "max"]; }
     },
     characters: {
       title: "Characters",
       command: "character",
       fields: [{ key: "character", type: "grid", catalog: "characters", label: "Character", placeholder: "Search construct, trade name or ID", required: true }],
-      build: function (v) { return ["add", v.character.id]; }
+      build: function (v) { return ["add", v.character.id]; },
+      allArgs: function () { return ["add", "all"]; }
     },
     equipment: {
       title: "Equipment",
       command: "equip",
       fields: [{ key: "equip", type: "grid", catalog: "equips", label: "Equipment", placeholder: "Search weapon or memory, or filter by star", required: true }],
-      build: function (v) { return ["add", v.equip.id]; }
+      build: function (v) { return ["add", v.equip.id]; },
+      allArgs: function () { return ["add", "all"]; }
     },
     coatings: {
       title: "Coatings",
       command: "coating",
       fields: [{ key: "owner", type: "grid", catalog: "characters", label: "Owner", placeholder: "Search construct, trade name or ID", required: true, hint: "unlocks every coating of that character" }],
-      build: function (v) { return ["unlock", v.owner.id]; }
+      build: function (v) { return ["unlock", v.owner.id]; },
+      allArgs: function () { return ["unlock", "all"]; }
     },
     scenes: {
       title: "Scenes",
@@ -55,7 +59,8 @@
       title: "Stages",
       command: "stage",
       fields: [{ key: "stage", type: "combo", catalog: "stages", label: "Stage", placeholder: "Search stage name or ID", required: true }],
-      build: function (v) { return [v.stage.id]; }
+      build: function (v) { return [v.stage.id]; },
+      allArgs: function () { return ["all"]; }
     }
   };
 
@@ -274,6 +279,19 @@
       host.appendChild(wrap);
     });
 
+    /* Sections that accept an "all" form get the bulk button; the rest keep it
+     * hidden rather than showing a control that cannot do anything. */
+    var allBtn = $("#allBtn");
+    var hasAll = typeof section.allArgs === "function";
+    allBtn.hidden = !hasAll;
+    allBtn.disabled = false;
+    allBtn.textContent = "Grant all";
+    allBtn.classList.remove("is-armed");
+    disarmAll();
+    if (hasAll) {
+      allBtn.setAttribute("data-tip", "Runs this command in its \"all\" form: every character, equipment or coating in the catalog, or items up to the current amount. Press twice to confirm.");
+    }
+
     if (section.note) {
       var note = document.createElement("p");
       note.className = "hint-block";
@@ -341,6 +359,72 @@
 
   /* ---------------------------------------------------------------- perform */
 
+
+  /* ---------------------------------------------------------------- grant all */
+
+  /* Every catalog command also accepts "all". It is a bulk write, so the button
+   * arms on the first press and only fires on the second one inside five
+   * seconds - no dialog, no silent mass grant. */
+  var allArmed = false;
+  var allTimer = null;
+
+  function disarmAll() {
+    allArmed = false;
+    clearTimeout(allTimer);
+    var button = $("#allBtn");
+    if (button) {
+      button.classList.remove("is-armed");
+      button.textContent = "Grant all";
+    }
+  }
+
+  async function performAll() {
+    var section = SECTIONS[current];
+    if (!section || typeof section.allArgs !== "function") return;
+
+    var button = $("#allBtn");
+
+    if (!allArmed) {
+      allArmed = true;
+      button.classList.add("is-armed");
+      button.textContent = "Grant all — press again";
+      allTimer = setTimeout(disarmAll, 5000);
+      return;
+    }
+
+    disarmAll();
+
+    if (!window.SelenaAPI.account) {
+      await signIn();
+      if (!window.SelenaAPI.account) return;
+    }
+
+    var cmd = { name: section.command, args: section.allArgs(values).map(String) };
+    button.disabled = true;
+    $("#meter").dataset.state = "running";
+
+    try {
+      var response = await window.SelenaAPI.command(cmd.name, cmd.args);
+      performed += 1;
+      renderAccount();
+      refreshStatus();
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, true, JSON.stringify(response, null, 2));
+      $("#consoleMeta").textContent = opusLabel(performed);
+      celebrate(button);
+      window.SelenaAudio.chord();
+    } catch (err) {
+      performed += 1;
+      var detail = (err && (err.message || String(err))) || "Request failed";
+      if (err && err.data) detail += "\n" + JSON.stringify(err.data, null, 2);
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, false, detail);
+      $("#consoleMeta").textContent = opusLabel(performed);
+      refreshStatus();
+    } finally {
+      $("#meter").dataset.state = "idle";
+      button.disabled = false;
+    }
+  }
+
   async function perform(event) {
     if (event) event.preventDefault();
 
@@ -396,6 +480,7 @@
     }
   });
 
+  $("#allBtn").addEventListener("click", performAll);
   $("#actionForm").addEventListener("submit", perform);
 
   $("#clearBtn").addEventListener("click", function () {

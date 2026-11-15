@@ -380,7 +380,9 @@
     wrap.appendChild(cards);
     wrap.appendChild(status);
 
-    var LIMIT = 60;
+    /* High enough that a whole catalog fits: the old 60 card cap silently cut the
+     * list at whatever row landed 60th, which read as a missing catalog. */
+    var LIMIT = 600;
     var entries = [];
     var selected = null;
     var active = -1;
@@ -433,7 +435,7 @@
       }
 
       status.textContent = hits > LIMIT
-        ? "Showing " + shown.length + " of " + hits + " matching entries — refine the search to narrow it."
+        ? "Showing the first " + shown.length + " of " + hits + " matching entries — refine the search."
         : hits + (hits === 1 ? " entry" : " entries");
 
       window.SelenaUI.hideTip(null);
