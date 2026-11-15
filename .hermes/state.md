@@ -467,3 +467,35 @@ Weapon, Construct. Never "quality 3" for S, never "awaken" for Hypertune, never
 - Health probes must not open a TCP connection to the game port: the server treats
   it as a client, opens a session, saves state and disconnects, which floods its
   log and can race a real login. Read the process instead.
+
+### Panel conventions, learned the hard way
+
+- The shell stores the current tab in `selena.view`. Before that it had no memory, and since the
+  dev watcher reloaded the whole window on every save, opening a panel looked like the app jumping
+  back to Console on its own. A save under `web-ui` now reloads the frames only; only an edit under
+  `desktop/ui` reloads the shell.
+- A tooltip belongs on a small target. The acting-as tip sat on the label that wraps the account
+  control, so the whole header row answered for it and the tip stayed up while the list was used.
+- Controls take their own width. A switch inside a grid row stretched to the row, so its tooltip
+  answered from the far edge of the modal.
+- Editing markup by slicing text can leave a closing tag behind: an extra `</div>` closed the shell
+  early and the player page went blank. After any structural edit, count `<div>` against `</div>`
+  and `<section>` against `</section>` before declaring it done.
+- A native control that only holds a value stays in the DOM (`.is-mirrored`, `aria-hidden`, out of
+  the tab order) so old readers keep working, while the visible control is the panel's own.
+
+### Lit components
+
+`web-ui/common/components/index.js` defines `sel-select`, `sel-toggle` and `sel-slider` as thin
+wrappers over `SelenaUI.select`, `toggle` and `slider`, no shadow root so `theme.css` tokens still
+apply. `desktop/build-components.mjs` bundles them with esbuild (`nodePaths` into
+`desktop/node_modules`, because the sources live under `web-ui`) to `web-ui/common/components.js`,
+which the panel server already serves. The bundle builds and defines all three elements; no page
+uses them yet, so nothing is migrated beyond that.
+
+### Browser harness on this machine
+
+The harness keeps one endpoint per session as `bu-<name>.port` and `.pid` under
+`%USERPROFILE%\.config\browser-harness\runtime`. If the daemon dies those files are left behind and
+the next call fails with `Access denied` while unlinking them, which looks like a broken page. Kill
+stray `chrome.exe`, delete the stale `bu-<name>.*` files, and open the next session under a new name.
