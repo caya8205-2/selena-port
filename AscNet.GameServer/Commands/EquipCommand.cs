@@ -15,13 +15,16 @@ namespace AscNet.GameServer.Commands
         {
         }
 
-        public override string Help => "Command to interact with your equips";
+        public override string Help => "Add an equip by id, optionally several copies, or every equip with 'all'.";
 
         [Argument(0, @"^add$|^prune$|^sync$", "The operation selected (add, prune, sync)", ArgumentFlags.IgnoreCase)]
         string Op { get; set; } = string.Empty;
 
         [Argument(1, @"^[0-9]+$|^all$", "The target equip, value is equip id or 'all'", ArgumentFlags.IgnoreCase | ArgumentFlags.Optional)]
         string Target { get; set; } = string.Empty;
+
+        [Argument(2, @"^[0-9]+$", "How many copies to add (default 1)", ArgumentFlags.Optional)]
+        string Count { get; set; } = "1";
 
         public override void Execute()
         {
@@ -56,9 +59,16 @@ namespace AscNet.GameServer.Commands
                     else
                     {
                         var equip = TableReaderV2.Parse<EquipTable>().Find(x => x.Id == Miscs.ParseIntOr(Target)) ?? throw new ServerCodeException("Equip by id not found", 20021001);
-                        var newEquip = session.character.AddEquip((uint)equip.Id);
-                        if (newEquip is not null)
-                            notifyEquipData.EquipDataList.Add(newEquip);
+
+                        // One id per call, and an optional count so the panel's Amount field means
+                        // the same thing here as it does for items.
+                        int copies = Math.Clamp(Miscs.ParseIntOr(Count), 1, 999);
+                        for (int index = 0; index < copies; index += 1)
+                        {
+                            var newEquip = session.character.AddEquip((uint)equip.Id);
+                            if (newEquip is not null)
+                                notifyEquipData.EquipDataList.Add(newEquip);
+                        }
                     }
                     break;
                 case "prune":

@@ -38,16 +38,46 @@
     memories: {
       title: "Memories",
       command: "equip",
-      setGrant: true,
-      fields: [{ key: "equip", type: "grid", catalog: "memories", label: "Memory", placeholder: "Search memory name, slot or ID", columns: 3, required: true }],
-      build: function (v) { return ["add", v.equip.id]; },
+      fields: [
+        { key: "set", type: "select", label: "Memory set", hint: "all six slots at once", placeholder: "None — pick one memory below",
+          options: function () {
+            return fetch("/api/panel/memory-sets").then(function (response) {
+              if (!response.ok) throw new Error("unavailable");
+              return response.json();
+            }).then(function (payload) {
+              memorySetsCache = payload.sets || [];
+              return memorySetsCache.map(function (set) {
+                return { value: set.id, label: set.name + " (" + set.meta + ")" };
+              });
+            });
+          } },
+        { key: "memory", type: "grid", catalog: "memories", label: "Memory", placeholder: "Search memory name, slot or ID", columns: 3 },
+        { key: "qty", type: "number", label: "Amount", value: "1", min: 1, max: 999999999, hint: "server clamps to the item limit" }
+      ],
+      /* Nothing chosen means nothing to do; a set grants its six slots, a single memory
+       * grants itself, and the amount is the copy count in both cases. */
+      plan: function (v) {
+        var qty = String(v.qty || 1);
+        if (v.set) {
+          var set = memorySetsCache.filter(function (entry) { return String(entry.id) === String(v.set); })[0];
+          if (!set) return [];
+          return set.slots.map(function (slot) {
+            return { name: "equip", args: ["add", String(slot.id), qty] };
+          });
+        }
+        if (v.memory) return [{ name: "equip", args: ["add", String(v.memory.id), qty] }];
+        return [];
+      },
       allArgs: function () { return ["add", "all"]; }
     },
     coatings: {
       title: "Coatings",
       command: "coating",
-      fields: [{ key: "owner", type: "grid", catalog: "characters", label: "Construct", placeholder: "Search construct, trade name or ID", required: true, hint: "unlocks every coating of that construct" }],
-      build: function (v) { return ["unlock", v.owner.id]; },
+      fields: [
+        { key: "owner", type: "grid", catalog: "characters", label: "Construct", placeholder: "Search construct, trade name or ID", required: true },
+        { key: "coating", type: "grid", catalogFrom: function (v) { return loadCoatings(v.owner && v.owner.id); }, dependsOn: "owner", label: "Coating", placeholder: "Search coating name", required: true, hint: "shown for the chosen construct" }
+      ],
+      build: function (v) { return ["unlock", v.owner.id, v.coating.id]; },
       allArgs: function () { return ["unlock", "all"]; }
     },
     scenes: {
@@ -297,10 +327,138 @@
     },
   };
 
+  var fieldNodes = {};
+  var memorySetsCache = [];
+
+  /* Coatings are per construct, so the catalog is fetched for the construct that is picked
+   * rather than for the whole table. */
+  async function loadCoatings(owner) {
+    if (!owner) return [];
+    var response = await fetch("/api/panel/coatings/" + owner);
+    if (!response.ok) return [];
+    var payload = await response.json();
+    // The endpoint answers { characterId, count, entries }, each entry { id, name, meta }.
+    return (payload.entries || []).map(function (entry) {
+      return { id: entry.id, name: entry.name, meta: entry.meta || "" };
+    });
+  }
+
+  function fieldControl(field, wrap) {
+    var labelRow = document.createElement("span");
+    labelRow.className = "field__label";
+    var labelText = document.createElement("span");
+    labelText.textContent = field.label;
+    labelRow.appendChild(labelText);
+    if (field.hint) {
+      var hint = document.createElement("span");
+      hint.className = "field__hint";
+      hint.textContent = field.hint;
+      labelRow.appendChild(hint);
+    }
+    wrap.appendChild(labelRow);
+
+    if (field.type === "combo") {
+      var picker = window.SelenaUI.combo(field, function () { return catalog(field.catalog); }, bump);
+      picks[field.key] = picker;
+      wrap.appendChild(picker.node);
+      return;
+    }
+
+    if (field.type === "grid") {
+      var loader = field.catalogFrom
+        ? function () { return field.catalogFrom(values); }
+        : function () { return catalog(field.catalog); };
+      var gallery = window.SelenaUI.grid(field, loader, bump);
+      picks[field.key] = gallery;
+      wrap.appendChild(gallery.node);
+      return;
+    }
+
+    if (field.type === "select") {
+      var select = document.createElement("select");
+      select.className = "input";
+      select.setAttribute("aria-label", field.label || "");
+      var placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = field.placeholder || "None";
+      select.appendChild(placeholder);
+      values[field.key] = "";
+
+      (field.options || function () { return Promise.resolve([]); })()
+        .then(function (list) {
+          (list || []).forEach(function (item) {
+            var option = document.createElement("option");
+            option.value = String(item.value);
+            option.textContent = item.label;
+            select.appendChild(option);
+          });
+        })
+        .catch(function () { /* the placeholder stays, so Perform simply has nothing to do */ });
+
+      select.addEventListener("change", function () {
+        values[field.key] = select.value;
+        bump();
+      });
+      wrap.appendChild(select);
+      return;
+    }
+
+    var input = document.createElement("input");
+    input.className = "input" + (field.type === "number" ? " input--mono" : "");
+    input.type = field.type === "number" ? "number" : "text";
+    if (field.min !== undefined) input.min = field.min;
+    if (field.max !== undefined) input.max = field.max;
+    if (field.value !== undefined) input.value = field.value;
+    if (field.placeholder) input.placeholder = field.placeholder;
+    values[field.key] = field.value !== undefined ? field.value : "";
+    input.addEventListener("input", function () {
+      values[field.key] = input.value.trim();
+      bump();
+    });
+    wrap.appendChild(field.type === "number"
+      ? window.SelenaUI.stepper(input, field, bump)
+      : input);
+  }
+
+  /* A field that reads another field's choice is rebuilt when that choice changes, so the
+   * coating catalog follows the construct instead of showing everything at once. */
+  function bump() {
+    var section = SECTIONS[current];
+    if (!section) return;
+
+    // Sync picks into values first: a dependent field reads the value of the field it follows.
+    section.fields.forEach(function (field) {
+      if (field.type !== "combo" && field.type !== "grid") return;
+      var pick = picks[field.key] && picks[field.key].value();
+      values[field.key] = pick || null;
+    });
+
+    section.fields.forEach(function (field) {
+      if (!field.dependsOn) return;
+      var node = fieldNodes[field.key];
+      if (!node) return;
+
+      var dependency = values[field.dependsOn];
+      if (!dependency) return;
+
+      // Rebuild only when the field it depends on actually changed. Rebuilding on every
+      // change wiped the selection the player had just made in this very grid.
+      var marker = dependency.id || dependency;
+      if (node.dependsOn === marker) return;
+      node.dependsOn = marker;
+
+      delete picks[field.key];
+      node.wrap.textContent = "";
+      fieldControl(field, node.wrap);
+    });
+    updatePreview();
+  }
+
   function renderSection(key) {
     current = key;
     values = {};
     picks = {};
+    fieldNodes = {};
 
     var section = SECTIONS[key];
 
@@ -315,8 +473,6 @@
     var host = $("#formFields");
     host.textContent = "";
 
-    /* Custom sections own their actions: the generic score line, Perform and the
-     * bulk button step aside so no control is left pointing at nothing. */
     var isCustom = Boolean(section.custom);
     $("#preview").hidden = isCustom;
     $("#runBtn").hidden = isCustom;
@@ -328,58 +484,12 @@
     section.fields.forEach(function (field) {
       var wrap = document.createElement("label");
       wrap.className = "field";
-
-      var labelRow = document.createElement("span");
-      labelRow.className = "field__label";
-      var labelText = document.createElement("span");
-      labelText.textContent = field.label;
-      labelRow.appendChild(labelText);
-      if (field.hint) {
-        var hint = document.createElement("span");
-        hint.className = "field__hint";
-        hint.textContent = field.hint;
-        labelRow.appendChild(hint);
-      }
-      wrap.appendChild(labelRow);
-
-      if (field.type === "combo") {
-        var picker = window.SelenaUI.combo(field, function () { return catalog(field.catalog); }, updatePreview);
-        picks[field.key] = picker;
-        wrap.appendChild(picker.node);
-      } else if (field.type === "grid") {
-        var gallery = window.SelenaUI.grid(field, function () { return catalog(field.catalog); }, updatePreview);
-        picks[field.key] = gallery;
-        wrap.appendChild(gallery.node);
-      } else {
-        var input = document.createElement("input");
-        input.className = "input" + (field.type === "number" ? " input--mono" : "");
-        input.type = field.type === "number" ? "number" : "text";
-        if (field.min !== undefined) input.min = field.min;
-        if (field.max !== undefined) input.max = field.max;
-        if (field.value !== undefined) input.value = field.value;
-        if (field.placeholder) input.placeholder = field.placeholder;
-        values[field.key] = field.value !== undefined ? field.value : "";
-        input.addEventListener("input", function () {
-          values[field.key] = input.value.trim();
-          updatePreview();
-        });
-        wrap.appendChild(field.type === "number"
-          ? window.SelenaUI.stepper(input, field, updatePreview)
-          : input);
-      }
-
+      fieldNodes[field.key] = { wrap: wrap };
+      fieldControl(field, wrap);
       host.appendChild(wrap);
     });
 
-    /* Sections that accept an "all" form get the bulk button; the rest keep it
-     * hidden rather than showing a control that cannot do anything. */
-    if (section.setGrant) {
-      host.appendChild(window.SelenaUI.memorySetGrant(grantMemorySet).node);
-    }
-
     var allBtn = $("#allBtn");
-    /* A custom renderer brings its own bulk button into the same row, so the default one
-     * stays hidden there instead of standing next to its twin. */
     var hasAll = typeof section.allArgs === "function" && !section.custom;
     allBtn.hidden = !hasAll;
     allBtn.disabled = false;
@@ -402,7 +512,10 @@
     var comboField = section.fields.filter(function (f) { return f.type === "combo" || f.type === "grid"; })[0];
     if (comboField) {
       meta.textContent = "catalog: loading…";
-      catalog(comboField.catalog).then(function (data) {
+      var first = comboField.catalogFrom
+        ? comboField.catalogFrom(values)
+        : catalog(comboField.catalog);
+      first.then(function (data) {
         meta.textContent = "catalog: " + data.length + " entries";
       }).catch(function () {
         meta.textContent = "catalog: unavailable";
@@ -416,33 +529,44 @@
 
   /* ---------------------------------------------------------------- score */
 
-  function buildCommand() {
+  /* One Perform can mean several commands: a memory set is six records, and the command
+   * layer takes one id per call. A section returns the whole plan and Perform walks it. */
+  function buildPlan() {
     var section = SECTIONS[current];
+    if (!section) return [];
+
+    section.fields.forEach(function (field) {
+      if (field.type !== "combo" && field.type !== "grid") return;
+      var pick = picks[field.key] && picks[field.key].value();
+      values[field.key] = pick || null;
+    });
+
+    if (typeof section.plan === "function") {
+      return section.plan(values) || [];
+    }
 
     for (var i = 0; i < section.fields.length; i += 1) {
       var field = section.fields[i];
       if (!field.required) continue;
-      var pick = picks[field.key] && picks[field.key].value();
       if (field.type === "combo" || field.type === "grid") {
-        if (!pick) return null;
-        values[field.key] = pick;
+        if (!values[field.key]) return [];
       } else if (values[field.key] === undefined || values[field.key] === "") {
-        return null;
+        return [];
       }
     }
 
     var args = section.build(values);
-    if (args.some(function (a) { return a === null || a === undefined || a === ""; })) return null;
-    return { name: section.command, args: args.map(String) };
+    if (args.some(function (a) { return a === null || a === undefined || a === ""; })) return [];
+    return [{ name: section.command, args: args.map(String) }];
   }
 
   function updatePreview() {
-    var cmd = buildCommand();
+    var plan = buildPlan();
     var preview = $("#preview");
     var text = $("#previewText");
     var run = $("#runBtn");
 
-    if (!cmd) {
+    if (plan.length === 0) {
       text.textContent = "choose a target";
       preview.dataset.ready = "false";
       run.disabled = true;
@@ -450,7 +574,11 @@
       return;
     }
 
-    text.textContent = "/" + cmd.name + " " + cmd.args.join(" ");
+    var first = plan[0];
+    var label = "/" + first.name + " " + first.args.join(" ");
+    if (plan.length > 1) label += " (+" + (plan.length - 1) + " more)";
+
+    text.textContent = label;
     preview.dataset.ready = "true";
     run.disabled = false;
     $("#runHint").textContent = window.SelenaAPI.account ? "" : "sign in to perform";
@@ -530,8 +658,8 @@
   async function perform(event) {
     if (event) event.preventDefault();
 
-    var cmd = buildCommand();
-    if (!cmd) return;
+    var plan = buildPlan();
+    if (plan.length === 0) return;
 
     if (!window.SelenaAPI.account) {
       await signIn();
@@ -543,22 +671,34 @@
     run.textContent = "Performing…";
     $("#meter").dataset.state = "running";
 
+    var lines = [];
+    var failures = 0;
+
     try {
-      var response = await window.SelenaAPI.command(cmd.name, cmd.args);
+      for (var i = 0; i < plan.length; i += 1) {
+        var step = plan[i];
+        try {
+          var response = await window.SelenaAPI.command(step.name, step.args);
+          lines.push("/" + step.name + " " + step.args.join(" ") + " -> " + ((response && response.msg) || "OK"));
+        } catch (stepError) {
+          failures += 1;
+          lines.push("/" + step.name + " " + step.args.join(" ") + " -> " + ((stepError && stepError.message) || "failed"));
+        }
+      }
+
       performed += 1;
       renderAccount();
       refreshStatus();
-      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, true, JSON.stringify(response, null, 2));
+      var summary = { name: plan[0].name, args: plan[0].args };
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, summary, failures === 0, lines.join("\n"));
       $("#consoleMeta").textContent = opusLabel(performed);
-      celebrate(run);
-      window.SelenaAudio.chord();
-    } catch (err) {
-      performed += 1;
-      var detail = (err && (err.message || String(err))) || "Request failed";
-      if (err && err.data) detail += "\n" + JSON.stringify(err.data, null, 2);
-      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, false, detail);
-      $("#consoleMeta").textContent = opusLabel(performed);
-      refreshStatus();
+
+      if (failures === 0) {
+        celebrate(run);
+        window.SelenaAudio.chord();
+      } else {
+        window.SelenaAudio.low();
+      }
     } finally {
       $("#meter").dataset.state = "idle";
       run.textContent = "Perform";

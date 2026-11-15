@@ -10,7 +10,7 @@ moment they cost time. A stale note is worse than no note, because it is trusted
 session starts without its earlier context, read this file first, then `git log -5`, then the
 files it names. Do not rely on memory for ports, paths or column names.
 
-Last updated: coatings and scenes use the universal Perform/Tutti row.
+Last updated: per-construct coatings, memories through Perform with an amount.
 
 ---
 
@@ -112,6 +112,12 @@ Containers never grow with their content. Which of them show a bar is a separate
 - **the action row is cleared on every section render** (`sectionActions.clear()` runs before
   any fields are built). Clearing only inside the custom renderers left "Unlock coating" sitting
   on Stages and Memories until a custom section happened to run again
+- a section may declare `plan(values)` returning several commands instead of `build(values)`;
+  Perform walks the list and logs one entry with a line per command
+- a section may declare a `select` field (options loaded async, empty by default) and a grid
+  with `catalogFrom(values)` plus `dependsOn`, which reloads when that field changes (coatings
+  per construct). Rebuild only when the dependency value actually changed, otherwise the grid
+  wipes the selection the player just made
 - **no section-specific buttons exist**: every section is just `fields` plus `build(v)`, so
   Perform runs it, and an optional `allArgs(v)` gives Tutti its bulk form. Coatings picks a
   construct and performs `coating unlock <id>`; Scenes picks a background and performs
@@ -141,11 +147,10 @@ override and every height reads short (a 764 window measured 429 and looked like
 - `GET /api/panel/memory-sets` (Node) returns 114 sets built from Equip.tsv by grouping on
   `SuitId`, keeping only suits with all six slots, e.g. Burana 1649 -> 3016049..3066049.
   This endpoint is Node-only; the .NET panel has no equivalent, so the widget hides there.
-- `web-ui/common/ui.js` has `memorySetGrant(runSet)`: stacked like every other field, i.e.
-  label, full width select, an Amount row (label left, stepper right), then the "Grant set"
-  button with the set count beside it. Disabled while running, hidden when the endpoint is
-  missing. `runSet(set, copies)` repeats the add per copy, because `equip add <id>` has no
-  count argument.
+- Memories is a normal form now: an optional set select that starts empty, an optional memory
+  grid, and an Amount field identical to the Items tab. Perform runs one `equip add <id> <qty>`
+  for a single memory, or six of them for a set. With nothing chosen Perform is disabled. The
+  separate "Grant set" button is gone, and so is its widget.
 - `grid()` honours `field.columns === 3` (`.grid__cards--three`), so the memories wardrobe
   reads three per row, slots 1-3 above 4-6, the same order as the game.
 - Both panels: `memories` section carries `setGrant: true` and `columns: 3`;
