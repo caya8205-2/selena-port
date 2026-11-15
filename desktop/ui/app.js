@@ -354,26 +354,23 @@ function addAttachment(entry) {
 }
 
 async function loadMailRecipients() {
-  const select = document.querySelector('#mailRecipient')
-  const previous = select.value
-  select.textContent = ''
+  const picker = document.querySelector('#mailRecipient')
+  const previous = picker.value
 
   try {
     const payload = await adminRequest('/api/admin/accounts')
-    const all = document.createElement('option')
-    all.value = 'all'
-    all.textContent = `All accounts (${payload.total})`
-    select.appendChild(all)
-
+    const options = [{ value: 'all', label: `All accounts (${payload.total})` }]
     for (const account of payload.accounts) {
-      const option = document.createElement('option')
-      option.value = String(account.uid)
-      option.textContent = `${account.uid} · ${account.username}${account.playerPresent ? ' · ' + (account.playerName || 'player') : ' · no player yet'}`
-      select.appendChild(option)
+      options.push({
+        value: String(account.uid),
+        label: `${account.uid} · ${account.username}${account.playerPresent ? ' · ' + (account.playerName || 'player') : ' · no player yet'}`,
+      })
     }
 
     // Keep the account the user was looking at instead of jumping back to "all".
-    if (previous && select.querySelector(`option[value="${previous}"]`)) select.value = previous
+    const keep = options.some((option) => option.value === previous) ? previous : options[0].value
+    picker.options = options
+    picker.value = keep
   } catch (err) {
     appendTo('mailLog', 'could not list accounts: ' + err.message)
   }

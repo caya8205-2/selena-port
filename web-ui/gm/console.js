@@ -808,22 +808,39 @@
     var host = document.getElementById("accountPicker");
     if (!host) return;
 
-    if (!accountPicker) {
-      accountPicker = window.SelenaUI.select([], {
-        value: value,
-        search: "Filter accounts",
-        onChange: function (picked) {
-          var chosen = accounts.filter(function (account) { return String(account.uid) === String(picked); })[0];
-          if (chosen) localStorage.setItem("selena.activeAccount", JSON.stringify({ uid: chosen.uid, username: chosen.username }));
-          var native = document.getElementById("accountSelect");
-          if (native) native.value = String(picked);
-        },
-      });
-      host.appendChild(accountPicker.node);
+    var native = document.getElementById("accountSelect");
+    var options = accounts.map(function (account) {
+      return { value: String(account.uid), label: account.username + " / UID " + account.uid };
+    });
 
-      // The native select keeps holding the value for the old readers, but it is out of sight and
-      // out of the tab order: the visible control is the panel's own.
-      var native = document.getElementById("accountSelect");
+    if (!accountPicker) {
+      // The bundled element when the page has it, the factory otherwise: one control either way.
+      if (window.customElements && customElements.get("sel-select")) {
+        var element = document.createElement("sel-select");
+        element.search = "Filter accounts";
+        element.addEventListener("change", function (event) {
+          var chosen = accounts.filter(function (account) { return String(account.uid) === String(event.detail.value); })[0];
+          if (chosen) localStorage.setItem("selena.activeAccount", JSON.stringify({ uid: chosen.uid, username: chosen.username }));
+          if (native) native.value = String(event.detail.value);
+        });
+        host.appendChild(element);
+        accountPicker = {
+          setOptions: function (list, picked) { element.options = list; element.value = picked; },
+        };
+      } else {
+        accountPicker = window.SelenaUI.select([], {
+          value: value,
+          search: "Filter accounts",
+          onChange: function (picked) {
+            var chosen = accounts.filter(function (account) { return String(account.uid) === String(picked); })[0];
+            if (chosen) localStorage.setItem("selena.activeAccount", JSON.stringify({ uid: chosen.uid, username: chosen.username }));
+            if (native) native.value = String(picked);
+          },
+        });
+        host.appendChild(accountPicker.node);
+      }
+
+      // Whatever is in front, the native select only holds the value and never shows.
       if (native) {
         native.classList.add("is-mirrored");
         native.tabIndex = -1;
@@ -831,9 +848,7 @@
       }
     }
 
-    accountPicker.setOptions(accounts.map(function (account) {
-      return { value: String(account.uid), label: account.username + " / UID " + account.uid };
-    }), value);
+    accountPicker.setOptions(options, value);
   }
 
   function initAccountSelector() {

@@ -48,6 +48,10 @@ class SelSelect extends LitElement {
       },
     })
     this.appendChild(this.control.node)
+    // A page usually sets options and value before the element is in the document, so the control
+    // gets the current properties once it exists instead of waiting for the next update.
+    this.control.setOptions(this.options || [], this.value || '')
+    this.control.setDisabled(this.disabled)
   }
 
   render() { return html`` }

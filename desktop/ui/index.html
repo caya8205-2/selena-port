@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>Selena-port</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="/common/theme.css">
 </head>
 <body>
 <header class="topbar">
@@ -87,7 +88,7 @@
       <label class="field">
         <span class="field__label">Recipient <em>offline accounts receive it at their next login</em></span>
         <span class="field__row">
-          <select class="input" id="mailRecipient"></select>
+          <sel-select id="mailRecipient"></sel-select>
           <button class="btn btn--quiet" id="btnRefreshMail">Refresh</button>
         </span>
       </label>
@@ -221,6 +222,8 @@
       </div>
     </section>
   </main>
+<script src="/common/ui.js"></script>
+<script src="/common/components.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
