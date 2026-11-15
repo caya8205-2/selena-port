@@ -460,45 +460,29 @@ function characterSkills(characterId) {
   return kept
 }
 
-// A skill's own name is not in any table this server ships, but its position in the construct's
-// kit is, and that is what a player recognises: Skill 1 is the basic attack, Skill 2 the dodge,
-// and so on. The variant letter marks the upgraded copy of the same position.
-function characterSkillLabels(characterId) {
-  const skills = tableRows('share/character/skill/CharacterSkill.tsv')
-  const groups = tableRows('share/character/skill/CharacterSkillGroup.tsv')
-  if (!skills || !groups || characterId <= 0) return new Map()
+// The construct's skill name is client-side text this server does not ship, but the skill type is
+// a table column and it is the same for every construct: type 5 is the red orb, 6 yellow, 7 blue,
+// and 9 the basic attack. That is what the resonance list needs to say.
+const SKILL_TYPE_LABELS = {
+  5: 'Red Orb Level',
+  6: 'Yellow Orb Level',
+  7: 'Blue Orb Level',
+  9: 'Basic Attack Level',
+};
 
-  const whoAt = skills.header.indexOf('CharacterId')
-  const groupAt = groups.header.indexOf('Id')
-  const labels = new Map()
-  const seenPos = new Map()
+function skillTypeOf(skillId) {
+  const types = tableRows('share/character/skill/CharacterSkillType.tsv')
+  if (!types) return 0
+  const idAt = types.header.indexOf('Id')
+  const typeAt = types.header.indexOf('Type')
+  const row = types.rows.find((cells) => Number(cells[idAt]) === skillId)
+  return row ? Number(row[typeAt]) : 0
 
-  for (const cells of skills.rows) {
-    if (Number(cells[whoAt]) !== characterId) continue
-    for (let ordinal = 1; ordinal <= 16; ordinal += 1) {
-      const groupColumn = skills.column('SkillGroupId', ordinal)
-      const posColumn = skills.column('Pos', ordinal)
-      if (groupColumn < 0 || posColumn < 0) continue
-      const groupId = Number(cells[groupColumn] || 0)
-      const pos = Number(cells[posColumn] || 0)
-      if (groupId <= 0 || pos <= 0) continue
+}
 
-      const group = groups.rows.find((row) => Number(row[groupAt]) === groupId)
-      if (!group) continue
-      for (let variant = 0; variant <= 2; variant += 1) {
-        const skillColumn = groups.column('SkillId', variant)
-        const skillId = skillColumn >= 0 ? Number(group[skillColumn] || 0) : 0
-        if (skillId <= 0 || labels.has(skillId)) continue
-        // Several entries can sit on one position: they are the upgrade variants of that skill, so
-        // the label keeps the position and marks the variant instead of repeating "Skill 2".
-        const count = (seenPos.get(pos) || 0) + 1
-        seenPos.set(pos, count)
-        labels.set(skillId, 'Skill ' + pos + (count > 1 ? ' ' + String.fromCharCode(96 + count) : ''))
-      }
-    }
-  }
-
-  return labels
+function skillTypeLabel(skillId) {
+  const type = skillTypeOf(skillId)
+  return SKILL_TYPE_LABELS[type] || ''
 }
 
 function resonanceEntries(templateId, slot, characterId) {
@@ -546,7 +530,6 @@ function resonanceEntries(templateId, slot, characterId) {
     const skills = tableRows('share/character/skill/CharacterSkillPool.tsv')
     if (!skills) return []
     const allowed = characterSkills(characterId)
-    const skillLabels = characterSkillLabels(characterId)
     const poolAt = skills.header.indexOf('PoolId')
     const skillAt = skills.header.indexOf('SkillId')
     const seen = new Set()
@@ -556,9 +539,9 @@ function resonanceEntries(templateId, slot, characterId) {
       .filter((cells) => Number(cells[skillAt]) > 0 && !seen.has(Number(cells[skillAt])) && seen.add(Number(cells[skillAt])))
       .map((cells) => {
         const skillId = Number(cells[skillAt])
-        return { kind: 'skill', id: skillId, name: skillLabels.get(skillId) || 'Skill', meta: '' }
+        return { kind: 'skill', id: skillId, name: skillTypeLabel(skillId) || 'Skill', meta: '', order: skillTypeOf(skillId) }
       })
-      .sort((left, right) => left.name.localeCompare(right.name))
+      .sort((left, right) => left.order - right.order)
   }
 
   if (weaponPoolId > 0) {

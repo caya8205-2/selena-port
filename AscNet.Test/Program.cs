@@ -1,4 +1,4 @@
-using AscNet.Common.MsgPack;
+﻿using AscNet.Common.MsgPack;
 using AscNet.Common.Util;
 using AscNet.Common;
 using Inventory = AscNet.Common.Database.Inventory;
@@ -94,6 +94,16 @@ namespace AscNet.Test
                 if (args.Contains("--tune-builder-only"))
                 {
                     ValidateTuneBuilder();
+                    return;
+                }
+                if (args.Contains("--dorm-builder-only"))
+                {
+                    ValidateDormBuilderCompatibility();
+                    return;
+                }
+                if (args.Contains("--guild-builder-only"))
+                {
+                    ValidateGuildBuilderCompatibility();
                     return;
                 }
                 if (args.Contains("--equip-builder-only"))
