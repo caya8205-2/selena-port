@@ -15,7 +15,7 @@
       command: "item",
       fields: [
         { key: "item", type: "combo", catalog: "items", label: "Item", placeholder: "Search item name or ID", required: true },
-        { key: "qty", type: "number", label: "Amount", value: "1", min: 1, max: 99999, hint: "server clamps to the item limit" }
+        { key: "qty", type: "number", label: "Amount", value: "1", min: 1, max: 999999999, hint: "server clamps to the item limit" }
       ],
       build: function (v) { return ["add", v.item.id, v.qty]; }
     },
