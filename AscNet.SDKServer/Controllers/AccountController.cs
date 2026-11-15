@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using MongoDB.Driver;
 using AscNet.Common.Database;
 using AscNet.Common.Util;
 using AscNet.SDKServer.Models;
@@ -189,12 +190,30 @@ namespace AscNet.SDKServer.Controllers
             return null;
         }
 
-        private static string AccountResponse(Account account) => JsonConvert.SerializeObject(new
+        private static string AccountResponse(Account account)
         {
-            code = 0,
-            msg = "OK",
-            account = new { account.Id, account.Uid, account.Username, account.Token }
-        });
+            // Commands are authorised with the player's own token, which the game
+            // mints on first login, not with the account token returned for the
+            // account itself. Include it when a player exists so a panel can act on
+            // the same session, and leave it null before that first login.
+            string? playerToken = null;
+            try
+            {
+                playerToken = Player.collection.Find(player => player.PlayerData.Id == account.Uid)
+                    .FirstOrDefault()?.Token;
+            }
+            catch (Exception)
+            {
+                // A database hiccup must not break signing in to the panel.
+            }
+
+            return JsonConvert.SerializeObject(new
+            {
+                code = 0,
+                msg = "OK",
+                account = new { account.Id, account.Uid, account.Username, account.Token, PlayerToken = playerToken }
+            });
+        }
 
         private static string InvalidLoginToken()
         {

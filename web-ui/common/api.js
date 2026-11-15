@@ -48,8 +48,9 @@
     var opts = options || {};
     var headers = Object.assign({ Accept: "application/json" }, opts.headers || {});
     var acc = account();
-    if (acc && acc.token && opts.auth !== false) {
-      headers[CSRF_HEADER] = acc.token;
+    if (acc && opts.auth !== false) {
+      var credential = acc.playerToken || acc.token;
+      if (credential) headers[CSRF_HEADER] = credential;
     }
     if (opts.body !== undefined) headers["Content-Type"] = "application/json";
 
@@ -87,7 +88,10 @@
     var acc = {
       uid: data.account.Uid,
       username: data.account.Username,
-      token: data.account.Token
+      token: data.account.Token,
+      /* Commands are authorised with the player token the game mints on its first
+       * login; the account token only identifies the account. */
+      playerToken: data.account.PlayerToken || null
     };
     setAccount(acc);
     return acc;
