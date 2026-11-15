@@ -812,7 +812,6 @@
       accountPicker = window.SelenaUI.select([], {
         value: value,
         search: "Filter accounts",
-        tip: "Pick the account this console writes to. It comes from the database, not from a sign-in.",
         onChange: function (picked) {
           var chosen = accounts.filter(function (account) { return String(account.uid) === String(picked); })[0];
           if (chosen) localStorage.setItem("selena.activeAccount", JSON.stringify({ uid: chosen.uid, username: chosen.username }));

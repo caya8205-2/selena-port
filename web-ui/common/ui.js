@@ -596,7 +596,9 @@
     }
 
     function open() {
-      if (settings.disabled) return;
+      if (settings.disabled) return
+      // A tip hanging over the list belongs to the button behind it, so drop it before opening.
+      if (window.SelenaUI && window.SelenaUI.hideTip) window.SelenaUI.hideTip();
       state.open = true;
       pop.hidden = false;
       button.setAttribute("aria-expanded", "true");

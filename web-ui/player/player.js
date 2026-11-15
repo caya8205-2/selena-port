@@ -246,7 +246,6 @@
       accountMirror = window.SelenaUI.select([], {
         value: native.value,
         search: "Filter accounts",
-        tip: "Pick the account the panel writes to. It comes from the database, not from a sign-in.",
         onChange: function (value) {
           native.value = value;
           native.dispatchEvent(new Event("change", { bubbles: true }));
