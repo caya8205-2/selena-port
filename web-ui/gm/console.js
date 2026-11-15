@@ -375,31 +375,27 @@
     }
 
     if (field.type === "select") {
-      var select = document.createElement("select");
-      select.className = "input";
-      select.setAttribute("aria-label", field.label || "");
-      var placeholder = document.createElement("option");
-      placeholder.value = "";
-      placeholder.textContent = field.placeholder || "None";
-      select.appendChild(placeholder);
+      // The panel draws its own dropdown: a native popup is the one OS control left.
+      var picker = window.SelenaUI.select([{ value: "", label: field.placeholder || "None" }], {
+        value: "",
+        search: field.label || "Filter",
+        tip: field.hint || field.label || "",
+        onChange: function (value) {
+          values[field.key] = value;
+          bump();
+        },
+      });
       values[field.key] = "";
 
       (field.options || function () { return Promise.resolve([]); })()
         .then(function (list) {
-          (list || []).forEach(function (item) {
-            var option = document.createElement("option");
-            option.value = String(item.value);
-            option.textContent = item.label;
-            select.appendChild(option);
-          });
+          picker.setOptions([{ value: "", label: field.placeholder || "None" }].concat((list || []).map(function (item) {
+            return { value: String(item.value), label: item.label };
+          })), "");
         })
         .catch(function () { /* the placeholder stays, so Perform simply has nothing to do */ });
 
-      select.addEventListener("change", function () {
-        values[field.key] = select.value;
-        bump();
-      });
-      wrap.appendChild(select);
+      wrap.appendChild(picker.node);
       return;
     }
 
@@ -796,6 +792,42 @@
   // ------------------------------------------------------------ account picker
   // The list comes from the server's admin endpoints, so it appears as soon as the
   // server runs; nothing here requires a signed-in game session.
+  /* The native element holds the value every command reads; the visible control is the panel's
+   * own dropdown, so no OS popup appears in this console. */
+  var accountMirror = null;
+
+  function buildAccountMirror() {
+    var native = document.getElementById("accountSelect");
+    var host = document.getElementById("accountPicker");
+    if (!native || !host) return;
+
+    if (!accountMirror) {
+      accountMirror = window.SelenaUI.select([], {
+        value: native.value,
+        search: "Filter accounts",
+        tip: "Pick the account this console writes to. It comes from the database, not from a sign-in.",
+        onChange: function (value) {
+          native.value = value;
+          native.dispatchEvent(new Event("change", { bubbles: true }));
+        },
+      });
+      host.appendChild(accountMirror.node);
+      native.classList.add("is-mirrored");
+      native.tabIndex = -1;
+      native.setAttribute("aria-hidden", "true");
+    }
+
+    accountMirror.setOptions(Array.from(native.options).map(function (option) {
+      return { value: option.value, label: option.textContent };
+    }), native.value);
+  }
+
+  function syncAccountMirror() {
+    var native = document.getElementById("accountSelect");
+    if (!accountMirror || !native) return;
+    accountMirror.setValue(native.value);
+  }
+
   function initAccountSelector() {
     var select = document.getElementById("accountSelect");
     if (!select) return;
@@ -820,7 +852,10 @@
         select.addEventListener("change", function () {
           var chosen = accounts.filter(function (a) { return String(a.uid) === select.value; })[0];
           if (chosen) localStorage.setItem("selena.activeAccount", JSON.stringify({ uid: chosen.uid, username: chosen.username }));
+          syncAccountMirror();
         });
+
+        buildAccountMirror();
       })
       .catch(function () { select.parentElement.hidden = true; });
   }
