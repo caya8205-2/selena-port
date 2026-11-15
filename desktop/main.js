@@ -1350,12 +1350,20 @@ async function createWindow() {
 
 let reloadTimer = null
 
-function reloadRenderer(reason) {
+function reloadRenderer(reason, shellChanged) {
   clearTimeout(reloadTimer)
   reloadTimer = setTimeout(() => {
     if (!mainWindow || mainWindow.isDestroyed()) return
-    // Reloading the shell recreates the iframes, so the panels come back with the new files.
-    mainWindow.webContents.reloadIgnoringCache()
+    if (shellChanged) {
+      // A shell edit needs a fresh page; the stored view brings the user back to the same tab.
+      mainWindow.webContents.reloadIgnoringCache()
+    } else {
+      // A panel edit only needs the frames reloaded, which leaves the shell and its tab alone.
+      mainWindow.webContents.executeJavaScript(
+        "document.querySelectorAll('iframe').forEach((frame) => { if (frame.src) frame.src = frame.src })",
+        true,
+      ).catch(() => {})
+    }
     console.log(`[dev] reloaded: ${reason}`)
   }, 180)
 }
@@ -1372,7 +1380,7 @@ function watchRenderer() {
     try {
       fs.watch(dir, { recursive: true }, (_event, file) => {
         if (file && /[\\/](node_modules|release|runtime)[\\/]/.test(String(file))) return
-        reloadRenderer(`${path.basename(dir)}/${file || 'change'}`)
+        reloadRenderer(`${path.basename(dir)}/${file || 'change'}`, dir === path.join(__dirname, 'ui'))
       })
     } catch (error) {
       console.log(`[dev] cannot watch ${dir}: ${error.message}`)

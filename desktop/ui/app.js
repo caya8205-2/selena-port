@@ -16,6 +16,9 @@ const SUBTITLES = {
 }
 
 function show(view) {
+  // The shell used to come back on Console after any reload, which read as a tab jumping
+  // by itself. The view is remembered, so a reload restores what the user was looking at.
+  try { localStorage.setItem('selena.view', view) } catch (error) { /* private mode */ }
   tabs.forEach((t) => t.classList.toggle('is-active', t.dataset.view === view))
   views.forEach((v) => v.classList.toggle('is-active', v.dataset.view === view))
 
@@ -37,6 +40,11 @@ function show(view) {
 }
 
 tabs.forEach((tab) => tab.addEventListener('click', () => show(tab.dataset.view)))
+
+let restored = 'console'
+try { restored = localStorage.getItem('selena.view') || 'console' } catch (error) { restored = 'console' }
+if (!document.querySelector(`.tab[data-view="${restored}"]`)) restored = 'console'
+show(restored)
 
 // ------------------------------------------------------------------- logging
 
