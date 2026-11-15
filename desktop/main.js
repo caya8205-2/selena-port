@@ -500,6 +500,25 @@ function skillTypeLabel(skillId) {
   return SKILL_TYPE_LABELS[type] || ''
 }
 
+// The construct's class is a table column, not a judgement: Character.tsv carries Career, and
+// CharacterCareer.tsv names it. Every resonance label follows from this.
+function characterCareer(characterId) {
+  const characters = tableRows('share/character/Character.tsv')
+  const careers = tableRows('share/character/CharacterCareer.tsv')
+  if (!characters || !careers || characterId <= 0) return ''
+
+  const idAt = characters.header.indexOf('Id')
+  const careerAt = characters.header.indexOf('Career')
+  const typeAt = careers.header.indexOf('Type')
+  const nameAt = careers.header.indexOf('Name')
+  if (careerAt < 0) return ''
+
+  const character = characters.rows.find((cells) => Number(cells[idAt]) === characterId)
+  if (!character) return ''
+  const career = careers.rows.find((cells) => Number(cells[typeAt]) === Number(character[careerAt] || 0))
+  return career ? String(career[nameAt]).trim().toLowerCase() : ''
+}
+
 function resonanceEntries(templateId, slot, characterId) {
   const resonance = tableRows('share/equip/EquipResonance.tsv')
   if (!resonance) return null
@@ -560,13 +579,6 @@ function resonanceEntries(templateId, slot, characterId) {
     observer: [...AMPLIFIER_SET, ...TANK_SET],
   };
 
-  // Class is not in the server tables, so each construct is registered from its in-game screen.
-  const CHARACTER_CLASS = {
-    1061004: 'breaker',
-    1321003: 'observer',
-    1381003: 'amplifier',
-  };
-
   // A weapon resonates from its class skill pool on all three slots.
   if (site === 0) {
     const poolId = Number(row[resonance.column('WeaponSkillPoolId', slot)] || 0)
@@ -584,7 +596,7 @@ function resonanceEntries(templateId, slot, characterId) {
         const skillId = at >= 0 ? Number(cells[at] || 0) : 0
         if (skillId <= 0 || seen.has(skillId)) continue
         seen.add(skillId)
-        const classNames = WEAPON_CLASS_NAMES[CHARACTER_CLASS[characterId]] || [];
+        const classNames = WEAPON_CLASS_NAMES[characterCareer(characterId)] || [];
         const name = WEAPON_UNIVERSAL[entries.length] || classNames[entries.length - WEAPON_UNIVERSAL.length] || 'Class Resonance';
         entries.push({ kind: 'weapon', id: skillId, name: name, meta: '' })
       }
