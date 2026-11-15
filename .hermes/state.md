@@ -10,7 +10,7 @@ moment they cost time. A stale note is worse than no note, because it is trusted
 session starts without its earlier context, read this file first, then `git log -5`, then the
 files it names. Do not rely on memory for ports, paths or column names.
 
-Last updated: Phase E mail - send from the panel or the mail command, offline included.
+Last updated: Phase F updates - check local HEAD against GitHub, apply with backup/pull/build/restart.
 
 ---
 
@@ -112,6 +112,14 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
   and the read-back listed the mails. Verified in the shell page with a stubbed bridge:
   recipients, item search, attachment count, send, mailbox refresh.
   **Outstanding**: the in-game claim, one click with uid 2 logged in.
+- Phase F updates: the Update tab reads local HEAD, branch, working tree and the tracked GitHub
+  commit, and offers "Update now" only when HEAD differs and the tree is clean. Applying reports
+  one line per step (working tree, branch, backup, stack, pull, build, restart). Verified through
+  the real Electron IPC: a dirty tree refuses before any work; a real run backed up
+  (`<stamp>_update`), stopped the stack, pulled `Already up to date.`, built, and came back
+  listening; the same run against the real upstream aborted at pull with git's own
+  "Not possible to fast-forward" and still restarted the stack; the Config "Rebuild server"
+  button recompiled (dll mtime moved) with the stack originally running and came back up.
 
 
 ### Scroll containers (one rule, keep it)
@@ -181,7 +189,18 @@ override and every height reads short (a 764 window measured 429 and looked like
 ## 7. Traps that cost time before
 
 - `dotnet build` fails with MSB3027/MSB3021 when the panel or server is running: stop the
-  stack first, it is a file lock, not a code error.
+  stack first, it is a file lock, not a code error. Both build paths now stop it themselves
+  (`stopStackFor`), and the app's own child list is not enough: a stack started from `tools/`
+  belongs to the control centre, so the stopper falls back to that script and waits for the
+  ports, not for the pids.
+- `AscNet.exe` is a framework-dependent apphost: started without `DOTNET_ROOT` it dies with
+  "You must install .NET ... Failed to resolve hostfxr.dll" even though the SDK is on PATH.
+  `main.js` now discovers the runtime directory (DOTNET_ROOT, else the `dotnet.exe` found on
+  PATH, else `%LOCALAPPDATA%\Microsoft\dotnet`) and passes it to the build and the server.
+- `tools/.run/*.pid` are tracked files and the control centre deletes them on stop, so every
+  stack stop makes the working tree dirty (`D tools/.run/*.pid`). The update flow refuses a
+  dirty tree, and a commit made after a stop records the deletion: `git checkout -- tools/.run`
+  first.
 - Backing up a live MongoDB fails with `EDOM` because WiredTiger locks its files. Stop mongod,
   copy, start again (the supervisor already does this).
 - Two dbpaths (desktop `userData` vs `D:\mongo\data`) silently means two databases. The setting
@@ -224,9 +243,10 @@ override and every height reads short (a 764 window measured 429 and looked like
 ## 8. Next after this feature
 
 Plan order is A, B, C, E, F, D (see `plans/2026-11-15_112155-inventory-ops-dashboard.md`);
-A, B, C and E are done.
+A, B, C, E and F are done.
 
-- F updates next (backup, pull, rebuild, restart), D character builder last.
+- D character builder is next and last: read model, rank from shards, memory build, weapon
+  resonance, sliders. Its open questions are being settled from the code, not guessed.
 - Mail left open by design: the in-game claim check, and no delete/unread management in the
   panel (the plan scoped sending only).
 - Accounts still needs currency, unlock character and max character through the admin channel.
