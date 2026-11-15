@@ -86,6 +86,11 @@ namespace AscNet.Test
                     ValidateProfileCompatibility();
                     return;
                 }
+                if (args.Contains("--character-builder-only"))
+                {
+                    ValidateCharacterBuilderCompatibility();
+                    return;
+                }
                 if (args.Contains("--cerberus-game-compat-only"))
                 {
                     ValidateCerberusGameCompatibility();
