@@ -9,8 +9,9 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis portable",
-    "dev": "electron . --dev"
+    "dist": "npm run prepare-runtime && electron-builder --win nsis portable",
+    "dev": "electron . --dev",
+    "prepare-runtime": "node prepare-runtime.mjs"
   },
   "devDependencies": {
     "electron": "^33.4.11",

@@ -18,8 +18,12 @@ function buildChecks(config) {
   const checks = []
   const add = (id, ok, detail, fix, label) => checks.push({ id, label, ok, detail, fix })
 
-  const repoProject = path.join(config.repoRoot || '', 'AscNet', 'AscNet.csproj')
-  add('repo', exists(repoProject), exists(repoProject) ? config.repoRoot : 'source not cloned yet', 'clone-repo', 'Repository')
+  // A packaged build carries the server in resources/runtime, so there is nothing to clone or build: the
+  // repository check only means something in a development checkout.
+  if (config.repoRoot) {
+    const repoProject = path.join(config.repoRoot, 'AscNet', 'AscNet.csproj')
+    add('repo', exists(repoProject), exists(repoProject) ? config.repoRoot : 'source not cloned yet', 'clone-repo', 'Repository')
+  }
 
   const serverDll = path.join(config.serverDir || '', 'AscNet.dll')
   add('server', exists(serverDll), exists(serverDll) ? config.serverDir : 'server not built yet', 'build-server', 'Server build')

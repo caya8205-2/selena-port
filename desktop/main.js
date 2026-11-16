@@ -18,6 +18,7 @@ const net = require('net')
 const { spawn, spawnSync } = require('child_process')
 const { buildChecks } = require('./verify')
 const { createBackup, listBackups } = require('./backup')
+const { detectGameDir } = require('./game-detect')
 
 // ---------------------------------------------------------------- settings
 
@@ -54,7 +55,8 @@ const defaults = {
   serverDir: isPackaged
     ? path.join(resources, 'runtime', 'server')
     : path.join(__dirname, '..', 'AscNet', 'bin', 'Debug', 'net8.0'),
-  gameDir: isPackaged ? '' : 'D:\\gemink\\Punishing Gray Raven\\Punishing Gray Raven Game',
+  // Filled in by detectGameDir at startup: a path here would be one machine's, not the player's.
+  gameDir: '',
   tableDir: isPackaged ? path.join(resources, 'table') : path.join(__dirname, '..', 'Resources', 'table'),
   webUi: isPackaged ? path.join(__dirname, 'web-ui') : path.join(__dirname, '..', 'web-ui'),
   repoRoot: isPackaged ? '' : path.join(__dirname, '..'),
@@ -1591,6 +1593,18 @@ app.whenReady().then(async () => {
   // Only the instance that owns the lock starts a server or opens a window.
   if (!singleInstance) return
   fs.mkdirSync(logDir, { recursive: true })
+
+  // A player installs through Steam and never learns the folder name: fill it in rather than sending them
+  // to a Browse dialog first. A configured folder that no longer holds PGR.exe is replaced the same way.
+  if (!config.gameDir || !fs.existsSync(path.join(config.gameDir, 'PGR.exe'))) {
+    const detected = detectGameDir(config, log)
+    if (detected) {
+      config.gameDir = detected
+      persistSettings({ gameDir: detected })
+      log(`game directory found at ${detected}`)
+    }
+  }
+
   uiPort = await startUiServer()
   // Persist the port: it is ephemeral, and the smoke test (and any support request)
   // needs to know where the shell is actually listening.
