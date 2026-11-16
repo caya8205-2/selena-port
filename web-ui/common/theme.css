@@ -78,8 +78,6 @@ body {
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: inherit; text-decoration: none; }
 
-/* Selection carries the two accents: periwinkle behind, champagne gold in front. */
-::selection { background: rgba(106, 127, 219, 0.35); color: #f3e5ab; }
 
 /* ------------------------------------------------------------ scrollbars */
 
