@@ -1064,27 +1064,40 @@
       const baseQuality = state.identity ? state.identity.baseQuality : 1;
       const promos = detail.promotions.length > 0 ? detail.promotions : [{ grade: 1, name: "Private I" }];
       const current = state.current;
+      // A tune edits the build the character already has instead of resetting it: every control starts
+      // on the current state, and the writer replaces only what the request states. Performing an
+      // untouched form is a no-op, not a wipe.
+      const worn = current ? (current.memories || []).filter((memory) => memory.equippedTo === current.character.id) : [];
       const design = {
         level: current ? current.character.level : 1,
         quality: current ? current.character.quality : baseQuality,
         star: current ? current.character.star : 0,
         grade: current ? current.character.grade : promos[0].grade,
-        memoryLevel: MEMORY_LEVEL_CAP,
-        hypertune: true,
-        skillLevel: detail.skillMax || 0,
+        // 0 means "keep the level each memory already carries"; only Max states a level.
+        memoryLevel: 0,
+        hypertune: worn.some((memory) => (memory.awakeSlots || []).length > 0),
+        hypertuneTouched: false,
+        skillLevel: (current && current.character.skillLevel) || detail.skillMax || 0,
+        skillLevelTouched: false,
         slots: {},
         weapon: { templateId: 0, level: WEAPON_LEVEL_CAP, harmonySuit: 0 },
         resonances: {},
-        weaponResonances: [],
+        weaponResonances: [0, 0, 0],
       };
       for (let slot = 1; slot <= 6; slot += 1) {
-        const held = current && (current.memories || []).find((memory) => memory.site === slot);
-        design.slots[slot] = held ? held.templateId : 0;
-        design.resonances[slot] = { top: 0, bottom: 0 };
+        const memory = worn.find((entry) => entry.site === slot) || null;
+        design.slots[slot] = memory ? memory.templateId : 0;
+        const top = memory ? (memory.resonance || []).find((entry) => entry.slot === 1) : null;
+        const bottom = memory ? (memory.resonance || []).find((entry) => entry.slot === 2) : null;
+        design.resonances[slot] = { top: top ? top.templateId : 0, bottom: bottom ? bottom.templateId : 0 };
       }
-      const weapon = current && (current.weapons || [])[0];
+      const weapon = current ? (current.weapons || []).find((entry) => entry.equippedTo === current.character.id) : null;
       design.weapon.templateId = weapon ? weapon.templateId : 0;
-      design.weapon.harmonySuit = 0;
+      design.weapon.level = weapon ? weapon.level : WEAPON_LEVEL_CAP;
+      design.weapon.harmonySuit = weapon ? (weapon.overrunChoseSuit || 0) : 0;
+      for (const entry of (weapon && weapon.resonance) || []) {
+        if (entry.slot >= 1 && entry.slot <= 3) design.weaponResonances[entry.slot - 1] = entry.templateId;
+      }
       return {
         levels: { min: 1, max: Math.max(1, detail.maxLevel || 80) },
         skills: { min: 1, max: Math.max(0, detail.skillMax || 0), count: detail.skillCount || 0 },
@@ -1228,6 +1241,7 @@
       if (state.template.skills.max > 1) {
         progression.appendChild(slider("Skills", state.template.skills.min, state.template.skills.max, design.skillLevel || state.template.skills.min, (value) => "Lv " + value, (value) => {
           design.skillLevel = value;
+          design.skillLevelTouched = true;
           paintProgression();
         }));
       }
@@ -1268,7 +1282,7 @@
       body.appendChild(memories);
 
       // two resonances per memory: the stat pool on slot 1, the construct's skill on slot 2
-      const resonanceSection = section("Memory resonance", "top: stat, bottom: skill");
+      const resonanceSection = section("Memory resonance", "upper: kit skill, lower: orb level");
       const resonanceGrid = document.createElement("div");
       resonanceGrid.className = "tune__grid";
       resonanceSection.appendChild(resonanceGrid);
@@ -1294,21 +1308,24 @@
             continue;
           }
 
-          const top = window.SelenaUI.picker([{ value: 0, label: "stat: none" }], {
+          const top = window.SelenaUI.picker([{ value: 0, label: "upper: none" }], {
             value: design.resonances[slot].top,
-            search: "Filter stats",
-            tip: "Resonance slot 1 of this memory: the stat pool the tables give it.",
+            search: "Filter upper resonance",
+            tip: "Upper resonance: a stat, or one of the construct's kit skills (signature, QTE, core, class).",
             onChange: function (value) { design.resonances[slot].top = Number(value); },
           });
-          const bottom = window.SelenaUI.picker([{ value: 0, label: "skill: none" }], {
+          const bottom = window.SelenaUI.picker([{ value: 0, label: "lower: none" }], {
             value: design.resonances[slot].bottom,
-            search: "Filter skills",
-            tip: "Resonance slot 2 of this memory: the construct's own skill pool.",
+            search: "Filter lower resonance",
+            tip: "Lower resonance: a stat, or one of the orb levels and the basic attack.",
             onChange: function (value) { design.resonances[slot].bottom = Number(value); },
           });
 
           const load = function (slotNumber, control, key, noneLabel) {
-            const query = "/api/panel/resonance/" + templateId + "/" + slotNumber + "?character=" + state.characterId;
+            // include= lets the endpoint echo a stored resonance this slot no longer offers, so an old
+            // build reads as "Signature Move Level · stored on this slot" instead of an empty control.
+            const query = "/api/panel/resonance/" + templateId + "/" + slotNumber
+              + "?character=" + state.characterId + "&include=" + (design.resonances[slot][key] || 0);
             fetch(query)
               .then((response) => (response.ok ? response.json() : { entries: [] }))
               .then((payload) => {
@@ -1320,8 +1337,8 @@
               })
               .catch(() => {});
           };
-          load(1, top, "top", "stat: none");
-          load(2, bottom, "bottom", "skill: none");
+          load(1, top, "top", "upper: none");
+          load(2, bottom, "bottom", "lower: none");
 
           cell.append(top.node, bottom.node);
           resonanceGrid.appendChild(cell);
@@ -1333,7 +1350,7 @@
         label: "Hypertune all six memories",
         checked: design.hypertune,
         tip: "Hypertune every memory: both resonance slots of all six count as awakened.",
-        onChange: function (checked) { design.hypertune = checked; },
+        onChange: function (checked) { design.hypertune = checked; design.hypertuneTouched = true; },
       });
       body.appendChild(hypertune.node);
 
@@ -1475,9 +1492,9 @@
         Uid: Number($("#accountSelect").value),
         CharacterId: state.characterId,
         Character: { Level: design.level, Quality: design.quality, Star: design.star, Grade: design.grade },
-        SkillLevel: design.skillLevel || 0,
-        MemoryLevel: design.memoryLevel,
-        Hypertune: design.hypertune,
+        SkillLevel: design.skillLevelTouched ? (design.skillLevel || 0) : 0,
+        MemoryLevel: design.memoryLevel || 0,
+        Hypertune: design.hypertuneTouched ? Boolean(design.hypertune) : null,
         Memories: memories,
       };
       if (design.weapon.templateId) {
@@ -1533,7 +1550,9 @@
       design.grade = state.template.promotions[state.template.promotions.length - 1].grade;
       design.memoryLevel = MEMORY_LEVEL_CAP;
       design.hypertune = true;
+      design.hypertuneTouched = true;
       design.skillLevel = state.template.skills.max || 0;
+      design.skillLevelTouched = true;
       design.weapon.level = WEAPON_LEVEL_CAP;
 
       // a maxed build still needs pieces named: take the first memory the tables give each slot

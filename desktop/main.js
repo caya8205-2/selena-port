@@ -649,10 +649,11 @@ function resonanceEntries(templateId, slot, characterId) {
   }
 
   // Both memory slots offer the same four stat picks. What differs is the skill list: the upper
-  // slot carries the orb and basic attack levels, the lower slot the signature, QTE, core and
-  // class skills. The tables split those by skill type, 5/6/7/9 against 1/2/3/4.
+  // slot carries the construct's kit skills (signature, QTE, core, class) and the lower slot the orb
+  // levels plus the basic attack. That is the layout the client shows, and the tables split it by
+  // skill type, 1/2/3/4 against 5/6/7/9.
   const attribPoolId = Number(row[resonance.column('AttribPoolId', slot)] || 0)
-  const wantedTypes = slot === 1 ? [5, 6, 7, 9] : [1, 2, 3, 4]
+  const wantedTypes = slot === 1 ? [1, 2, 3, 4] : [5, 6, 7, 9]
   const entries = []
 
   if (attribPoolId > 0) {
@@ -906,6 +907,26 @@ function startUiServer() {
         const characterId = Number(url.searchParams.get('character') || 0)
         const entries = resonanceEntries(templateId, slot, characterId)
         if (entries === null) return sendJson(res, { code: -1, msg: 'resonance tables not found' }, 404)
+        // A memory written by an older mapping can hold a resonance this slot no longer offers. Echo it
+        // back under its own name so the picker shows what is stored instead of "nothing to pick", and
+        // the player can see it and choose again.
+        const storedId = Number(url.searchParams.get('include') || 0)
+        if (storedId > 0 && !entries.some((entry) => entry.id === storedId)) {
+          const storedType = skillTypeOf(storedId)
+          if (storedType > 0) {
+            entries.push({ kind: 'skill', id: storedId, name: SKILL_TYPE_LABELS[storedType] || 'Skill', meta: 'stored on this slot', order: 99 })
+          } else {
+            const attribs = tableRows('share/attrib/AttribPool.tsv')
+            let name = 'Stored resonance'
+            if (attribs) {
+              const idIndex = attribs.header.indexOf('Id')
+              const nameIndex = attribs.header.indexOf('Name')
+              const found = attribs.rows.find((cells) => Number(cells[idIndex]) === storedId)
+              if (found) name = (found[nameIndex] || '').trim() || name
+            }
+            entries.push({ kind: 'attrib', id: storedId, name, meta: 'stored on this slot', order: 99 })
+          }
+        }
         // The pool alone is not enough: without a select item row the server refuses the request,
         // so the panel says so instead of offering a button that cannot work.
         const useItems = tableRows('share/equip/EquipResonanceUseItem.tsv')

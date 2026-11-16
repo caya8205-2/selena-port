@@ -249,6 +249,9 @@ namespace AscNet.GameServer
             shardItemId = row.ItemId,
             shards = Balance(session, row.ItemId),
             skills = character.SkillList.Count,
+            // The modal starts its Skills slider on what the character already carries, and the writer
+            // only replaces that when the slider is touched.
+            skillLevel = character.SkillList.Select(skill => skill.Level).DefaultIfEmpty(0).Max(),
             enhancedSkills = character.EnhanceSkillList.Count,
             magics = character.MagicList.Count,
         };

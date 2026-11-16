@@ -185,10 +185,11 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
   `/api/panel/tune-catalog` and `/api/panel/tune-character/<id>`, both built in `desktop/main.js`
   out of the tables alone, because no account is consulted to draw a form. Perform stays the only
   write, and the tune spends nothing: it writes state, it does not replay the upgrade curve.
-- Resonance labels read from tables, never invented: a memory's upper slot lists the three orb
-  levels and the basic attack (skill types 5, 6, 7, 9), the lower slot the signature move, QTE, core
-  passive and class skill (types 1, 2, 3, 4), both filtered by the construct through its skill
-  groups. Weapon resonance is named by pool position per class, with the class read from
+- Resonance labels read from tables, never invented: a memory's upper slot lists the signature
+  move, QTE, core passive and class skill (skill types 1, 2, 3, 4) and the lower slot the three orb
+  levels plus the basic attack (types 5, 6, 7, 9), both filtered by the construct through its skill
+  groups. That is the client's own layout; the opposite reading shipped once and put the orb levels
+  in the upper list. Both slots offer the same four stat picks. Weapon resonance is named by pool position per class, with the class read from
   `Character.tsv.Career`. `06f98ec`, `af28547`, `a063f42`, `01891b1` and `2000307` are that pass.
 - Weapon rarity gates the feature, in the writer: `TuneBuilder` refuses a resonance or a harmony on
   a weapon below 6 star, and the message names the weapon and its star. 5 star resonates flat attack
@@ -419,6 +420,14 @@ shell proxies it as `/api/panel/tune`.
   whether that blocks the two piece effect is still the open question in section 8.
 - Rank and promotion in the report are labelled from the tables (`RankName`, `PromotionName`), never
   from a hand map.
+- A tune edits a build instead of resetting it. Every control starts on the state the character
+  already carries (memory slots, both resonances per memory, weapon with its level, resonances and
+  harmony, current skill level), and the writer replaces only what the request states:
+  `MemoryLevel` 0 keeps each memory's level, `Hypertune` null keeps each memory's awaken state,
+  `SkillLevel` 0 keeps the levels, a memory resonance slot that is not named keeps its pick (an
+  explicit `TemplateId` 0 clears it), an empty weapon resonance list keeps the weapon's picks, and
+  `HarmonySuit` null keeps the harmony. Perform on an untouched form is a no-op. It used to wipe a
+  built memory's resonances because the panel sent empty pickers.
 - Skill levels are part of the build: `SkillLevel` on the request raises every skill of the
   construct, one entry per skill group. The writer runs the login reconciliation first
   (`UnlockQualityGatedSkills` plus `NormalizeCharactersForCurrentTables`), because a fresh row holds
@@ -471,9 +480,11 @@ player-facing name that must be used in copy, in labels and in this file.
 Both slots offer the same four stat picks, the "Ex -" entries from
 `AttribPool.tsv` (`EquipResonance.AttribPoolId[slot]`). The skill list differs:
 
-- Upper, slot 1: red orb level, yellow orb level, blue orb level, basic attack
+- Upper, slot 1: signature move, QTE, core passive and class skill level. This is the client's
+  layout: the kit skills sit on the upper slot.
   level. These are `CharacterSkillType.Type` 5, 6, 7 and 9.
-- Lower, slot 2: signature move level, QTE level, core passive, class skill level.
+- Lower, slot 2: red orb level, yellow orb level, blue orb level, basic attack level. Both slots
+  still offer the same four stat picks.
   These are types 1, 2, 3 and 4.
 
 The pools live in `EquipResonance.CharacterSkillPoolId[1..2]`, but the game's own

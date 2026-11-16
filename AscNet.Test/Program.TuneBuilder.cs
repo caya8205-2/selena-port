@@ -86,6 +86,30 @@ namespace AscNet.Test
             };
             Inventory inventory = new() { Uid = uid };
 
+            // The construct's own skill ids, exactly what a resonance is filtered against, split by the
+            // skill type that decides which slot takes it: kit skills (1-4) on the upper slot, orb levels
+            // and the basic attack (5/6/7/9) on the lower one.
+            HashSet<int> ownedSkillIds = [];
+            CharacterSkillTable? characterSkillRow = TableReaderV2.Parse<CharacterSkillTable>()
+                .FirstOrDefault(row => row.CharacterId == character.Id);
+            if (characterSkillRow is not null)
+            {
+                HashSet<int> groupIds = [.. characterSkillRow.SkillGroupId.Where(id => id > 0)];
+                foreach (CharacterSkillGroupTable group in TableReaderV2.Parse<CharacterSkillGroupTable>().Where(row => groupIds.Contains(row.Id)))
+                {
+                    foreach (var skillId in group.SkillId)
+                    {
+                        if (skillId > 0)
+                            ownedSkillIds.Add((int)skillId);
+                    }
+                }
+            }
+            Dictionary<int, int> skillTypeById = TableReaderV2.Parse<CharacterSkillTypeTable>()
+                .ToDictionary(row => row.Id, row => row.Type);
+            int orbSkillId = ownedSkillIds.FirstOrDefault(id => skillTypeById.GetValueOrDefault(id) is 5 or 6 or 7 or 9);
+            int kitSkillId = ownedSkillIds.FirstOrDefault(id => skillTypeById.GetValueOrDefault(id) is 1 or 2 or 3 or 4);
+            AssertEqual(true, orbSkillId > 0 && kitSkillId > 0, "tune builder: the construct has both skill kinds");
+
             TuneRequest request = new()
             {
                 Uid = uid,
@@ -101,16 +125,12 @@ namespace AscNet.Test
             {
                 EquipResonanceTable pools = resonanceRows.First(resonance => resonance.Id == memory.Id);
                 int attribId = attribPools.First(row => row.PoolId == pools.AttribPoolId[0]).Id;
-                // slot 2 of a memory carries the signature, QTE, core and class skills, which is the
-                // first pool; the orb and basic attack skills of slot 1 live in the second one
-                int skillPoolId = pools.CharacterSkillPoolId.Count > 0 ? pools.CharacterSkillPoolId[0] : 0;
-                int skillId = skillPools.First(row => row.PoolId == skillPoolId && row.SkillId > 0).SkillId;
                 request.Memories.Add(new TuneMemorySlot
                 {
                     Slot = site,
                     TemplateId = memory.Id,
                     Top = new TuneResonance { Slot = 1, Type = "attrib", TemplateId = attribId },
-                    Bottom = new TuneResonance { Slot = 2, Type = "skill", TemplateId = skillId },
+                    Bottom = new TuneResonance { Slot = 2, Type = "skill", TemplateId = orbSkillId },
                 });
             }
 
@@ -246,6 +266,62 @@ namespace AscNet.Test
                     refused = true;
                 }
                 AssertEqual(true, refused, "tune refuses a resonance outside the pool");
+
+                // A request that says nothing about the gear keeps it: this one restates the same six
+                // memories but names no resonance, no level and no hypertune, which is what the panel
+                // sends when only the skill slider was touched.
+                Dictionary<int, EquipTable> equipById = equips.ToDictionary(row => row.Id);
+                int levelBefore = document.Equips.First(equip => equipById[(int)equip.TemplateId].Site > 0).Level;
+                TuneRequest skillsOnly = new() { Uid = uid, CharacterId = character.Id, SkillLevel = 12 };
+                foreach ((int site, EquipTable memory) in memories)
+                    skillsOnly.Memories.Add(new TuneMemorySlot { Slot = site, TemplateId = memory.Id });
+                TuneBuilder.Apply(harness.Session, skillsOnly);
+                List<EquipData> keptMemories = document.Equips
+                    .Where(equip => equipById[(int)equip.TemplateId].Site > 0)
+                    .ToList();
+                AssertEqual(6, keptMemories.Count, "a skills-only tune keeps the six memories");
+                AssertEqual(6, keptMemories.Count(equip => equip.ResonanceInfo.Count == 2), "a skills-only tune keeps both resonances");
+                AssertEqual(6, keptMemories.Count(equip => equip.AwakeSlotList.Count == 2), "a skills-only tune keeps the hypertune");
+                AssertEqual(levelBefore, keptMemories[0].Level, "a skills-only tune keeps the memory level");
+                EquipData keptWeapon = document.Equips.Single(equip => equip.TemplateId == weapon.Id);
+                AssertEqual(3, keptWeapon.ResonanceInfo.Count, "a skills-only tune keeps the weapon resonances");
+                AssertEqual((int)memories[1].SuitId, keptWeapon.WeaponOverrunData.ChoseSuit, "a skills-only tune keeps the harmony");
+
+                // upper and lower are not interchangeable: the mapping the client shows is the mapping the
+                // writer accepts, and the other way round is refused
+                bool refusedOrbOnUpper = false;
+                try
+                {
+                    TuneRequest wrongUpper = new()
+                    {
+                        Uid = uid,
+                        CharacterId = character.Id,
+                        Memories = [new TuneMemorySlot { Slot = 1, TemplateId = memories[1].Id, Top = new TuneResonance { Slot = 1, Type = "skill", TemplateId = orbSkillId } }],
+                    };
+                    TuneBuilder.Apply(harness.Session, wrongUpper);
+                }
+                catch (InvalidOperationException)
+                {
+                    refusedOrbOnUpper = true;
+                }
+                AssertEqual(true, refusedOrbOnUpper, "an orb level is refused on the upper slot");
+
+                bool refusedKitOnLower = false;
+                try
+                {
+                    TuneRequest wrongLower = new()
+                    {
+                        Uid = uid,
+                        CharacterId = character.Id,
+                        Memories = [new TuneMemorySlot { Slot = 1, TemplateId = memories[1].Id, Bottom = new TuneResonance { Slot = 2, Type = "skill", TemplateId = kitSkillId } }],
+                    };
+                    TuneBuilder.Apply(harness.Session, wrongLower);
+                }
+                catch (InvalidOperationException)
+                {
+                    refusedKitOnLower = true;
+                }
+                AssertEqual(true, refusedKitOnLower, "a kit skill is refused on the lower slot");
 
                 Console.WriteLine(
                     $"tune builder: {character.Name} to {report.Rank} {report.Promotion} level {report.Level}, "

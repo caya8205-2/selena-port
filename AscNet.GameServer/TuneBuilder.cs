@@ -113,24 +113,33 @@ namespace AscNet.GameServer
                     throw new InvalidOperationException($"memory {slot.TemplateId} is not a memory in Equip.tsv.");
 
                 EquipData equip = ResolveEquip(session, character, slot.TemplateId, slot.Slot, memoryRow.Site);
-                ApplyEquipProgression(equip, memoryRow, request.MemoryLevel);
+                // The shared memory level is a bulk statement: only a stated level is applied, so a tune
+                // that raises skills leaves a built memory at the level it already had.
+                if (request.MemoryLevel > 0)
+                    ApplyEquipProgression(equip, memoryRow, request.MemoryLevel);
                 equip.CharacterId = (int)character.Id;
 
-                // A memory's resonance is what locks it to this construct, so both slots are written
-                // here rather than left to a later equip step.
-                equip.ResonanceInfo = [];
-                foreach (TuneResonance resonance in new[] { slot.Top, slot.Bottom }.OfType<TuneResonance>())
+                // A slot the request does not name keeps the resonance it already has, and a named slot
+                // with TemplateId 0 is an explicit clear. Both slots are written here because a memory's
+                // resonance is what locks it to the construct.
+                List<ResonanceInfo> resonances = [.. equip.ResonanceInfo];
+                foreach ((TuneResonance? resonance, int wantedSlot) in new (TuneResonance? Resonance, int Slot)[] { (slot.Top, 1), (slot.Bottom, 2) })
                 {
-                    ResonanceInfo info = BuildResonance(memoryRow, resonance, (int)character.Id);
-                    if (equip.ResonanceInfo.All(existing => existing.Slot != info.Slot))
-                        equip.ResonanceInfo.Add(info);
+                    if (resonance is null)
+                        continue;
+                    resonances.RemoveAll(info => info.Slot == wantedSlot);
+                    if (resonance.TemplateId <= 0)
+                        continue;
+                    resonances.Add(BuildResonance(memoryRow, resonance, (int)character.Id));
                 }
+                equip.ResonanceInfo = resonances.OrderBy(info => info.Slot).ToList();
 
-                // Hypertune is the awaken state of a memory's resonance slots; a slot that holds no
-                // resonance has nothing to awaken, so it stays out.
-                equip.AwakeSlotList = request.Hypertune
-                    ? equip.ResonanceInfo.Select(info => (dynamic)info.Slot).ToList()
-                    : [];
+                // Hypertune is the awaken state of a memory's resonance slots. Null keeps the state the
+                // memory already carries; a slot that holds no resonance has nothing to awaken.
+                if (request.Hypertune is bool hypertune)
+                    equip.AwakeSlotList = hypertune
+                        ? equip.ResonanceInfo.Select(info => (dynamic)info.Slot).ToList()
+                        : [];
 
                 keep.Add(equip.Id);
                 writtenEquips.Add(equip);
@@ -141,7 +150,7 @@ namespace AscNet.GameServer
                     Name = memoryRow.Name,
                     Level = equip.Level,
                     Resonance = equip.ResonanceInfo.Select(info => info.TemplateId).ToList(),
-                    Hypertuned = request.Hypertune,
+                    Hypertuned = equip.AwakeSlotList.Count > 0,
                 });
             }
 
@@ -198,34 +207,51 @@ namespace AscNet.GameServer
                 throw new InvalidOperationException($"{weaponRow.Name} is a {weaponRow.Star} star weapon: only a 6 star takes custom resonance and harmony.");
 
             EquipData equip = ResolveEquip(session, character, request.TemplateId, 0, 0);
-            ApplyEquipProgression(equip, weaponRow, request.Level);
+            if (request.Level > 0)
+                ApplyEquipProgression(equip, weaponRow, request.Level);
             equip.CharacterId = (int)character.Id;
 
-            equip.ResonanceInfo = [];
-            foreach (TuneResonance resonance in request.Resonance.Take(WeaponResonanceSlots))
+            // Same rule as a memory: a resonance list replaces only the slots it names, so an empty list
+            // never wipes a weapon the player had already resonated.
+            if (request.Resonance.Count > 0)
             {
-                ResonanceInfo info = BuildResonance(weaponRow, resonance, (int)character.Id);
-                if (equip.ResonanceInfo.All(existing => existing.Slot != info.Slot))
-                    equip.ResonanceInfo.Add(info);
+                List<ResonanceInfo> resonances = [.. equip.ResonanceInfo];
+                foreach (TuneResonance resonance in request.Resonance.Take(WeaponResonanceSlots))
+                {
+                    ResonanceInfo info = BuildResonance(weaponRow, resonance, (int)character.Id);
+                    resonances.RemoveAll(existing => existing.Slot == info.Slot);
+                    resonances.Add(info);
+                }
+                equip.ResonanceInfo = resonances.OrderBy(info => info.Slot).ToList();
             }
 
             // Harmony: the weapon borrows a memory set, and an active harmony counts as two pieces of
             // it. The caller names the set, so the picker is a set list, not a memory list: four
             // signature memories plus harmony already complete a four piece bonus.
-            if (request.HarmonySuit > 0)
+            // Harmony: null keeps what the weapon has, 0 clears it, and a set id names what it borrows.
+            if (request.HarmonySuit is int harmonySuit)
             {
-                bool suitExists = equipRows.Values.Any(row => row.Site > 0 && row.SuitId == request.HarmonySuit);
-                if (!suitExists)
-                    throw new InvalidOperationException($"suit {request.HarmonySuit} is not a memory set in Equip.tsv, so it cannot be a harmony.");
-
-                List<WeaponOverrunTable> overrunRows = TableReaderV2.Parse<WeaponOverrunTable>()
-                    .Where(candidate => candidate.WeaponId == weaponRow.Id)
-                    .OrderBy(candidate => candidate.Level)
-                    .ToList();
                 equip.WeaponOverrunData ??= new WeaponOverrunData();
-                equip.WeaponOverrunData.ChoseSuit = request.HarmonySuit;
-                equip.WeaponOverrunData.ActiveSuits = [.. equip.WeaponOverrunData.ActiveSuits.Append(request.HarmonySuit).Distinct()];
-                equip.WeaponOverrunData.Level = overrunRows.Select(candidate => candidate.Level).DefaultIfEmpty(0).Max();
+                if (harmonySuit <= 0)
+                {
+                    equip.WeaponOverrunData.ChoseSuit = 0;
+                    equip.WeaponOverrunData.ActiveSuits = [];
+                    equip.WeaponOverrunData.Level = 0;
+                }
+                else
+                {
+                    bool suitExists = equipRows.Values.Any(row => row.Site > 0 && row.SuitId == harmonySuit);
+                    if (!suitExists)
+                        throw new InvalidOperationException($"suit {harmonySuit} is not a memory set in Equip.tsv, so it cannot be a harmony.");
+
+                    List<WeaponOverrunTable> overrunRows = TableReaderV2.Parse<WeaponOverrunTable>()
+                        .Where(candidate => candidate.WeaponId == weaponRow.Id)
+                        .OrderBy(candidate => candidate.Level)
+                        .ToList();
+                    equip.WeaponOverrunData.ChoseSuit = harmonySuit;
+                    equip.WeaponOverrunData.ActiveSuits = [.. equip.WeaponOverrunData.ActiveSuits.Append(harmonySuit).Distinct()];
+                    equip.WeaponOverrunData.Level = overrunRows.Select(candidate => candidate.Level).DefaultIfEmpty(0).Max();
+                }
             }
 
             return (new TuneWeaponResult
@@ -365,7 +391,9 @@ namespace AscNet.GameServer
                         .Select(candidate => candidate.SkillId)
                         .ToList();
 
-                HashSet<int> wanted = slot == 1 ? [5, 6, 7, 9] : [1, 2, 3, 4];
+                // Upper carries the construct's kit skills (signature, QTE, core, class) and lower the
+                // orb levels plus the basic attack, which is the layout the client shows.
+                HashSet<int> wanted = slot == 1 ? [1, 2, 3, 4] : [5, 6, 7, 9];
                 Dictionary<int, int> skillTypes = TableReaderV2.Parse<CharacterSkillTypeTable>()
                     .ToDictionary(candidate => candidate.Id, candidate => candidate.Type);
                 List<int> poolIds = [.. CollectSkillPools(resonance)];
@@ -446,17 +474,19 @@ namespace AscNet.GameServer
     }
 
     public sealed class TuneRequest
-        {
-            public long Uid { get; set; }
-            public int CharacterId { get; set; }
-            public TuneCharacter Character { get; set; } = new();
-            public int MemoryLevel { get; set; }
-            public bool Hypertune { get; set; }
-            /// <summary>Every skill of the construct to this level; 0 leaves the current levels alone.</summary>
-            public int SkillLevel { get; set; }
-            public List<TuneMemorySlot> Memories { get; set; } = [];
-            public TuneWeapon? Weapon { get; set; }
-        }
+    {
+        public long Uid { get; set; }
+        public int CharacterId { get; set; }
+        public TuneCharacter Character { get; set; } = new();
+        /// <summary>Level for all six memories; 0 leaves each memory at the level it already has.</summary>
+        public int MemoryLevel { get; set; }
+        /// <summary>Null keeps each memory's awaken state; true awakens every slot that holds a resonance.</summary>
+        public bool? Hypertune { get; set; }
+        /// <summary>Every skill of the construct to this level; 0 leaves the current levels alone.</summary>
+        public int SkillLevel { get; set; }
+        public List<TuneMemorySlot> Memories { get; set; } = [];
+        public TuneWeapon? Weapon { get; set; }
+    }
 
     public sealed class TuneCharacter
     {
@@ -484,9 +514,12 @@ namespace AscNet.GameServer
     public sealed class TuneWeapon
     {
         public int TemplateId { get; set; }
+        /// <summary>0 leaves the weapon at the level it already has.</summary>
         public int Level { get; set; }
+        /// <summary>Only the slots this list names are replaced; empty keeps what the weapon carries.</summary>
         public List<TuneResonance> Resonance { get; set; } = [];
-        public int HarmonySuit { get; set; }
+        /// <summary>Null keeps the harmony the weapon has, 0 clears it, a set id names what it borrows.</summary>
+        public int? HarmonySuit { get; set; }
     }
 
     public sealed class TuneReport
