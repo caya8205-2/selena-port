@@ -201,11 +201,6 @@
   align-items: start;
 }
 
-.corner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 
 /* ------------------------------------------------------------ build */
 

@@ -169,6 +169,8 @@ a { color: inherit; text-decoration: none; }
 
 .panel__body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 
+.corner { display: flex; align-items: center; gap: 10px; }
+
 /* ------------------------------------------------------------ fields */
 
 .field { display: flex; flex-direction: column; gap: 6px; }

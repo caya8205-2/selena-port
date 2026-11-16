@@ -55,13 +55,19 @@
         <button class="btn" id="btnLaunch">Launch game</button>
       <button class="btn btn--quiet" id="btnOpenLogs">Open logs</button>
       </div>
-
-        <div class="log__head">
-        <span class="log__label">Console</span>
-        <span class="log__meta" data-count="log">Opus 01 · 0 lines</span>
-        <button class="btn btn--quiet" type="button" data-clear="log">Silence</button>
-      </div>
-      <div class="log log--framed" id="log"></div>
+      <section class="panel">
+        <div class="panel__head">
+          <div class="panel__title">Console</div>
+          <div class="corner">
+            <span class="staff--corner" aria-hidden="true"></span>
+            <div class="panel__meta" data-count="log">Opus 01 · 0 lines</div>
+            <button class="btn btn--quiet" type="button" data-clear="log">Silence</button>
+          </div>
+        </div>
+        <div class="panel__body">
+          <div class="log" id="log"></div>
+        </div>
+      </section>
     </section>
 
     <section class="view" data-view="player">
@@ -96,13 +102,19 @@
         </thead>
         <tbody></tbody>
       </table>
-
-        <div class="log__head">
-        <span class="log__label">Accounts</span>
-        <span class="log__meta" data-count="accountsLog">Opus 01 · 0 lines</span>
-        <button class="btn btn--quiet" type="button" data-clear="accountsLog">Silence</button>
-      </div>
-      <div class="log log--framed" id="accountsLog"></div>
+      <section class="panel">
+        <div class="panel__head">
+          <div class="panel__title">Accounts</div>
+          <div class="corner">
+            <span class="staff--corner" aria-hidden="true"></span>
+            <div class="panel__meta" data-count="accountsLog">Opus 01 · 0 lines</div>
+            <button class="btn btn--quiet" type="button" data-clear="accountsLog">Silence</button>
+          </div>
+        </div>
+        <div class="panel__body">
+          <div class="log" id="accountsLog"></div>
+        </div>
+      </section>
     </div>
   </section>
 
@@ -168,13 +180,19 @@
         </thead>
         <tbody></tbody>
       </table>
-
-        <div class="log__head">
-        <span class="log__label">Mail</span>
-        <span class="log__meta" data-count="mailLog">Opus 01 · 0 lines</span>
-        <button class="btn btn--quiet" type="button" data-clear="mailLog">Silence</button>
-      </div>
-      <div class="log log--framed" id="mailLog"></div>
+      <section class="panel">
+        <div class="panel__head">
+          <div class="panel__title">Mail</div>
+          <div class="corner">
+            <span class="staff--corner" aria-hidden="true"></span>
+            <div class="panel__meta" data-count="mailLog">Opus 01 · 0 lines</div>
+            <button class="btn btn--quiet" type="button" data-clear="mailLog">Silence</button>
+          </div>
+        </div>
+        <div class="panel__body">
+          <div class="log" id="mailLog"></div>
+        </div>
+      </section>
     </div>
   </section>
 
@@ -232,13 +250,19 @@
           <button class="btn" id="btnBackup">Backup now</button>
           <button class="btn btn--quiet" id="btnOpenBackups">Open backups</button>
         </div>
-
-          <div class="log__head">
-        <span class="log__label">Config</span>
-        <span class="log__meta" data-count="configLog">Opus 01 · 0 lines</span>
-        <button class="btn btn--quiet" type="button" data-clear="configLog">Silence</button>
-      </div>
-      <div class="log log--framed" id="configLog"></div>
+      <section class="panel">
+        <div class="panel__head">
+          <div class="panel__title">Config</div>
+          <div class="corner">
+            <span class="staff--corner" aria-hidden="true"></span>
+            <div class="panel__meta" data-count="configLog">Opus 01 · 0 lines</div>
+            <button class="btn btn--quiet" type="button" data-clear="configLog">Silence</button>
+          </div>
+        </div>
+        <div class="panel__body">
+          <div class="log" id="configLog"></div>
+        </div>
+      </section>
       </div>
     </section>
 
@@ -275,12 +299,19 @@
           <button class="btn btn--quiet" id="btnOpenRepo">Open on GitHub</button>
         </div>
         <span class="field__note" id="updNote">Update snapshots the database, stops the stack, pulls fast-forward only, rebuilds and starts it again.</span>
-          <div class="log__head">
-        <span class="log__label">Update</span>
-        <span class="log__meta" data-count="updateLog">Opus 01 · 0 lines</span>
-        <button class="btn btn--quiet" type="button" data-clear="updateLog">Silence</button>
-      </div>
-      <div class="log log--framed" id="updateLog"></div>
+      <section class="panel">
+        <div class="panel__head">
+          <div class="panel__title">Update</div>
+          <div class="corner">
+            <span class="staff--corner" aria-hidden="true"></span>
+            <div class="panel__meta" data-count="updateLog">Opus 01 · 0 lines</div>
+            <button class="btn btn--quiet" type="button" data-clear="updateLog">Silence</button>
+          </div>
+        </div>
+        <div class="panel__body">
+          <div class="log" id="updateLog"></div>
+        </div>
+      </section>
       </div>
     </section>
   <div class="modal" id="shellDialog" hidden>
