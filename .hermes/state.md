@@ -419,6 +419,19 @@ shell proxies it as `/api/panel/tune`.
   whether that blocks the two piece effect is still the open question in section 8.
 - Rank and promotion in the report are labelled from the tables (`RankName`, `PromotionName`), never
   from a hand map.
+- Skill levels are part of the build: `SkillLevel` on the request raises every skill of the
+  construct, one entry per skill group. The writer runs the login reconciliation first
+  (`UnlockQualityGatedSkills` plus `NormalizeCharactersForCurrentTables`), because a fresh row holds
+  three skills and only then does the rest of the kit exist, and it clamps each level to what
+  `CharacterSkillUpgrade` sells: 18 for a normal skill, 1 for a passive. `CharacterSkillLevelEffect`
+  runs to 35 and must never be the ceiling here, because those rows already describe a built memory:
+  six lower resonances add six levels on top of the bought 18, which is how the signature shows 24.
+  Rank changes scaling, not skill levels. The panel's slider reads the same 18 through
+  `/api/panel/tune-character`.
+- A memory may legally hold one resonance, so the writer does not refuse an empty slot. The panel
+  reports it instead: after a write it counts the memories whose report entry carries fewer than two
+  resonances and names the slots in the note. A slot left empty also keeps that memory out of
+  `AwakeSlotList`, since there is nothing to awaken.
 - The write alone is invisible to a client that is in game: it keeps the construct and the gear it
   was handed at login. So the writer pushes `NotifyEquipDataList` (every memory and weapon it wrote,
   plus the ids of the stale rows it removed) and `NotifyCharacterDataList` after `Save`, which is

@@ -460,21 +460,22 @@ function tuneCharacter(characterId) {
   const equipTypeAt = characters.header.indexOf('EquipType')
   const equipType = Number(character[equipTypeAt] || 0)
 
-  // Skill levels: the ceiling is the highest CharacterSkillLevelEffect row the construct's own
-  // skills reach, which is also what the writer clamps to, so the slider cannot ask for a level
-  // the client cannot build.
+  // Skill levels: the ceiling is what CharacterSkillUpgrade sells, 18 for a normal skill and 1 for a
+  // passive. CharacterSkillLevelEffect runs higher (35) because those rows already include the levels
+  // a built memory adds: six lower resonances add six on top of the bought 18, so the signature shows
+  // 24 while its own level stays 18. The slider must offer the bought ceiling, not the effect one.
   let skillMax = 0
   let skillCount = 0
-  const skillEffects = tableRows('share/character/skill/CharacterSkillLevelEffect.tsv')
+  const skillUpgrades = tableRows('share/character/skill/CharacterSkillUpgrade.tsv')
   const ownSkills = characterSkills(characterId)
-  if (skillEffects && ownSkills && ownSkills.size > 0) {
-    const effectSkillAt = skillEffects.header.indexOf('SkillId')
-    const effectLevelAt = skillEffects.header.indexOf('Level')
+  if (skillUpgrades && ownSkills && ownSkills.size > 0) {
+    const upgradeSkillAt = skillUpgrades.header.indexOf('SkillId')
+    const upgradeLevelAt = skillUpgrades.header.indexOf('Level')
     const caps = new Map()
-    for (const cells of skillEffects.rows) {
-      const skillId = Number(cells[effectSkillAt])
+    for (const cells of skillUpgrades.rows) {
+      const skillId = Number(cells[upgradeSkillAt])
       if (!ownSkills.has(skillId)) continue
-      caps.set(skillId, Math.max(caps.get(skillId) || 0, Number(cells[effectLevelAt] || 0)))
+      caps.set(skillId, Math.max(caps.get(skillId) || 0, Number(cells[upgradeLevelAt] || 0)))
     }
     for (const cap of caps.values()) skillMax = Math.max(skillMax, cap)
     skillCount = caps.size

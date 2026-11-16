@@ -164,14 +164,21 @@ namespace AscNet.Test
 
                 // every skill of the construct reaches the requested level, clamped to its own ceiling
                 AssertEqual(true, report.Skills.Count > 0, "tune writes skill levels");
+                // the ceiling is the bought level from CharacterSkillUpgrade (18), never the effect table,
+                // whose rows go to 35 because they already include what six lower resonances add
+                Dictionary<int, int> upgradeCaps = TableReaderV2.Parse<CharacterSkillUpgradeTable>()
+                    .GroupBy(row => row.SkillId)
+                    .ToDictionary(group => group.Key, group => group.Max(row => row.Level));
                 foreach (TuneSkillResult skill in report.Skills)
                 {
-                    int skillCap = DbCharacter.CharacterSkillMaxLevel(skill.Id);
-                    AssertEqual(Math.Min(18, skillCap), skill.Level, $"tune skill level {skill.Id}");
+                    int skillCap = upgradeCaps.GetValueOrDefault(skill.Id);
+                    AssertEqual(skillCap, skill.Level, $"tune skill level {skill.Id}");
                     AssertEqual(skill.Level, stored.SkillList.Single(entry => entry.Id == skill.Id).Level,
                         $"tune stored skill level {skill.Id}");
                 }
                 AssertEqual(true, report.Skills.Any(skill => skill.Level > 1), "tune raises a skill above its first level");
+                AssertEqual(true, report.Skills.Any(skill => skill.Level == 18), "tune reaches the bought ceiling");
+                AssertEqual(true, report.Skills.All(skill => skill.Level <= 18), "tune never writes a level above the bought ceiling");
                 AssertEqual(report.Skills.Count, stored.SkillList.Count, "tune levels every skill the login reconciliation keeps");
 
                 // six memories, bound to the construct, each with two resonances and hypertuned

@@ -78,16 +78,22 @@ namespace AscNet.GameServer
 
             // Skill levels. A construct pushed up a rank has to unlock the groups that rank gates before
             // levels exist to raise, so this runs the same reconciliation a login runs and then states the
-            // level on every skill it produced. The ceiling is the level the client can actually build,
-            // not the upgrade row's terminal level, so a short skill (QTE, signature) never gets an
-            // unconstructible number.
+            // level on every skill it produced.
+            //
+            // The ceiling is what CharacterSkillUpgrade sells: 18 for a normal skill, 1 for a passive. The
+            // effect table runs to 35 because its rows already describe a built memory, where six lower
+            // resonances add six levels on top of the bought 18 (the signature shows 24). Writing the
+            // effect ceiling here would invent a level no upgrade can reach.
             if (request.SkillLevel > 0)
             {
                 session.character.UnlockQualityGatedSkills(character, session.player.GatherRewards);
                 session.character.NormalizeCharactersForCurrentTables(session.player.GatherRewards);
+                Dictionary<int, int> skillCaps = TableReaderV2.Parse<CharacterSkillUpgradeTable>()
+                    .GroupBy(candidate => candidate.SkillId)
+                    .ToDictionary(group => group.Key, group => group.Max(candidate => candidate.Level));
                 foreach (CharacterSkill skill in character.SkillList)
                 {
-                    int cap = DbCharacter.CharacterSkillMaxLevel((int)skill.Id);
+                    int cap = skillCaps.GetValueOrDefault((int)skill.Id);
                     if (cap <= 0)
                         continue;
                     skill.Level = Math.Clamp(request.SkillLevel, 1, cap);
