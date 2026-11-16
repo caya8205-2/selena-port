@@ -14,6 +14,7 @@
     items: {
       title: "Items",
       command: "item",
+      bulkAmount: "qty",
       fields: [
         { key: "item", type: "combo", catalog: "items", label: "Item", placeholder: "Search item name or ID", required: true },
         { key: "qty", type: "number", label: "Amount", value: "1", min: 1, max: 999999999, hint: "server clamps to the item limit" }
@@ -31,13 +32,18 @@
     weapons: {
       title: "Weapons",
       command: "equip",
-      fields: [{ key: "equip", type: "grid", catalog: "weapons", label: "Weapon", placeholder: "Search weapon name or ID", required: true }],
-      build: function (v) { return ["add", v.equip.id]; },
-      allArgs: function () { return ["add", "all"]; }
+      bulkAmount: "qty",
+      fields: [
+        { key: "equip", type: "grid", catalog: "weapons", label: "Weapon", placeholder: "Search weapon name or ID", required: true },
+        { key: "qty", type: "number", label: "Amount", value: "1", min: 1, max: 99, hint: "copies of that weapon, up to 99" }
+      ],
+      build: function (v) { return ["add", v.equip.id, v.qty]; },
+      allArgs: function (v) { return ["add", "all", v.qty || "1"]; }
     },
     memories: {
       title: "Memories",
       command: "equip",
+      bulkAmount: "qty",
       fields: [
         { key: "set", type: "select", label: "Memory set", hint: "all six slots at once", placeholder: "None, pick one memory below",
           options: function () {
@@ -468,7 +474,6 @@
     $("#runBtn").hidden = isCustom;
     var gmPreviewLabel = document.querySelector("#previewLabel");
     if (gmPreviewLabel) gmPreviewLabel.hidden = isCustom;
-    disarmAll();
     $("#allBtn").hidden = true;
 
     section.fields.forEach(function (field) {
@@ -485,10 +490,9 @@
     allBtn.disabled = false;
     allBtn.textContent = "Tutti · all";
     allBtn.classList.remove("is-armed");
-    disarmAll();
     if (hasAll) {
-      allBtn.setAttribute("data-tip", "Tutti: every entry at once. Press twice to confirm.");
-      allBtn.setAttribute("aria-label", "Tutti: run this command for every entry (press twice)");
+      allBtn.setAttribute("data-tip", "Tutti: apply this tab to every entry at once. Opens a short form with its own amount.");
+      allBtn.setAttribute("aria-label", "Tutti: run this command for every entry");
     }
 
     if (section.note) {
@@ -582,44 +586,32 @@
   /* Every catalog command also accepts "all". It is a bulk write, so the button
    * arms on the first press and only fires on the second one inside five
    * seconds - no dialog, no silent mass grant. */
-  var allArmed = false;
-  var allTimer = null;
-
-  function disarmAll(reason) {
-    allArmed = false;
-    clearTimeout(allTimer);
-    var button = $("#allBtn");
-    if (button) {
-      button.classList.remove("is-armed");
-      button.textContent = "Tutti · all";
-    }
-    /* Only a timeout is a real event worth a sound; changing section is not. */
-    if (reason === "timeout" && window.SelenaAudio) window.SelenaAudio.standDown();
+  /* Tutti opens a modal that states what it does and carries the bulk amount; nothing fires from the
+   * button alone, which is what the two-press arm used to stand in for. */
+  function closeModals() {
+    document.querySelectorAll(".modal").forEach(function (node) { node.hidden = true; });
   }
 
-  async function performAll() {
-    var section = SECTIONS[current];
-    if (!section || typeof section.allArgs !== "function") return;
+  function bulkArgs(section) {
+    var input = $("#tuttiAmount");
+    var merged = Object.assign({}, values);
+    if (section.bulkAmount && input) merged[section.bulkAmount] = String(input.value || "1");
+    return section.allArgs(merged).map(String);
+  }
 
+  function bulkPreview(section) {
+    try { return section.command + " " + bulkArgs(section).join(" "); } catch (err) { return section.command; }
+  }
+
+  async function runBulk(section, args) {
     var button = $("#allBtn");
-
-    if (!allArmed) {
-      allArmed = true;
-      button.classList.add("is-armed");
-      button.textContent = "Tutti · press again";
-      window.SelenaAudio.arm();
-      allTimer = setTimeout(function () { disarmAll("timeout"); }, 5000);
-      return;
-    }
-
-    disarmAll("confirm");
-
+    var newline = String.fromCharCode(10);
     if (!window.SelenaAPI.account) {
       await signIn();
       if (!window.SelenaAPI.account) return;
     }
 
-    var cmd = { name: section.command, args: section.allArgs(values).map(String) };
+    var cmd = { name: section.command, args: args };
     button.disabled = true;
     $("#meter").dataset.state = "running";
 
@@ -635,7 +627,7 @@
     } catch (err) {
       performed += 1;
       var detail = (err && (err.message || String(err))) || "Request failed";
-      if (err && err.data) detail += "\n" + JSON.stringify(err.data, null, 2);
+      if (err && err.data) detail += newline + JSON.stringify(err.data, null, 2);
       window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, false, detail);
       $("#consoleMeta").textContent = opusLabel(performed);
       refreshStatus();
@@ -643,6 +635,48 @@
       $("#meter").dataset.state = "idle";
       button.disabled = false;
     }
+  }
+
+  function openTutti() {
+    var section = SECTIONS[current];
+    if (!section || typeof section.allArgs !== "function") return;
+
+    $("#tuttiTitle").textContent = section.title + " \u00b7 Tutti";
+    var body = $("#tuttiBody");
+    body.textContent = "";
+
+    var lead = document.createElement("p");
+    lead.className = "tutti__lead";
+    lead.textContent = "Tutti runs " + section.title + " for every entry at once, not for the one picked in the form. "
+      + "Nothing is granted until you press Perform here.";
+    body.appendChild(lead);
+
+    if (section.bulkAmount) {
+      var descriptor = (section.fields || []).filter(function (field) { return field.key === section.bulkAmount; })[0] || {};
+      var field = document.createElement("label");
+      field.className = "field";
+      var caption = document.createElement("span");
+      caption.className = "field__label";
+      caption.textContent = "Amount";
+      var hint = document.createElement("span");
+      hint.className = "field__hint";
+      hint.textContent = "how many of each entry to grant";
+      caption.appendChild(hint);
+      var input = document.createElement("input");
+      input.className = "input";
+      input.id = "tuttiAmount";
+      input.type = "number";
+      input.min = String(descriptor.min || 1);
+      input.max = String(descriptor.max || 99);
+      input.value = String(values[section.bulkAmount] || "1");
+      input.addEventListener("input", function () { $("#tuttiNote").textContent = bulkPreview(section); });
+      field.append(caption, input);
+      body.appendChild(field);
+    }
+
+    $("#tuttiNote").textContent = bulkPreview(section);
+    $("#tuttiModal").hidden = false;
+    $("#tuttiPerform").focus();
   }
 
   async function perform(event) {
@@ -716,7 +750,18 @@
     });
   }
 
-  $("#allBtn").addEventListener("click", performAll);
+  $("#allBtn").addEventListener("click", openTutti);
+  $("#tuttiPerform").addEventListener("click", function () {
+    var section = SECTIONS[current];
+    if (!section) return;
+    var args = bulkArgs(section);
+    closeModals();
+    runBulk(section, args);
+  });
+  $("#tuttiCancel").addEventListener("click", closeModals);
+  document.querySelectorAll("[data-close='tutti']").forEach(function (node) {
+    node.addEventListener("click", closeModals);
+  });
   $("#actionForm").addEventListener("submit", perform);
 
   $("#clearBtn").addEventListener("click", function () {

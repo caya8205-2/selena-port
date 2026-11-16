@@ -35,7 +35,16 @@
 
 <main class="main">
     <section class="view is-active" data-view="console">
-      <div class="rows">
+    <header class="view__head">
+      <h1>Console</h1>
+      <span class="view__meta">stack, client and the log this window writes</span>
+    </header>
+
+          <div class="form__head">
+      <span class="form__label">Stack</span>
+      <span class="form__meta">mongo, server, client</span>
+    </div>
+<div class="rows">
         <div class="row"><span>MongoDB</span><b id="rowMongo">checking…</b></div>
         <div class="row"><span>Server (SDK / game)</span><b id="rowSdk">checking…</b></div>
         <div class="row"><span>Game directory</span><b id="rowGameDir" class="dim">-</b></div>
@@ -65,7 +74,16 @@
     </section>
 
     <section class="view" data-view="accounts">
+    <header class="view__head">
+      <h1>Accounts</h1>
+      <span class="view__meta">who may sign in, and their player documents</span>
+    </header>
+
     <div class="form">
+      <div class="form__head">
+        <span class="form__label">Directory</span>
+      </div>
+
       <div class="actions">
         <button class="btn btn--primary" id="btnRefreshAccounts">Refresh</button>
         <span class="field__note" id="accountsNote"></span>
@@ -94,7 +112,15 @@
   </section>
 
   <section class="view" data-view="mail">
+    <header class="view__head">
+      <h1>Mail</h1>
+      <span class="view__meta">compose a mail and read a mailbox</span>
+    </header>
+
     <div class="form">
+      <div class="form__head">
+        <span class="form__label">Compose</span>
+      </div>
       <label class="field">
         <span class="field__label">Recipient <em>offline accounts receive it at their next login</em></span>
         <span class="field__row">
@@ -158,7 +184,15 @@
   </section>
 
   <section class="view" data-view="config">
+    <header class="view__head">
+      <h1>Config</h1>
+      <span class="view__meta">paths, tools and maintenance</span>
+    </header>
+
       <div class="form">
+      <div class="form__head">
+        <span class="form__label">Paths and tools</span>
+      </div>
         <div class="rows" id="setupRows">
           <div class="row"><span>Setup</span><b class="dim">checking…</b></div>
         </div>
@@ -214,7 +248,15 @@
     </section>
 
     <section class="view" data-view="update">
+    <header class="view__head">
+      <h1>Update</h1>
+      <span class="view__meta">follow the upstream repository</span>
+    </header>
+
       <div class="form">
+      <div class="form__head">
+        <span class="form__label">Repository</span>
+      </div>
         <label class="field">
           <span class="field__label">Repository <em>owner/name, tracked for new commits</em></span>
           <span class="field__row">

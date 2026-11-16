@@ -147,6 +147,24 @@
     window.__errors.push('rejection: ' + (event.reason && event.reason.message ? event.reason.message : event.reason));
   });
 </script>
+  <div class="modal" id="tuttiModal" hidden>
+    <div class="modal__scrim" data-close="tutti"></div>
+    <div class="modal__panel modal__panel--narrow" role="dialog" aria-modal="true" aria-labelledby="tuttiTitle">
+      <header class="modal__head">
+        <h2 class="modal__title" id="tuttiTitle">Tutti</h2>
+        <button class="modal__close" type="button" data-close="tutti">Close</button>
+      </header>
+      <div class="modal__body" id="tuttiBody"></div>
+      <footer class="modal__foot">
+        <span class="modal__note" id="tuttiNote"></span>
+        <span class="modal__actions">
+          <button class="btn btn--quiet" id="tuttiCancel" type="button">Cancel</button>
+          <button class="btn btn--primary" id="tuttiPerform" type="button">Perform</button>
+        </span>
+      </footer>
+    </div>
+  </div>
+
 <script src="/common/ui.js"></script>
 <script src="/common/components.js"></script>
   <script src="/common/sound.js"></script>

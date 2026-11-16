@@ -78,7 +78,30 @@ body {
 .view { display: none; height: calc(100vh - 52px); overflow: hidden; }
 .view.is-active { display: block; }
 
-.view[data-view="console"] { padding: 26px 28px; }
+/* Content views share the frame the panels use: page padding, a page head, and one panel per block. */
+.view[data-view="console"], .view[data-view="accounts"], .view[data-view="mail"],
+.view[data-view="config"], .view[data-view="update"] {
+  padding: 24px 28px 40px;
+  overflow-y: auto;
+}
+
+.view__head { display: flex; align-items: baseline; gap: 12px; margin: 0 0 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.view__head h1 { margin: 0; font-family: var(--serif); font-size: 17px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--silver); }
+.view__meta { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+
+.form__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.form__label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-faint); }
+.form__meta { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 900px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+}
 
 .view__head h1 {
   margin: 0 0 4px;
@@ -108,32 +131,10 @@ body {
 
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
 
-.btn {
-  padding: 9px 14px;
-  font: inherit;
-  font-size: 12.5px;
-  color: var(--text);
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.btn:hover { border-color: rgba(226, 232, 240, 0.18); }
-
-.btn--primary {
-  color: #0c0e16;
-  background: var(--accent);
-  border-color: var(--accent);
-  font-weight: 600;
-}
-
-.btn--primary:hover { background: #8093e6; }
-.btn--quiet { color: var(--text-dim); background: none; }
-.btn:disabled { opacity: 0.5; cursor: default; }
 
 /* The log block itself comes from the shared theme so every surface frames it the same way. */
-.log--framed { height: 240px; overflow-y: auto; }
+.log__head { margin: 0; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line); border-bottom: 0; border-radius: var(--r-xs) var(--r-xs) 0 0; }
+.log--framed { border-radius: 0 0 var(--r-xs) var(--r-xs); height: 220px; overflow-y: auto; }
 
 .frame { width: 100%; height: 100%; border: 0; display: block; background: var(--ink); }
 
