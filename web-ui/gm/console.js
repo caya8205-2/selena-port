@@ -39,7 +39,7 @@
       title: "Memories",
       command: "equip",
       fields: [
-        { key: "set", type: "select", label: "Memory set", hint: "all six slots at once", placeholder: "None — pick one memory below",
+        { key: "set", type: "select", label: "Memory set", hint: "all six slots at once", placeholder: "None, pick one memory below",
           options: function () {
             return fetch("/api/panel/memory-sets").then(function (response) {
               if (!response.ok) throw new Error("unavailable");
@@ -109,16 +109,6 @@
 
   /* One line per section, shown as a tooltip on the rail: the sidebar is where
    * people guess, so each entry states what it actually does. */
-  var SECTION_TIPS = {
-    items: "Grant items to the selected account. The amount is the stack size the server receives.",
-    characters: "Unlock a construct. The server grants it at the level it decides, not a copy of someone else's.",
-    equipment: "Grant weapons and memories by star. Equipped slots stay untouched.",
-    coatings: "Unlock every coating of the chosen construct. Tutti covers every construct.",
-    scenes: "Unlock one scene background, or every background with Tutti.",
-    stages: "Unlock stages and bosses so they can be selected in game.",
-    commandant: "Set the Commandant level, the account-wide progression value shown in your profile.",
-    bc: "Send a broadcast payload to the account's in-game mailbox."
-  };
 
   /* One note per rail entry, ascending: a C major scale is exactly seven steps,
    * so every section sounds different instead of wrapping back after four. */
@@ -128,7 +118,7 @@
     var items = document.querySelectorAll(".rail__item[data-section]");
     Array.prototype.forEach.call(items, function (el, index) {
       var key = el.getAttribute("data-section");
-      if (key && SECTION_TIPS[key]) el.setAttribute("data-tip", SECTION_TIPS[key]);
+
       el.dataset.railIndex = index;
     });
   }
@@ -384,7 +374,6 @@
       var fieldPicker = window.SelenaUI.picker([{ value: "", label: field.placeholder || "None" }], {
         value: "",
         search: field.label || "Filter",
-        tip: field.hint || field.label || "",
         onChange: function (value) {
           values[field.key] = value;
           bump();

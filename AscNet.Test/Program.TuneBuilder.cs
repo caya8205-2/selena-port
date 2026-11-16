@@ -289,41 +289,28 @@ namespace AscNet.Test
                 AssertEqual(3, keptWeapon.ResonanceInfo.Count, "a skills-only tune keeps the weapon resonances");
                 AssertEqual((int)memories[1].SuitId, keptWeapon.WeaponOverrunData.ChoseSuit, "a skills-only tune keeps the harmony");
 
-                // upper and lower are not interchangeable: the mapping the client shows is the mapping the
-                // writer accepts, and the other way round is refused
-                bool refusedOrbOnUpper = false;
-                try
+                // an off-slot pick is deliberately accepted: installing one and looking at the client is how
+                // the slot mapping gets proven, so the writer only checks that the skill is in the memory's pools
+                TuneBuilder.Apply(harness.Session, new TuneRequest
                 {
-                    TuneRequest wrongUpper = new()
-                    {
-                        Uid = uid,
-                        CharacterId = character.Id,
-                        Memories = [new TuneMemorySlot { Slot = 1, TemplateId = memories[1].Id, Top = new TuneResonance { Slot = 1, Type = "skill", TemplateId = lowerPoolSkillId } }],
-                    };
-                    TuneBuilder.Apply(harness.Session, wrongUpper);
-                }
-                catch (InvalidOperationException)
-                {
-                    refusedOrbOnUpper = true;
-                }
-                AssertEqual(true, refusedOrbOnUpper, "a kit skill is refused on the upper slot");
-
-                bool refusedKitOnLower = false;
-                try
-                {
-                    TuneRequest wrongLower = new()
-                    {
-                        Uid = uid,
-                        CharacterId = character.Id,
-                        Memories = [new TuneMemorySlot { Slot = 1, TemplateId = memories[1].Id, Bottom = new TuneResonance { Slot = 2, Type = "skill", TemplateId = upperPoolSkillId } }],
-                    };
-                    TuneBuilder.Apply(harness.Session, wrongLower);
-                }
-                catch (InvalidOperationException)
-                {
-                    refusedKitOnLower = true;
-                }
-                AssertEqual(true, refusedKitOnLower, "an orb level is refused on the lower slot");
+                    Uid = uid,
+                    CharacterId = character.Id,
+                    Memories =
+                    [
+                        new TuneMemorySlot
+                        {
+                            Slot = 1,
+                            TemplateId = memories[1].Id,
+                            Top = new TuneResonance { Slot = 1, Type = "skill", TemplateId = lowerPoolSkillId },
+                            Bottom = new TuneResonance { Slot = 2, Type = "skill", TemplateId = upperPoolSkillId },
+                        },
+                    ],
+                });
+                EquipData offSlotMemory = document.Equips.First(equip => equip.TemplateId == memories[1].Id);
+                AssertEqual(lowerPoolSkillId, offSlotMemory.ResonanceInfo.Single(info => info.Slot == 1).TemplateId,
+                    "an off-slot pick is stored on the slot it names");
+                AssertEqual(upperPoolSkillId, offSlotMemory.ResonanceInfo.Single(info => info.Slot == 2).TemplateId,
+                    "the other slot keeps the pick it was given");
 
                 Console.WriteLine(
                     $"tune builder: {character.Name} to {report.Rank} {report.Promotion} level {report.Level}, "

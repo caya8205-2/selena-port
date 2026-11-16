@@ -29,6 +29,50 @@ namespace AscNet.GameServer
         public const int WeaponResonanceSlots = 3;
         public const int MemoryResonanceSlots = 2;
 
+        /// <summary>
+        /// One progression pass over every construct the account owns. A null field keeps what the construct
+        /// already carries, which is how the panel says "as is"; memories, weapons and resonance are never
+        /// touched because this request does not carry them.
+        /// </summary>
+        public static TuneBulkReport ApplyBulk(Session session, TuneBulkRequest request)
+        {
+            TuneBulkReport report = new() { Total = session.character.Characters.Count };
+            foreach (CharacterData character in session.character.Characters.ToList())
+            {
+                try
+                {
+                    Apply(session, new TuneRequest
+                    {
+                        Uid = request.Uid,
+                        CharacterId = (int)character.Id,
+                        Character = new TuneCharacter
+                        {
+                            Level = request.Level ?? character.Level,
+                            Quality = request.Quality ?? character.Quality,
+                            Star = request.Star ?? character.Star,
+                            Grade = request.Grade ?? character.Grade,
+                        },
+                        SkillLevel = request.SkillLevel ?? 0,
+                        MemoryLevel = 0,
+                        Hypertune = null,
+                        Memories = [],
+                        Weapon = null,
+                    });
+                    report.Applied += 1;
+                }
+                catch (Exception ex)
+                {
+                    report.Failed.Add(new TuneBulkFailure
+                    {
+                        CharacterId = (int)character.Id,
+                        Error = ex.InnerException?.Message ?? ex.Message,
+                    });
+                }
+            }
+
+            return report;
+        }
+
         public static TuneReport Apply(Session session, TuneRequest request)
         {
             CharacterTable row = TableReaderV2.Parse<CharacterTable>()
@@ -130,7 +174,13 @@ namespace AscNet.GameServer
                     resonances.RemoveAll(info => info.Slot == wantedSlot);
                     if (resonance.TemplateId <= 0)
                         continue;
-                    resonances.Add(BuildResonance(memoryRow, resonance, (int)character.Id));
+                    // The game's own handler stamps the selected-resonance item on the row it writes
+                    // (EquipResonanceRequestHandler sets UseItemId from the request), and the client's
+                    // awaken condition counts equipped resonance skills, so a row with no item does not
+                    // count. A tune spends nothing here: the item is recorded on the row, never consumed.
+                    ResonanceInfo written = BuildResonance(memoryRow, resonance, (int)character.Id);
+                    written.UseItemId = SelectResonanceItemId(memoryRow.Id);
+                    resonances.Add(written);
                 }
                 equip.ResonanceInfo = resonances.OrderBy(info => info.Slot).ToList();
 
@@ -351,8 +401,11 @@ namespace AscNet.GameServer
             return new ResonanceInfo
             {
                 Slot = slot,
+                // A stat stays an attrib row. Storing it under CharacterSkill to make the awaken counter
+                // see it was tried on 11-17 and the client painted both slots "Invalid": it validates
+                // the type against the template id, so a stat can never count as a resonance skill.
                 Type = type,
-                CharacterId = type == EquipResonanceType.Attrib ? 0 : characterId,
+                CharacterId = characterId,
                 TemplateId = request.TemplateId,
             };
         }
@@ -393,18 +446,17 @@ namespace AscNet.GameServer
 
                 // Upper carries the construct's kit skills (signature, QTE, core, class) and lower the
                 // orb levels plus the basic attack, which is the layout the client shows.
-                // Pool 1 (types 1-4) belongs to the upper slot: the basic attack and the three orb
-                // levels. Pool 2 (types 5, 6, 7, 9) belongs to the lower slot: signature, QTE, core passive
-                // and class skill. Reading the types the other way round is what put a signature where
-                // the client draws an orb.
-                HashSet<int> wanted = slot == 1 ? [1, 2, 3, 4] : [5, 6, 7, 9];
-                Dictionary<int, int> skillTypes = TableReaderV2.Parse<CharacterSkillTypeTable>()
-                    .ToDictionary(candidate => candidate.Id, candidate => candidate.Type);
+                // Pool 1 (types 1-4) is what the upper slot offers: the basic attack and the three orb
+                // levels. Pool 2 (5, 6, 7, 9) is what the lower slot offers: signature, QTE, core passive
+                // and class skill. The writer still accepts any skill either pool holds on either slot:
+                // a tune is the place to install an off-slot pick and see where the client draws it,
+                // which is how this mapping gets proven. The panel is the side that keeps a normal build
+                // on its own slot, and the type sets it uses live in its own resonance endpoint.
                 List<int> poolIds = [.. CollectSkillPools(resonance)];
                 return TableReaderV2.Parse<CharacterSkillPoolTable>()
                     .Where(candidate => poolIds.Contains(candidate.PoolId))
                     .Select(candidate => candidate.SkillId)
-                    .Where(skillId => skillTypes.TryGetValue(skillId, out int skillType) && wanted.Contains(skillType))
+                    .Where(skillId => skillId > 0)
                     .Distinct()
                     .ToList();
             }
@@ -414,6 +466,15 @@ namespace AscNet.GameServer
                 .SelectMany(candidate => candidate.SkillId)
                 .Where(skillId => skillId > 0)
                 .ToList();
+        }
+
+        // The selected-resonance item a set names in EquipResonanceUseItem.tsv; the game records it on
+        // every memory resonance row and the client counts a resonance skill by it.
+        private static int SelectResonanceItemId(int templateId)
+        {
+            EquipResonanceUseItemTable? configured = TableReaderV2.Parse<EquipResonanceUseItemTable>()
+                .FirstOrDefault(candidate => candidate.Id == templateId);
+            return configured?.SelectSkillItemId ?? 0;
         }
 
         private static IEnumerable<int> CollectSkillPools(EquipResonanceTable resonance)
@@ -535,6 +596,29 @@ namespace AscNet.GameServer
         public List<TuneMemoryResult> Memories { get; set; } = [];
         public List<TuneSkillResult> Skills { get; set; } = [];
         public TuneWeaponResult? Weapon { get; set; }
+    }
+
+    public sealed class TuneBulkRequest
+    {
+        public long Uid { get; set; }
+        public int? Level { get; set; }
+        public int? Quality { get; set; }
+        public int? Star { get; set; }
+        public int? Grade { get; set; }
+        public int? SkillLevel { get; set; }
+    }
+
+    public sealed class TuneBulkReport
+    {
+        public int Total { get; set; }
+        public int Applied { get; set; }
+        public List<TuneBulkFailure> Failed { get; set; } = [];
+    }
+
+    public sealed class TuneBulkFailure
+    {
+        public int CharacterId { get; set; }
+        public string Error { get; set; } = string.Empty;
     }
 
     public sealed class TuneSkillResult

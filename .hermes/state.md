@@ -10,10 +10,11 @@ moment they cost time. A stale note is worse than no note, because it is trusted
 session starts without its earlier context, read this file first, then `git log -5`, then the
 files it names. Do not rely on memory for ports, paths or column names.
 
-Last updated: the docs were brought back in line with the code, and every panel select now builds the
-bundled element through `SelenaUI.picker`, with the factory kept as the proven fallback. Section 8
-lists what is still open; section 9 describes the build writer; section 10 carries the game
-vocabulary.
+Last updated: the tune now edits instead of resetting, skill levels are capped at the bought 18, the
+resonance slot/type mapping is settled from the tables, the resonance lists are ordered the way the
+client draws them, and the writer's off-slot change is built, running, tested and proven red then
+green, still uncommitted. Section 8 lists what is still open; section 9 describes the build writer;
+section 10 carries the game vocabulary.
 
 ---
 
@@ -344,6 +345,12 @@ override and every height reads short (a 764 window measured 429 and looked like
 - A tip on the element host answers for the whole box and hangs over the open list. Pass the tip as
   the `tip` property: the element forwards it to its inner button, which is the target that
   describes the control.
+- A resonance pick carries its own type, never its slot's. Both slots list the same four stat picks
+  and the upper list also carries the construct's kit skills, so a payload hardcoding `Type: "attrib"`
+  for slot 1 refused every skill chosen on the upper slot with "resonance 107501 is not in slot 1
+  of Cottie". `player.js` keeps `RESONANCE_KINDS`, filled from each picker entry's `kind` and from a
+  stored resonance's `Type`, and Perform reads it. Verified 11-16 12:45 on the served page with the
+  tune POST captured: a skill chosen on the upper slot now posts `{"Slot":1,"Type":"skill"}`.
 
 ## 8. Remaining work
 
@@ -438,6 +445,28 @@ shell proxies it as `/api/panel/tune`.
   six lower resonances add six levels on top of the bought 18, which is how the signature shows 24.
   Rank changes scaling, not skill levels. The panel's slider reads the same 18 through
   `/api/panel/tune-character`.
+- Resonance slot and type mapping, proven from the tables: slot 1 is the upper resonance and offers
+  the basic attack and the three orb levels (skill types 1-4, pool 1); slot 2 is the lower one and
+  offers the signature, QTE, core passive and class skill (types 5, 6, 7, 9, pool 2). Both slots
+  still offer the same four stat picks. `SKILL_TYPE_LABELS` in `desktop/main.js` names them, and the
+  pool split is the check that keeps the numbers straight: the type numbers were read inverted once,
+  which shipped a signature pick where the client draws an orb, and cost two wrong passes.
+- `TuneBuilder` no longer gates a memory's resonance by slot type: it accepts any skill the memory's
+  own pools hold on either slot, so an off-slot pick can be installed and read back in the client,
+  which is how the mapping gets proven by observation. The panel still offers the right types per
+  slot, and the writer now refuses only a skill its pools do not hold at all. Verified 11-16 12:32:
+  `--tune-builder-only` exits 0 and the read back stores the off-slot pick on the slot it names; the
+  same test run against the previous writer (file stashed, built to a scratch `OutDir`, the old
+  `AscNet.GameServer.dll` swapped into the test folder) fails at line 294 with "resonance 101217 is
+  not in slot 1 of Condelina", so the new assertion can go red. `AscNet.GameServer.dll` 12:14:58
+  predates the server process started 12:15:54, so the running stack carries this writer. Still
+  uncommitted.
+- Two traps from this pass. A `POST /api/admin/tune` that names memories but omits the `Character`
+  block clamps the construct to level 1 and its base rank: it reset this owner's Effulgence once and
+  had to be restored with a second call carrying `Level 80, Quality 4, Star 3, Grade 14`. Always send
+  the full block when the call is meant to touch gear only. And a stored resonance that a slot no
+  longer offers comes back from the panel endpoint through `include=` with the meta "stored on this
+  slot", so an old build reads as what it holds instead of an empty control.
 - A memory may legally hold one resonance, so the writer does not refuse an empty slot. The panel
   reports it instead: after a write it counts the memories whose report entry carries fewer than two
   resonances and names the slots in the note. A slot left empty also keeps that memory out of
@@ -449,6 +478,10 @@ shell proxies it as `/api/panel/tune`.
   writer and `Send` drops the frame there, so an offline tune just stores. The regression is
   covered: `--tune-builder-only` reads the frames off a loopback session and fails when the pushes
   are missing.
+- `Memory level` is one slider above the resonance grid, not a control per memory: the request carries a
+  single `MemoryLevel` for the set and 0 keeps each memory at the level it already has. Verified 11-16
+  on the served page with the tune POST captured: the End key sets the slider to 45, the body carries
+  `MemoryLevel: 45`, and the stub answered instead of writing, so no build was touched.
 
 
 ## 10. PGR domain model, in the game's own words
@@ -481,11 +514,20 @@ player-facing name that must be used in copy, in labels and in this file.
 Both slots offer the same four stat picks, the "Ex -" entries from
 `AttribPool.tsv` (`EquipResonance.AttribPoolId[slot]`). The skill list differs:
 
-- Upper, slot 1: basic attack and the three orb levels (types 1-4). Slot 1 is the upper resonance.
-  level. These are `CharacterSkillType.Type` 5, 6, 7 and 9.
-- Lower, slot 2: signature move, QTE, core passive and class skill level (types 5, 6, 7, 9). Both
-  slots still offer the same four stat picks.
-  These are types 1, 2, 3 and 4.
+- Upper, slot 1: the basic attack and the three orb levels, skill types 1-4.
+- Lower, slot 2: the signature move, QTE, core passive and class skill, types 5, 6, 7, 9.
+
+The client's own resonance screen is per memory, one card per memory slot, and its text is the only
+place these names exist. Read back on 11-16 over three runs with the same set: the lower tab matched
+the stored build card by card in all three, including a run whose picks were deliberately out of type
+order, and the upper tab matched as well once the client's own wording was used. The wrong layer was
+the name table, not the writer: with 107501 stored on a memory the client reads "Red Orb Level +1"
+and with 107516 it reads "Basic Attack Level +1", so the upper four run Red, Yellow, Blue, Basic in
+type order 1-4, the reverse of what the ids suggest. The database, the panel request and the writer
+agreed with each other the whole time; the labels were the thing that lied, and reading the first two
+runs as "the client reorders the cards" sent two passes down the wrong path. Label these from the
+client's screen, never from the type number. `resonanceEntries` in `desktop/main.js` lists the skills
+first and the stat picks after, in type order, which now reads the way the screen does.
 
 The pools live in `EquipResonance.CharacterSkillPoolId[1..2]`, but the game's own
 validator (`EquipModule.EquipResonanceRequestHandler`) checks a pick against the
@@ -494,9 +536,47 @@ type pairing rather than only that pool index. Skill display names are client
 localisation and are not in any table this server ships: label by type, which is
 identical for every construct.
 
-Storage: an attrib resonance keeps `ResonanceInfo.CharacterId = 0`; a skill
-resonance carries the construct id. `EquipData.AwakeSlotList` holds the slot
-numbers themselves (1 and 2), not slot + 1, and Hypertune means both are present.
+The client's awaken condition reads `Equip 6★ Resonance Skills x12`. A resonance skill there is the
+item, not the type of pick: every row the game writes carries the set's selected-resonance item in
+`ResonanceInfo.UseItemId` (`EquipResonanceRequestHandler` stamps it from the request, and
+`EquipResonanceUseItem.SelectSkillItemId` names it, 3005 for every set here). `TuneBuilder` wrote 0
+there because a tune spends nothing, so a tuned build read `(8/12)` on 11-16 while a hand resonated
+construct read complete. The writer now stamps that item on every memory resonance row it writes;
+nothing is consumed. Weapons have no select item in the table (`SelectSkillItemId[1]` empty,
+`ItemId[1]` 3002), so weapon rows keep 0, which is the shape the game wrote for Veronica. One retune
+and a relog settle whether the counter reads that field.
+
+Storage: every resonance on a memory carries the construct in `ResonanceInfo.CharacterId`, a stat
+pick included. The fork wrote 0 for a stat, and the client then never counted it: the awaken
+condition `Equip Hypertuned Resonance Skill x12` counts a stat resonance, verified on a retail
+account on 11-16, where six memories carried `ATK +15, CRIT +15` on the upper slot with all twelve
+marked Hypertuned and the condition complete. `TuneBuilder` and `EquipModule`'s select path both
+stamp the construct now. `EquipData.AwakeSlotList` holds the slot numbers themselves (1 and 2), not
+slot + 1, and Hypertune means both are present.
+
+Measured on 11-17, after both writers stamped the construct id and the select item: a build with a
+stat pick on the upper slot of all six memories still read 8 resonance skills and 6 hypertuned, and
+changing only those upper slots to a skill read 12 and 12 and enabled the awaken. So the counter
+follows the resonance Type, not `CharacterId` and not `UseItemId`. The retail client counts the same
+stat build as complete, so a retail stat row differs from ours in a field that cannot be read from
+here yet; the next probe is one stat pick written as CharacterSkill with the attrib template id.
+
+Rule to keep: the retail client is the reference for a rule, the fork's code is a hypothesis. Two
+passes went to explaining a stalled count as the build's stat picks, because the fork's condition
+filter was read as the game's own rule. When the owner shows the retail client, that answer is the
+answer, and the fix goes into the row shape.
+
+### Bulk level and the awaken note
+
+- `POST /api/admin/tune-bulk` (proxied as `/api/panel/tune-bulk`) runs one progression pass over every
+  construct the account owns. Null fields mean "keep what the construct carries", the Character block is
+  built per character from its own values, and `Memories`/`Weapon` are never sent, so gear is untouched.
+  Verified 11-17 on uid 2 with `{"Uid":2}` only: `total 86, applied 86, failed 0`.
+- The tune modal carries a note in its Memory resonance section: a stat pick never counts toward an
+  awaken, so a tune meant to awaken has to set the upper slot to a skill or leave it empty and add it in
+  game afterwards.
+- `equip add all` now takes the Amount too (clamped 1..99 per missing entry), so the Weapons tab's amount
+  means the same thing in Perform and in Tutti.
 
 ### Weapon resonance (three slots) and harmony
 
@@ -570,6 +650,9 @@ Player vocabulary only, English, no internal ids in copy, no em dashes, one
 tooltip per control. Rank, Promotion, Memory, Resonance, Hypertune, Harmony,
 Weapon, Construct. Never "quality 3" for S, never "awaken" for Hypertune, never
 "skill 101217". State is not the same as power: show base rank next to tuned rank.
+- A stat resonance is named by its effect and nothing else: "HP +75, ATK +15". `AttribPool.Name`
+  ("Ex - Tactical Adjustment") never appears on the client's screen, so it stays out of the panel
+  label and out of any tip, the same way the upper skill names came from the client and not the table.
 
 ### Operational lessons
 
@@ -598,6 +681,37 @@ Weapon, Construct. Never "quality 3" for S, never "awaken" for Hypertune, never
   and `<section>` against `</section>` before declaring it done.
 - A native control that only holds a value stays in the DOM (`.is-mirrored`, `aria-hidden`, out of
   the tab order) so old readers keep working, while the visible control is the panel's own.
+- A row's action keeps its label on one line: `.field__row > .btn { flex: 0 0 auto; white-space: nowrap }`
+  lets the inputs take the width and the button keep its words in one line. Measured at 1366x764,
+  Create account, Clone repository and Install MongoDB all render one line at 40px, the same box as the
+  short Browse button.
+- The harmony picker names a set by its own name and star, `Cottie · 6★`. The `6 memories` count belongs
+  to the memory-sets catalog in the Memories tab, which keeps it: the grant size is not a property of a
+  harmony choice.
+- No em dash anywhere in the panel text (antislop R-02). The empty value marker is `-`, and prose uses a
+  comma, a colon or parentheses. This includes the legacy GM page, which is still served.
+- Tutti is no longer a two-press arm. The button opens a small modal that says what it does, carries the
+  bulk amount when the command takes one (Items, Weapons, Memories), and offers Perform or Cancel; for the
+  sections that take no count the modal is the explanation and the two buttons, a deliberate confirmation.
+- The Construct tab has its own Tutti: a stripped modal with Level, Rank, Promotion and Skills, and none of
+  the per-construct gear (memory, memory level, memory resonance, hypertune, weapon, weapon level, weapon
+  resonance, harmony). Every slider starts at `as is`, and the rank stops run `as is` then S0 upward, so a B
+  or A construct jumps straight to S0 instead of walking B1..B10 and A0..A10. The `Max` button is gone.
+- The four shell logs (accounts, mail, config, update) carry the same `Silence` button as the player console.
+  The block itself is shared now: `web-ui/common/theme.css` carries `.log__head`, `.log__label`, `.log__meta`,
+  `.log--framed` and `.log__line`, so the shell Console, Accounts, Mail, Config and Update logs render the same
+  frame, mono rhythm and `Opus 01 · N lines` header as the Performance panel, and an error line takes the error
+  colour instead of being plain text.
+- Log styling reference: `design-md/spotify/DESIGN.md` in VoltAgent/awesome-design-md is the only music-domain
+  system in that catalog (84 checked). Two of its mechanics are used, content-first darkness where the log is a
+  dark well and only the outcome carries colour, and a compact mono scale under an uppercase wide-tracked header.
+  Its palette, pill geometry and heavy shadows are not imported: `DESIGN.md` here is indigo and gold with sharp
+  2-4px frames, and that identity stays.
+  The handler is bound above the preload bridge call, so a browser tab with no bridge can still clear a log.
+- Tooltips follow the narrowed rule in `DESIGN.md`: a tip exists for the performance vocabulary (Perform,
+  Silence, Tutti, Opus, Score preview) and for a control whose effect is invisible before the press. The
+  sweep removed the rail section tips, the select tip that repeated its own hint, the slider's auto tip and
+  the six tune picker tips that restated the section copy.
 
 ### Lit components
 

@@ -10,10 +10,18 @@
 
   var $ = function (sel) { return document.querySelector(sel); };
 
+  // The server reads a memory resonance pool from the request's Type, so the type has to travel with
+  // the pick instead of being read off the slot position. Both slots list the same four stat picks and
+  // the upper list also carries the construct's skills, so "slot 1 means attrib" refused every skill
+  // chosen on the upper slot with "resonance N is not in slot 1". Picker entries carry their own kind
+  // and a stored resonance carries its Type, so both fill this map and Perform reads it.
+  var RESONANCE_KINDS = new Map();
+
   var SECTIONS = {
     items: {
       title: "Items",
       command: "item",
+      bulkAmount: "qty",
       fields: [
         { key: "item", type: "combo", catalog: "items", label: "Item", placeholder: "Search item name or ID", required: true },
         { key: "qty", type: "number", label: "Amount", value: "1", min: 1, max: 999999999, hint: "server clamps to the item limit" }
@@ -31,15 +39,20 @@
     weapons: {
       title: "Weapons",
       command: "equip",
-      fields: [{ key: "equip", type: "grid", catalog: "weapons", label: "Weapon", placeholder: "Search weapon name or ID", required: true }],
-      build: function (v) { return ["add", v.equip.id]; },
-      allArgs: function () { return ["add", "all"]; }
+      bulkAmount: "qty",
+      fields: [
+        { key: "equip", type: "grid", catalog: "weapons", label: "Weapon", placeholder: "Search weapon name or ID", required: true },
+        { key: "qty", type: "number", label: "Amount", value: "1", min: 1, max: 99, hint: "copies of that weapon, up to 99" }
+      ],
+      build: function (v) { return ["add", v.equip.id, v.qty]; },
+      allArgs: function (v) { return ["add", "all", v.qty || "1"]; }
     },
     memories: {
       title: "Memories",
       command: "equip",
+      bulkAmount: "qty",
       fields: [
-        { key: "set", type: "select", label: "Memory set", hint: "all six slots at once", placeholder: "None — pick one memory below",
+        { key: "set", type: "select", label: "Memory set", hint: "all six slots at once", placeholder: "None, pick one memory below",
           options: function () {
             return fetch("/api/panel/memory-sets").then(function (response) {
               if (!response.ok) throw new Error("unavailable");
@@ -64,7 +77,7 @@
         if (v.memory) return [{ name: "equip", args: ["add", String(v.memory.id), qty] }];
         return [];
       },
-      allArgs: function () { return ["add", "all"]; }
+      allArgs: function (v) { return ["add", "all", v.qty || "1"]; }
     },
     coatings: {
       title: "Coatings",
@@ -164,31 +177,20 @@
 
   /* One line per section, shown as a tooltip on the rail: the sidebar is where
    * people guess, so each entry states what it actually does. */
-  var SECTION_TIPS = {
-    items: "Grant items to the selected account. The amount is the stack size the server receives.",
-    characters: "Unlock a construct. The server grants it at the level it decides, not a copy of someone else's.",
-    weapons: "Grant weapons by star. Equipped slots stay untouched.",
-    memories: "Grant memories by star. Equipped slots stay untouched.",
-    coatings: "Unlock every coating that belongs to the chosen construct.",
-    scenes: "Unlock scene backgrounds and lobby views for the account.",
-    stages: "Unlock stages and bosses so they can be selected in game.",
-    commandant: "Set the Commandant level, the account-wide progression value shown in your profile.",
-    bc: "Send a broadcast payload to the account's in-game mailbox.",
-    build: "Read a construct's build and act on one piece: rank, memory level, breakthrough, awaken and resonance, weapon overrun.",
-    dorm: "Fill a dorm from the furniture tables: reads the rooms and what is missing, or grants every piece the account does not own.",
-    guild: "Read the guild or move its build, funds or a member's contribution through the guild module's own rules.",
-    cleanup: "Remove duplicates and low-star leftovers from your inventory. Preview first; nothing is deleted until you confirm."
-  };
 
   /* One note per rail entry, ascending: a C major scale is exactly seven steps,
    * so every section sounds different instead of wrapping back after four. */
   var RAIL_SCALE = [523.25, 587.33, 659.25, 698.46, 783.99, 880.0, 987.77, 1046.5];
 
+  /* The bulk modal lives inside the Construct renderer, whose own state it reads; this hook lets the
+   * once-bound footer button reach it without binding a listener per render. */
+  var bulkPerformHandler = null;
+
   function initRailTips() {
     var items = document.querySelectorAll(".rail__item[data-section]");
     Array.prototype.forEach.call(items, function (el, index) {
       var key = el.getAttribute("data-section");
-      if (key && SECTION_TIPS[key]) el.setAttribute("data-tip", SECTION_TIPS[key]);
+
       el.dataset.railIndex = index;
     });
   }
@@ -667,7 +669,6 @@
       var fieldPicker = window.SelenaUI.picker([{ value: "", label: field.placeholder || "None" }], {
         value: "",
         search: field.label || "Filter",
-        tip: field.hint || field.label || "",
         onChange: function (value) {
           values[field.key] = value;
           bump();
@@ -758,17 +759,15 @@
     var previewLabel = document.querySelector("#previewLabel");
     if (previewLabel) previewLabel.hidden = isCustom;
 
-    /* Tutti exists only where a section can speak for every entry at once. It arms on the first
-     * press and fires on the second one inside five seconds; the shared button never carries a
-     * half-armed state into the next section. */
+    /* Tutti exists only where a section can speak for every entry at once. The press opens a short
+     * modal that says what it does and carries the bulk amount; nothing fires from the button alone. */
     var allBtn = $("#allBtn");
     var hasAll = typeof section.allArgs === "function" && !isCustom;
     allBtn.hidden = !hasAll;
     allBtn.disabled = false;
-    disarmAll();
     if (hasAll) {
-      allBtn.setAttribute("data-tip", "Tutti: apply this tab to every entry at once. Press twice to confirm.");
-      allBtn.setAttribute("aria-label", "Tutti: run this command for every entry (press twice)");
+      allBtn.setAttribute("data-tip", "Tutti: apply this tab to every entry at once. Opens a short form with its own amount.");
+      allBtn.setAttribute("aria-label", "Tutti: run this command for every entry");
     }
 
     if (section.custom === "build") {
@@ -1043,18 +1042,18 @@
         ["Level", current ? String(current.character.level) : "not in this account"],
         ["Rank", current
           ? rankText(current.character.quality, current.character.star, true)
-          : "—"],
+          : "-"],
         ["Promotion", current && state.detail
           ? (state.detail.promotions.find((promotion) => promotion.grade === current.character.grade) || {}).name || String(current.character.grade)
-          : "—"],
-        ["Memories", current ? String((current.memories || []).length) : "—"],
+          : "-"],
+        ["Memories", current ? String((current.memories || []).length) : "-"],
       ]));
 
       const actions = document.createElement("div");
       actions.className = "actions";
       actions.append(
         button("Tune", "Open the design surface: level, rank, promotion, the six memories with their resonances, hypertune, weapon and harmony.", openTune, true),
-        button("Max", "Write a complete build: top rank, Hero promotion, max level, memories at max with hypertune, weapon with three resonances and a harmony.", performMax)
+        button("Tutti", "Bulk level: sets level, rank, promotion and skills for every construct in this account. Memories and weapons are left alone.", openBulk)
       );
       card.appendChild(actions);
     }
@@ -1090,6 +1089,11 @@
         const top = memory ? (memory.resonance || []).find((entry) => entry.slot === 1) : null;
         const bottom = memory ? (memory.resonance || []).find((entry) => entry.slot === 2) : null;
         design.resonances[slot] = { top: top ? top.templateId : 0, bottom: bottom ? bottom.templateId : 0 };
+        for (const entry of (memory && memory.resonance) || []) {
+          if (entry && entry.templateId) {
+            RESONANCE_KINDS.set(entry.templateId, String(entry.type).toLowerCase() === "attrib" ? "attrib" : "skill");
+          }
+        }
       }
       const weapon = current ? (current.weapons || []).find((entry) => entry.equippedTo === current.character.id) : null;
       design.weapon.templateId = weapon ? weapon.templateId : 0;
@@ -1137,30 +1141,7 @@
       select.value = String(value || (options[0] ? options[0].value : ""));
     }
 
-    function slider(labelText, min, max, value, format, onChange) {
-      const wrap = document.createElement("div");
-      wrap.className = "tune__slider";
-      const label = document.createElement("span");
-      label.className = "tune__label";
-      label.textContent = labelText;
-      const range = document.createElement("input");
-      range.type = "range";
-      range.min = String(min);
-      range.max = String(max);
-      range.step = "1";
-      range.value = String(value);
-      range.setAttribute("data-tip", labelText + " — drag to set, the value is written on Perform.");
-      const output = document.createElement("output");
-      output.textContent = format(value);
-      range.addEventListener("input", function () {
-        output.textContent = format(Number(range.value));
-        onChange(Number(range.value));
-      });
-      wrap.append(label, range, output);
-      return wrap;
-    }
-
-    function slider(labelText, min, max, value, format, onChange) {
+    function slider(labelText, min, max, value, format, onChange, tip) {
       const row = document.createElement("div");
       row.className = "tune__slider";
       const label = document.createElement("span");
@@ -1172,11 +1153,120 @@
         value: value,
         format: format,
         onChange: onChange,
-        tip: labelText + ". Drag it or use the arrow keys.",
+        tip: tip || "",
       });
       row.append(label, control.node);
       return row;
     }
+
+    /* ---------------------------------------------------------- bulk level */
+
+    function bulkRanks() {
+      /* Base rank is the first stop so a level pass can leave rank alone, and the next stop is S0: most
+       * constructs are S rank, so the B and A sub-steps are not worth a stop each. */
+      const stops = [{ quality: 0, star: 0, label: "as is" }];
+      const stars = (state.template && state.template.stars) || {};
+      for (let quality = 3; quality <= 6; quality += 1) {
+        const count = quality >= 6 ? 1 : Math.max(1, stars[quality] || 0);
+        for (let star = 0; star < count; star += 1) {
+          stops.push({ quality, star, label: rankText(quality, star, count > 1) });
+        }
+      }
+      return stops;
+    }
+
+    function openBulk() {
+      const body = $("#bulkBody");
+      body.textContent = "";
+      const ranks = bulkRanks();
+      const promotions = (state.template && state.template.promotions) || [];
+      const levels = (state.template && state.template.levels && state.template.levels.max) || 80;
+      const skillMax = (state.template && state.template.skills && state.template.skills.max) || 0;
+      const choice = { level: 0, rank: 0, grade: 0, skill: 0, ranks: ranks, promotions: promotions };
+      state.bulkChoice = choice;
+
+      const lead = document.createElement("p");
+      lead.className = "tutti__lead";
+      lead.textContent = "Bulk level writes level, rank, promotion and skills for every construct in this account. "
+        + "Memories, weapons, resonance and harmony stay as they are. Every slider starts at as is, so only what you move is written.";
+      body.appendChild(lead);
+
+      function paintNote() {
+        const bits = ["Level " + (choice.level > 0 ? String(choice.level) : "as is")];
+        bits.push("Rank " + ranks[choice.rank].label);
+        if (promotions.length > 0) bits.push("Promotion " + (choice.grade > 0 ? promotions[choice.grade - 1].name : "as is"));
+        if (skillMax > 0) bits.push("Skills " + (choice.skill > 0 ? "Lv " + choice.skill : "as is"));
+        $("#bulkNote").textContent = bits.join(" \u00b7 ");
+      }
+
+      body.appendChild(slider("Level", 0, levels, 0, function (value) { return value > 0 ? "Lv " + value : "as is"; },
+        function (value) { choice.level = value; paintNote(); },
+        "Level for every construct. as is leaves each one at the level it already has."));
+      body.appendChild(slider("Rank", 0, ranks.length - 1, 0, function (value) { return ranks[value].label; },
+        function (value) { choice.rank = value; paintNote(); },
+        "Rank for every construct. as is leaves each rank alone; the next stop is S0, then the S and SS stars."));
+      if (promotions.length > 0) {
+        body.appendChild(slider("Promotion", 0, promotions.length, 0, function (value) { return value === 0 ? "as is" : promotions[value - 1].name; },
+          function (value) { choice.grade = value; paintNote(); },
+          "Promotion for every construct. as is leaves each one where it stands."));
+      }
+      if (skillMax > 0) {
+        body.appendChild(slider("Skills", 0, skillMax, 0, function (value) { return value === 0 ? "as is" : "Lv " + value; },
+          function (value) { choice.skill = value; paintNote(); },
+          "Every skill of every construct. as is leaves the levels the construct already has."));
+      }
+
+      paintNote();
+      $("#bulkModal").hidden = false;
+      $("#bulkPerform").focus();
+    }
+
+    async function runBulkLevel() {
+      const choice = state.bulkChoice;
+      if (!choice) return;
+      const uid = actingUid();
+      if (!uid) { $("#runHint").textContent = "pick an acting account"; return; }
+
+      const payload = { Uid: Number(uid) };
+      if (choice.level > 0) payload.Level = choice.level;
+      if (choice.rank > 0) {
+        const step = choice.ranks[choice.rank];
+        payload.Quality = step.quality;
+        payload.Star = step.star;
+      }
+      if (choice.grade > 0) payload.Grade = choice.promotions[choice.grade - 1].grade;
+      if (choice.skill > 0) payload.SkillLevel = choice.skill;
+
+      const args = Object.keys(payload).filter(function (key) { return key !== "Uid"; })
+        .map(function (key) { return key + " " + payload[key]; });
+      const cmd = { name: "level all", args: args };
+
+      try {
+        const response = await fetch("/api/panel/tune-bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }).then(function (res) { return res.json(); });
+        if (!response || response.ok === false) throw new Error((response && response.msg) || "the bulk level was refused");
+        const report = response.data || {};
+        const failed = report.failed || report.Failed || [];
+        performed += 1;
+        let detail = "applied " + (report.applied !== undefined ? report.applied : report.Applied) + " of " + (report.total !== undefined ? report.total : report.Total);
+        if (failed.length > 0) {
+          detail += String.fromCharCode(10) + failed.map(function (entry) { return entry.characterId + ": " + entry.error; }).join(String.fromCharCode(10));
+        }
+        window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, failed.length === 0, detail);
+        $("#consoleMeta").textContent = opusLabel(performed);
+        window.SelenaAudio.chord();
+      } catch (err) {
+        performed += 1;
+        window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, false, (err && err.message) || String(err));
+        $("#consoleMeta").textContent = opusLabel(performed);
+        window.SelenaAudio.low();
+      }
+    }
+
+    bulkPerformHandler = runBulkLevel;
 
     function openTune() {
       const modal = $("#tuneModal");
@@ -1265,7 +1355,6 @@
         const picker = window.SelenaUI.picker(list, {
           value: design.slots[slot],
           search: "Filter memories",
-          tip: "Memory for slot " + slot + ". Every memory the tables put in this slot is listed.",
           onChange: function (value) {
             design.slots[slot] = Number(value);
             design.resonances[slot] = { top: 0, bottom: 0 };
@@ -1281,8 +1370,25 @@
       memories.appendChild(memoryGrid);
       body.appendChild(memories);
 
+      // One level for all six memories: the writer takes a single MemoryLevel for the set, so this is
+      // not a per memory control, and 0 keeps each memory at the level it already carries.
+      const memoryLevel = section("Memory level", "one level for all six memories");
+      memoryLevel.appendChild(slider("Level", 0, MEMORY_LEVEL_CAP, design.memoryLevel || 0,
+        (value) => (value > 0 ? "Lv " + value : "unchanged"),
+        (value) => { design.memoryLevel = value; },
+        "Level every memory in the set at once. 0 leaves each memory at the level it already carries."));
+      body.appendChild(memoryLevel);
+
       // two resonances per memory: the stat pool on slot 1, the construct's skill on slot 2
-      const resonanceSection = section("Memory resonance", "upper: kit skill, lower: orb level");
+      const resonanceSection = section("Memory resonance", "upper: basic and orb levels, lower: kit skills");
+      // The client's awaken condition counts a hypertuned resonance skill and a stat pick never counts, so a tune
+      // that fills every upper slot with a stat writes a build that cannot awaken.
+      const resonanceNote = document.createElement("p");
+      resonanceNote.className = "tune__note";
+      resonanceNote.textContent = "A stat pick never counts toward an awaken. To awaken from a tune, set the upper "
+        + "resonance to a skill, or leave the upper slot empty and add it in game afterwards; the lower slot can stay "
+        + "as the tune wrote it.";
+      resonanceSection.appendChild(resonanceNote);
       const resonanceGrid = document.createElement("div");
       resonanceGrid.className = "tune__grid";
       resonanceSection.appendChild(resonanceGrid);
@@ -1311,13 +1417,11 @@
           const top = window.SelenaUI.picker([{ value: 0, label: "upper: none" }], {
             value: design.resonances[slot].top,
             search: "Filter upper resonance",
-            tip: "Upper resonance: a stat, or one of the construct's kit skills (signature, QTE, core, class).",
             onChange: function (value) { design.resonances[slot].top = Number(value); },
           });
           const bottom = window.SelenaUI.picker([{ value: 0, label: "lower: none" }], {
             value: design.resonances[slot].bottom,
             search: "Filter lower resonance",
-            tip: "Lower resonance: a stat, or one of the orb levels and the basic attack.",
             onChange: function (value) { design.resonances[slot].bottom = Number(value); },
           });
 
@@ -1330,6 +1434,7 @@
               .then((response) => (response.ok ? response.json() : { entries: [] }))
               .then((payload) => {
                 const entries = (payload && payload.entries) || [];
+                for (const entry of entries) RESONANCE_KINDS.set(entry.id, entry.kind);
                 control.setOptions([{ value: 0, label: noneLabel }].concat(entries.map((entry) => ({
                   value: entry.id,
                   label: entry.name + (entry.meta ? " · " + entry.meta : ""),
@@ -1363,7 +1468,6 @@
         .map((weapon) => ({ value: weapon.id, label: weapon.name + " · " + weapon.star + "★" }))), {
         value: design.weapon.templateId,
         search: "Filter weapons",
-        tip: "Weapon this construct carries.",
         onChange: function (value) {
           design.weapon.templateId = Number(value);
           design.weaponResonances = [];
@@ -1444,7 +1548,6 @@
       const harmonyPicker = window.SelenaUI.picker([{ value: 0, label: "none" }], {
         value: design.weapon.harmonySuit,
         search: "Filter sets",
-        tip: "Harmony borrows a memory set. Pick the set, not a memory: the weapon then counts as two pieces of it.",
         onChange: function (value) { design.weapon.harmonySuit = Number(value); },
       });
       harmony.appendChild(harmonyPicker.node);
@@ -1467,7 +1570,7 @@
           });
           harmonyPicker.setOptions([{ value: 0, label: "none" }].concat(sets.map((set) => ({
             value: set.id,
-            label: set.name + " · " + set.meta,
+            label: set.name + (set.star ? " · " + set.star + "★" : ""),
           }))), design.weapon.harmonySuit);
         })
         .catch(() => {});
@@ -1479,13 +1582,16 @@
     }
 
     function payload(design) {
+      // The type travels with the pick, never with the slot: the upper list carries skills as well as
+      // stats, and a skill sent as "attrib" is refused against the stat pool.
+      const typeOf = function (templateId) { return RESONANCE_KINDS.get(templateId) === "attrib" ? "attrib" : "skill"; };
       const memories = [];
       for (let slot = 1; slot <= 6; slot += 1) {
         const templateId = design.slots[slot];
         if (!templateId) continue;
         const entry = { Slot: slot, TemplateId: templateId };
-        if (design.resonances[slot].top) entry.Top = { Slot: 1, Type: "attrib", TemplateId: design.resonances[slot].top };
-        if (design.resonances[slot].bottom) entry.Bottom = { Slot: 2, Type: "skill", TemplateId: design.resonances[slot].bottom };
+        if (design.resonances[slot].top) entry.Top = { Slot: 1, Type: typeOf(design.resonances[slot].top), TemplateId: design.resonances[slot].top };
+        if (design.resonances[slot].bottom) entry.Bottom = { Slot: 2, Type: typeOf(design.resonances[slot].bottom), TemplateId: design.resonances[slot].bottom };
         memories.push(entry);
       }
       const body = {
@@ -1542,52 +1648,6 @@
       }
     }
 
-    function performMax() {
-      const design = JSON.parse(JSON.stringify(state.template.design));
-      design.level = state.template.levels.max;
-      design.quality = 6;
-      design.star = 0;
-      design.grade = state.template.promotions[state.template.promotions.length - 1].grade;
-      design.memoryLevel = MEMORY_LEVEL_CAP;
-      design.hypertune = true;
-      design.hypertuneTouched = true;
-      design.skillLevel = state.template.skills.max || 0;
-      design.skillLevelTouched = true;
-      design.weapon.level = WEAPON_LEVEL_CAP;
-
-      // a maxed build still needs pieces named: take the first memory the tables give each slot
-      for (let slot = 1; slot <= 6; slot += 1) {
-        if (!design.slots[slot]) {
-          const options = memoryOptions(slot);
-          if (options.length > 0) design.slots[slot] = options[0].id;
-        }
-      }
-      if (!design.weapon.templateId && state.catalog.weapons && state.catalog.weapons.length > 0) {
-        design.weapon.templateId = state.catalog.weapons[0].id;
-      }
-      if (!design.weapon.harmonySuit) design.weapon.harmonySuit = state.suitOfMemory[design.slots[1]] || 0;
-
-      const fill = [];
-      for (let slot = 1; slot <= 6; slot += 1) {
-        const templateId = design.slots[slot];
-        if (!templateId) continue;
-        fill.push(fetch(`/api/panel/resonance/${templateId}/1`).then((response) => (response.ok ? response.json() : null))
-          .then((payload) => { if (payload && payload.entries[0]) design.resonances[slot].top = payload.entries[0].id; }).catch(() => {}));
-        fill.push(fetch(`/api/panel/resonance/${templateId}/2`).then((response) => (response.ok ? response.json() : null))
-          .then((payload) => { if (payload && payload.entries[0]) design.resonances[slot].bottom = payload.entries[0].id; }).catch(() => {}));
-      }
-      if (design.weapon.templateId) {
-        for (let slot = 1; slot <= 3; slot += 1) {
-          fill.push(fetch(`/api/panel/resonance/${design.weapon.templateId}/${slot}`)
-            .then((response) => (response.ok ? response.json() : null))
-            .then((payload) => { if (payload && payload.entries[0]) design.weaponResonances[slot - 1] = payload.entries[0].id; })
-            .catch(() => {}));
-        }
-      }
-
-      Promise.all(fill).then(() => write(payload(design), "a maxed build"));
-    }
-
     $("#tunePerform").addEventListener("click", function () {
       // the modal keeps its own design object on the element so Perform reads what the sliders show
       const design = state.modalDesign;
@@ -1599,7 +1659,7 @@
       node.addEventListener("click", function () { $("#tuneModal").hidden = true; });
     });
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && !$("#tuneModal").hidden) $("#tuneModal").hidden = true;
+      if (event.key === "Escape") closeModals();
     });
 
     // the section renders the empty state until a construct is picked
@@ -1608,52 +1668,36 @@
 
   /* ---------------------------------------------------------------- tutti */
 
-  var allArmed = false;
-  var allTimer = null;
-
-  function disarmAll(reason) {
-    allArmed = false;
-    clearTimeout(allTimer);
-    var button = $("#allBtn");
-    if (button) {
-      button.classList.remove("is-armed");
-      button.textContent = "Tutti · all";
-    }
-    /* Only the timeout is a real event worth a sound; changing section is not. */
-    if (reason === "timeout" && window.SelenaAudio) window.SelenaAudio.standDown();
+  function closeModals() {
+    document.querySelectorAll(".modal").forEach(function (node) { node.hidden = true; });
   }
 
-  async function performAll() {
+  function bulkArgs(section) {
+    /* The modal owns the amount, so a user who never touches the section form still gets the count they
+     * typed here. The form's own fields only feed Perform. */
+    var input = $("#tuttiAmount");
+    var merged = Object.assign({}, values);
+    if (section.bulkAmount && input) merged[section.bulkAmount] = String(input.value || "1");
+    return section.allArgs(merged).map(String);
+  }
+
+  function bulkPreview(section) {
+    try { return section.command + " " + bulkArgs(section).join(" "); } catch (err) { return section.command; }
+  }
+
+  async function runBulk(args) {
+    var newline = String.fromCharCode(10);
     var section = SECTIONS[current];
-    if (!section || typeof section.allArgs !== "function") return;
-
+    if (!section || !args || args.length === 0) return;
     var button = $("#allBtn");
-
-    if (!allArmed) {
-      allArmed = true;
-      button.classList.add("is-armed");
-      button.textContent = "Tutti · press again";
-      window.SelenaAudio.arm();
-      allTimer = setTimeout(function () { disarmAll("timeout"); }, 5000);
-      return;
-    }
-
-    disarmAll("confirm");
-
-    if (!actingUid()) {
-      $("#runHint").textContent = "pick an acting account";
-      return;
-    }
-
-    var cmd = { name: section.command, args: section.allArgs(values).map(String) };
+    var cmd = { name: section.command, args: args };
     button.disabled = true;
     $("#meter").dataset.state = "running";
-
     try {
       var response = await command(cmd.name, cmd.args);
       performed += 1;
       var detail = (response && response.data) ? JSON.stringify(response.data, null, 2) : (response && response.msg) || "OK";
-      if (response && response.live === false) detail += "\nstored in the database - the game client shows it at its next login";
+      if (response && response.live === false) detail += newline + "stored in the database - the game client shows it at its next login";
       window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, true, detail);
       $("#consoleMeta").textContent = opusLabel(performed);
       celebrate(button);
@@ -1661,7 +1705,7 @@
     } catch (err) {
       performed += 1;
       var failure = (err && (err.message || String(err))) || "Request failed";
-      if (err && err.data) failure += "\n" + JSON.stringify(err.data, null, 2);
+      if (err && err.data) failure += newline + JSON.stringify(err.data, null, 2);
       window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, false, failure);
       $("#consoleMeta").textContent = opusLabel(performed);
       window.SelenaAudio.low();
@@ -1672,6 +1716,52 @@
     }
   }
 
+  function openTutti() {
+    var section = SECTIONS[current];
+    if (!section || typeof section.allArgs !== "function") return;
+    if (!actingUid()) {
+      $("#runHint").textContent = "pick an acting account";
+      return;
+    }
+
+    $("#tuttiTitle").textContent = section.title + " · Tutti";
+    var body = $("#tuttiBody");
+    body.textContent = "";
+
+    var lead = document.createElement("p");
+    lead.className = "tutti__lead";
+    lead.textContent = "Tutti runs " + section.title + " for every entry at once, not for the one picked in the form. "
+      + "Nothing is granted until you press Perform here.";
+    body.appendChild(lead);
+
+    if (section.bulkAmount) {
+      var descriptor = (section.fields || []).filter(function (field) { return field.key === section.bulkAmount; })[0] || {};
+      var field = document.createElement("label");
+      field.className = "field";
+      var caption = document.createElement("span");
+      caption.className = "field__label";
+      caption.textContent = "Amount";
+      var hint = document.createElement("span");
+      hint.className = "field__hint";
+      hint.textContent = "how many of each entry to grant";
+      caption.appendChild(hint);
+      var input = document.createElement("input");
+      input.className = "input";
+      input.id = "tuttiAmount";
+      input.type = "number";
+      input.min = String(descriptor.min || 1);
+      input.max = String(descriptor.max || 99);
+      input.value = String(values[section.bulkAmount] || "1");
+      input.addEventListener("input", function () { $("#tuttiNote").textContent = bulkPreview(section); });
+      field.append(caption, input);
+      body.appendChild(field);
+    }
+
+    $("#tuttiNote").textContent = bulkPreview(section);
+    $("#tuttiModal").hidden = false;
+    $("#tuttiPerform").focus();
+  }
+
   /* ---------------------------------------------------------------- wiring */
 
   document.querySelectorAll(".rail__item[data-section]").forEach(function (el) {
@@ -1680,7 +1770,28 @@
 
   $("#actionForm").addEventListener("submit", perform);
 
-  $("#allBtn").addEventListener("click", performAll);
+  $("#allBtn").addEventListener("click", openTutti);
+
+  $("#tuttiPerform").addEventListener("click", function () {
+    var section = SECTIONS[current];
+    if (!section) return;
+    var args = bulkArgs(section);
+    closeModals();
+    runBulk(args);
+  });
+  $("#tuttiCancel").addEventListener("click", closeModals);
+
+  $("#bulkPerform").addEventListener("click", function () {
+    closeModals();
+    if (bulkPerformHandler) bulkPerformHandler();
+  });
+  $("#bulkCancel").addEventListener("click", closeModals);
+  document.querySelectorAll("[data-close='bulk']").forEach(function (node) {
+    node.addEventListener("click", closeModals);
+  });
+  document.querySelectorAll("[data-close='tutti']").forEach(function (node) {
+    node.addEventListener("click", closeModals);
+  });
 
   $("#clearBtn").addEventListener("click", function () {
     performed = 0;

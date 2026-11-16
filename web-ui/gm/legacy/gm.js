@@ -106,7 +106,7 @@ function primaryCommand() {
 function refreshPreview() {
   const cmd = primaryCommand();
   const el = $("#cmdPreview");
-  if (!cmd) { el.textContent = "—"; el.classList.remove("is-ready"); return; }
+  if (!cmd) { el.textContent = "-"; el.classList.remove("is-ready"); return; }
   el.textContent = `/${cmd.command} ${cmd.args.join(" ")}`;
   el.classList.add("is-ready");
 }

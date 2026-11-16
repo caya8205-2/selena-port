@@ -71,8 +71,10 @@ the furniture around them is theatrical.
 Empty states carry her voice, addressed to the Commandant, in English, without em dashes:
 "The stage is quiet, Commandant. Write the first note of our duet."
 
-Every control carries a tooltip that explains itself in the same voice; the help text is never
-technical jargon.
+A tooltip explains a control whose name comes from the performance vocabulary (Perform, Silence, Tutti,
+Opus, Score preview) or one whose effect is invisible until it runs. It never repeats a section note, a
+field hint, a placeholder or an empty state: copy that is already on screen explains itself, and a tip
+that says the same thing twice is noise. The help text is never technical jargon.
 
 ## Geometry
 

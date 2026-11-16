@@ -15,7 +15,7 @@ const https = require('https')
 const fs = require('fs')
 const path = require('path')
 const net = require('net')
-const { spawn } = require('child_process')
+const { spawn, spawnSync } = require('child_process')
 const { buildChecks } = require('./verify')
 const { createBackup, listBackups } = require('./backup')
 
@@ -96,6 +96,12 @@ function log(line) {
   const text = `${new Date().toLocaleTimeString()}  ${line}`
   logLines.push(text)
   if (logLines.length > 400) logLines.shift()
+  // Kept on disk as well: a failure that only lived in the pane was unreadable the moment the window
+  // was restarted, and the owner had to paste it back by hand.
+  try {
+    fs.mkdirSync(logDir, { recursive: true })
+    fs.appendFileSync(path.join(logDir, 'app.log'), text + String.fromCharCode(10))
+  } catch {}
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('stack:log', text)
 }
 
@@ -120,16 +126,55 @@ async function waitPort(port, seconds) {
   return false
 }
 
-// Probing the game port with a raw connect makes the server open a session and save state, which
-// floods its log and can race a real login. Once it is known open, trust that for a minute.
+// The game port is never probed with a connection: the server treats any connect as a client, opens a
+// session, saves state and disconnects, which floods its log and can race a real login. It is asked the
+// other way round instead: the child this app spawned, or the pid the control centre recorded.
+function recordedPid(name) {
+  try {
+    const file = path.join(config.repoRoot || path.join(__dirname, '..'), 'tools', '.run', `${name}.pid`)
+    const value = Number(fs.readFileSync(file, 'utf8').trim())
+    return Number.isFinite(value) && value > 0 ? value : 0
+  } catch { return 0 }
+}
+
+function processAlive(pid) {
+  try { process.kill(pid, 0); return true }
+  catch (err) { return err.code === 'EPERM' }
+}
+
+// Listing ports answers for a stack nobody recorded, without touching it.
+function portListening(port) {
+  let out = ''
+  try {
+    out = spawnSync('netstat', ['-ano', '-p', 'tcp'], { encoding: 'utf8', windowsHide: true }).stdout || ''
+  } catch { return false }
+  for (const raw of out.split('\n')) {
+    const line = raw.replace('\r', '').trim()
+    if (!line || line.includes('LISTENING') === false) continue
+    const cols = line.split(/\s+/)
+    if (cols.length < 4 || cols[3] !== 'LISTENING') continue
+    const local = cols[1] || ''
+    if (Number(local.slice(local.lastIndexOf(':') + 1)) === port) return true
+  }
+  return false
+}
+
 let gameUpAt = 0
+let gameUpSeen = false
 
 async function gameServerUp() {
-  if (Date.now() - gameUpAt < 60_000) return true
-  const open = await portOpen(config.gamePort)
-  if (open) gameUpAt = Date.now()
-  return open
+  const child = running.server
+  if (child && !child.killed && child.exitCode === null) return true
+  const pid = recordedPid('server')
+  if (pid > 0 && processAlive(pid)) return true
+  // netstat costs a process spawn, so the answer is kept for a few seconds. It cannot disturb the
+  // game server the way a connect did, so the cache is about cost, not about avoiding damage.
+  if (Date.now() - gameUpAt < 4000) return gameUpSeen
+  gameUpSeen = portListening(config.gamePort)
+  gameUpAt = Date.now()
+  return gameUpSeen
 }
+
 
 async function status() {
   return {
@@ -144,12 +189,70 @@ async function status() {
   }
 }
 
-function spawnHidden(file, args, options) {
-  const child = spawn(file, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], ...options })
-  child.stdout.on('data', (chunk) => log(chunk.toString().trim()))
-  child.stderr.on('data', (chunk) => log(chunk.toString().trim()))
+// The stack outlives this window. A child whose stdout is a pipe to this process dies the moment the
+// panel is force quit or crashes, because its next write hits a closed pipe: that is how a console
+// restart took the game server down with it. A detached child writing to its own file survives it.
+function spawnHidden(file, args, options = {}) {
+  const { logName, ...spawnOptions } = options
+  try {
+    return spawnHiddenUnsafe(file, args, logName, spawnOptions)
+  } catch (err) {
+    err.message = `${path.basename(file)}: ${err.message}`
+    throw err
+  }
+}
+
+function spawnHiddenUnsafe(file, args, logName, spawnOptions) {
+  let child
+  if (logName) {
+    const logFile = path.join(logDir, logName)
+    fs.mkdirSync(logDir, { recursive: true })
+    const fd = fs.openSync(logFile, 'a')
+    try {
+      child = spawn(file, args, { windowsHide: true, detached: true, stdio: ['ignore', fd, fd], ...spawnOptions })
+    } finally {
+      fs.closeSync(fd)
+    }
+    child.unref()
+    log(`${path.basename(file)} running detached, output in ${logFile}`)
+  } else {
+    child = spawn(file, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], ...spawnOptions })
+    child.stdout.on('data', (chunk) => log(chunk.toString().trim()))
+    child.stderr.on('data', (chunk) => log(chunk.toString().trim()))
+  }
   child.on('exit', (code) => log(`${path.basename(file)} exited with ${code}`))
   return child
+}
+
+// A failed create reports on 'error' long before the port could open, so surfacing it at once beats
+// waiting out the readiness window and reporting "did not start listening" for a create that never ran.
+async function untilListening(child, port, seconds, label) {
+  const failed = new Promise((_, reject) => {
+    child.once('error', (err) => reject(new Error(`${label}: ${err.message}`)))
+  })
+  return Promise.race([waitPort(port, seconds), failed])
+}
+
+async function spawnReady(label, build, port, seconds, onChild) {
+  let lastError = null
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    let child = null
+    // The create itself throws EBUSY synchronously when the image or its working directory is locked,
+    // so the attempt has to sit inside the catch, not only the readiness wait.
+    try {
+      child = build()
+      onChild(child)
+      const ready = await untilListening(child, port, seconds, label)
+      if (ready) return child
+      lastError = new Error(`${label} did not start listening on ${port}`)
+    } catch (err) {
+      lastError = err
+    }
+    if (child) { try { child.kill() } catch {} }
+    if (!/EBUSY|EAGAIN/.test(String(lastError.message)) || attempt === 3) break
+    await new Promise((resolve) => setTimeout(resolve, 900))
+  }
+  throw lastError
 }
 
 async function startMongo() {
@@ -158,15 +261,13 @@ async function startMongo() {
 
   const mongoDataDir = mongoDataPath()
   fs.mkdirSync(mongoDataDir, { recursive: true })
-  running.mongo = spawnHidden(config.mongoBinary, [
+  await spawnReady('mongod', () => spawnHidden(config.mongoBinary, [
     '--dbpath', mongoDataDir,
     '--port', String(config.mongoPort),
     '--bind_ip', '127.0.0.1',
     '--logpath', path.join(logDir, 'mongod.log'),
     '--logappend',
-  ], { cwd: mongoDataDir })
-
-  if (!(await waitPort(config.mongoPort, 60))) throw new Error('mongod did not start listening')
+  ], { cwd: mongoDataDir, logName: 'mongo.out.log' }), config.mongoPort, 60, (child) => { running.mongo = child })
   log('mongod ready')
 }
 
@@ -195,19 +296,18 @@ async function startServer() {
   const env = root
     ? { ...process.env, DOTNET_ROOT: root, PATH: `${root}${path.delimiter}${process.env.PATH || ''}` }
     : process.env
-  let child
-
-  if (fs.existsSync(exe) && process.env.SELENA_FORCE_DLL !== '1') {
-    child = spawnHidden(exe, ['--urls', `http://127.0.0.1:${config.sdkPort}`], { cwd: config.serverDir, env })
-  } else if (fs.existsSync(dll)) {
-    const dotnet = root ? path.join(root, 'dotnet.exe') : 'dotnet'
-    child = spawnHidden(dotnet, ['AscNet.dll', '--urls', `http://127.0.0.1:${config.sdkPort}`], { cwd: config.serverDir, env })
-  } else {
+  const launch = () => {
+    if (fs.existsSync(exe) && process.env.SELENA_FORCE_DLL !== '1') {
+      return spawnHidden(exe, ['--urls', `http://127.0.0.1:${config.sdkPort}`], { cwd: config.serverDir, env, logName: 'server.out.log' })
+    }
+    if (fs.existsSync(dll)) {
+      const dotnet = root ? path.join(root, 'dotnet.exe') : 'dotnet'
+      return spawnHidden(dotnet, ['AscNet.dll', '--urls', `http://127.0.0.1:${config.sdkPort}`], { cwd: config.serverDir, env, logName: 'server.out.log' })
+    }
     throw new Error(`server build not found in ${config.serverDir}`)
   }
 
-  running.server = child
-  if (!(await waitPort(config.sdkPort, 120))) throw new Error('server did not start listening')
+  await spawnReady('server', launch, config.sdkPort, 120, (child) => { running.server = child })
   log('server ready')
 }
 
@@ -515,17 +615,17 @@ function characterSkills(characterId) {
   return kept
 }
 
-// The construct's skill name is client-side text this server does not ship, but the skill type is
-// a table column and it is the same for every construct: type 5 is the red orb, 6 yellow, 7 blue,
-// and 9 the basic attack. That is what the resonance list needs to say.
-// Skill types in the game's own order: pool 1 (types 1-4) feeds the upper slot with the basic attack
-// and the three orb levels, pool 2 (5, 6, 7, 9) feeds the lower slot with signature, QTE, core passive
-// and class skill. The table ships no names, so these follow that pool split.
+// The construct's skill names are client-side text this server does not ship. Pool 1 (types 1-4)
+// feeds the upper slot and pool 2 (types 5, 6, 7, 9) the lower one. The names come from the client's
+// own resonance screen, the only place they exist: with 107501 on a memory the client reads "Red Orb
+// Level +1", with 107516 it reads "Basic Attack Level +1", so the upper four run Red, Yellow, Blue,
+// Basic in type order 1-4. Three runs, each read back from that screen, agreed with this and with no
+// other reading; the type numbers alone would have said the opposite.
 const SKILL_TYPE_LABELS = {
-  1: 'Basic Attack Level',
-  2: 'Red Orb Level',
-  3: 'Yellow Orb Level',
-  4: 'Blue Orb Level',
+  1: 'Red Orb Level',
+  2: 'Yellow Orb Level',
+  3: 'Blue Orb Level',
+  4: 'Basic Attack Level',
   5: 'Signature Move Level',
   6: 'QTE Level',
   7: 'Core Passive',
@@ -656,6 +756,10 @@ function resonanceEntries(templateId, slot, characterId) {
   // and class skill. The tables split it by skill type, 1-4 against 5/6/7/9.
   const attribPoolId = Number(row[resonance.column('AttribPoolId', slot)] || 0)
   const wantedTypes = slot === 1 ? [1, 2, 3, 4] : [5, 6, 7, 9]
+  // The client lists the skills of a resonance list first and the stat picks after them, so a picker
+  // reads like the screen: the four skills, then the four stat picks. The skill order inside a tab is
+  // plain type order, which after the labels above reads Red, Yellow, Blue, Basic.
+  const skillOrder = slot === 1 ? [1, 2, 3, 4] : [5, 6, 7, 9]
   const entries = []
 
   if (attribPoolId > 0) {
@@ -667,12 +771,15 @@ function resonanceEntries(templateId, slot, characterId) {
       const descIndex = attribs.header.indexOf('Description')
       for (const cells of attribs.rows) {
         if (Number(cells[poolAt]) !== attribPoolId) continue
+        // The client names a stat by its effect and nothing else: "HP +75, ATK +15". The pool's own
+        // name ("Ex - Tactical Adjustment") never appears on that screen, so it is dropped here too,
+        // out of the label and out of any tip.
         entries.push({
           kind: 'attrib',
           id: Number(cells[idIndex]),
-          name: (cells[nameIndex] || '').trim() || 'Stat',
-          meta: (cells[descIndex] || '').trim(),
-          order: 0,
+          name: (cells[descIndex] || '').trim() || (cells[nameIndex] || '').trim() || 'Stat',
+          meta: '',
+          order: 50,
         })
       }
     }
@@ -693,7 +800,8 @@ function resonanceEntries(templateId, slot, characterId) {
       const type = skillTypeOf(skillId)
       if (!wantedTypes.includes(type)) continue
       seen.add(skillId)
-      entries.push({ kind: 'skill', id: skillId, name: SKILL_TYPE_LABELS[type] || 'Skill', meta: '', order: type })
+      const rank = skillOrder.indexOf(type)
+      entries.push({ kind: 'skill', id: skillId, name: SKILL_TYPE_LABELS[type] || 'Skill', meta: '', order: rank < 0 ? 40 : rank })
     }
   }
 
@@ -741,7 +849,7 @@ function memorySets() {
 
   const sets = [...bySuit.values()]
     .filter((set) => set.slots.length === 6)
-    .map((set) => ({ id: set.id, name: set.name, meta: `${set.star}★ · 6 memories`, slots: set.slots.sort((a, b) => a.site - b.site) }))
+    .map((set) => ({ id: set.id, name: set.name, star: set.star, meta: `${set.star}★ · 6 memories`, slots: set.slots.sort((a, b) => a.site - b.site) }))
     .sort((a, b) => a.name.localeCompare(b.name) || b.id - a.id)
 
   cache.set('memory-sets', { stamp: stat.mtimeMs, sets })
@@ -884,6 +992,24 @@ function startUiServer() {
           : sendJson(res, { ok: false, msg: 'construct ' + characterId + ' has no table row' }, 404)
       }
 
+      if (url.pathname === '/api/panel/tune-bulk') {
+        const token = readAdminToken()
+        if (!token) return sendJson(res, { ok: false, msg: 'admin token not found - start the server once' }, 404)
+
+        let body = ''
+        req.on('data', (chunk) => { body += chunk })
+        req.on('end', () => {
+          fetch('http://127.0.0.1:' + config.sdkPort + '/api/admin/tune-bulk', {
+            method: 'POST',
+            headers: { 'X-Admin-Token': token, 'Content-Type': 'application/json' },
+            body: body || '{}',
+          })
+            .then((response) => response.json().then((payload) => sendJson(res, payload, response.status)))
+            .catch((err) => sendJson(res, { ok: false, msg: err.message }, 502))
+        })
+        return
+      }
+
       if (url.pathname === '/api/panel/tune') {
         const token = readAdminToken()
         if (!token) return sendJson(res, { ok: false, msg: 'admin token not found - start the server once' }, 404)
@@ -923,8 +1049,9 @@ function startUiServer() {
             if (attribs) {
               const idIndex = attribs.header.indexOf('Id')
               const nameIndex = attribs.header.indexOf('Name')
+              const descIndex = attribs.header.indexOf('Description')
               const found = attribs.rows.find((cells) => Number(cells[idIndex]) === storedId)
-              if (found) name = (found[nameIndex] || '').trim() || name
+              if (found) name = (found[descIndex] || '').trim() || (found[nameIndex] || '').trim() || name
             }
             entries.push({ kind: 'attrib', id: storedId, name, meta: 'stored on this slot', order: 99 })
           }
@@ -1453,8 +1580,16 @@ app.whenReady().then(async () => {
   // Handlers must exist before the window loads, or the page's first calls race the
   // registration and fail with "No handler registered".
   ipcMain.handle('stack:status', () => status())
-  ipcMain.handle('stack:start', () => startAll())
-  ipcMain.handle('stack:stop', () => stopAll())
+  // Two clicks, or a click while the first start is still waiting on a port, must not spawn twice.
+  let starting = null
+  ipcMain.handle('stack:start', () => {
+    if (!starting) starting = startAll().finally(() => { starting = null })
+    return starting
+  })
+  // The Stop button goes through the same path the build and backup use: this app only owns the
+  // children it spawned, and a stack started from tools/ belongs to the control centre, so a stop
+  // that only kills our own list leaves the server listening and the button doing nothing.
+  ipcMain.handle('stack:stop', () => stopStackFor().then(() => status()))
   ipcMain.handle('stack:launch', () => { launchClient(); return true })
   ipcMain.handle('stack:logs', () => logLines)
   ipcMain.handle('stack:config', () => ({ uiPort, sdkPort: config.sdkPort, gameDir: config.gameDir }))

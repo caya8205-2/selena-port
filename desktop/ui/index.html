@@ -38,7 +38,7 @@
       <div class="rows">
         <div class="row"><span>MongoDB</span><b id="rowMongo">checking…</b></div>
         <div class="row"><span>Server (SDK / game)</span><b id="rowSdk">checking…</b></div>
-        <div class="row"><span>Game directory</span><b id="rowGameDir" class="dim">—</b></div>
+        <div class="row"><span>Game directory</span><b id="rowGameDir" class="dim">-</b></div>
       </div>
 
       <div class="actions">
@@ -48,7 +48,12 @@
       <button class="btn btn--quiet" id="btnOpenLogs">Open logs</button>
       </div>
 
-      <pre class="log" id="log"></pre>
+        <div class="log__head">
+        <span class="log__label">Console</span>
+        <span class="log__meta" data-count="log">Opus 01 · 0 lines</span>
+        <button class="btn btn--quiet" type="button" data-clear="log">Silence</button>
+      </div>
+      <div class="log log--framed" id="log"></div>
     </section>
 
     <section class="view" data-view="gm">
@@ -79,7 +84,12 @@
         <tbody></tbody>
       </table>
 
-      <pre class="log" id="accountsLog"></pre>
+        <div class="log__head">
+        <span class="log__label">Accounts</span>
+        <span class="log__meta" data-count="accountsLog">Opus 01 · 0 lines</span>
+        <button class="btn btn--quiet" type="button" data-clear="accountsLog">Silence</button>
+      </div>
+      <div class="log log--framed" id="accountsLog"></div>
     </div>
   </section>
 
@@ -138,7 +148,12 @@
         <tbody></tbody>
       </table>
 
-      <pre class="log" id="mailLog"></pre>
+        <div class="log__head">
+        <span class="log__label">Mail</span>
+        <span class="log__meta" data-count="mailLog">Opus 01 · 0 lines</span>
+        <button class="btn btn--quiet" type="button" data-clear="mailLog">Silence</button>
+      </div>
+      <div class="log log--framed" id="mailLog"></div>
     </div>
   </section>
 
@@ -189,7 +204,12 @@
           <button class="btn btn--quiet" id="btnOpenBackups">Open backups</button>
         </div>
 
-        <pre class="log" id="configLog"></pre>
+          <div class="log__head">
+        <span class="log__label">Config</span>
+        <span class="log__meta" data-count="configLog">Opus 01 · 0 lines</span>
+        <button class="btn btn--quiet" type="button" data-clear="configLog">Silence</button>
+      </div>
+      <div class="log log--framed" id="configLog"></div>
       </div>
     </section>
 
@@ -204,13 +224,13 @@
         </label>
 
         <div class="rows">
-          <div class="row"><span>Local HEAD</span><b id="updLocal" class="dim">—</b></div>
-          <div class="row"><span>Branch</span><b id="updBranch" class="dim">—</b></div>
-          <div class="row"><span>Working tree</span><b id="updTree" class="dim">—</b></div>
-          <div class="row"><span>Latest on GitHub</span><b id="updSha" class="dim">—</b></div>
-          <div class="row"><span>Message</span><b id="updMsg" class="dim">—</b></div>
-          <div class="row"><span>Date</span><b id="updDate" class="dim">—</b></div>
-          <div class="row"><span>Status</span><b id="updState" class="dim">—</b></div>
+          <div class="row"><span>Local HEAD</span><b id="updLocal" class="dim">-</b></div>
+          <div class="row"><span>Branch</span><b id="updBranch" class="dim">-</b></div>
+          <div class="row"><span>Working tree</span><b id="updTree" class="dim">-</b></div>
+          <div class="row"><span>Latest on GitHub</span><b id="updSha" class="dim">-</b></div>
+          <div class="row"><span>Message</span><b id="updMsg" class="dim">-</b></div>
+          <div class="row"><span>Date</span><b id="updDate" class="dim">-</b></div>
+          <div class="row"><span>Status</span><b id="updState" class="dim">-</b></div>
         </div>
 
         <div class="actions">
@@ -218,7 +238,12 @@
           <button class="btn btn--quiet" id="btnOpenRepo">Open on GitHub</button>
         </div>
         <span class="field__note" id="updNote">Update snapshots the database, stops the stack, pulls fast-forward only, rebuilds and starts it again.</span>
-        <pre class="log" id="updateLog"></pre>
+          <div class="log__head">
+        <span class="log__label">Update</span>
+        <span class="log__meta" data-count="updateLog">Opus 01 · 0 lines</span>
+        <button class="btn btn--quiet" type="button" data-clear="updateLog">Silence</button>
+      </div>
+      <div class="log log--framed" id="updateLog"></div>
       </div>
     </section>
   </main>

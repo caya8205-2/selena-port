@@ -49,17 +49,41 @@ show(restored)
 // ------------------------------------------------------------------- logging
 
 const logBox = document.querySelector('#log')
+const ERROR_LINE = /failed|error|refused|not found|unavailable/i
+
+// One row per line, inside the shared log block, with the header's opus count kept honest.
+function writeLog(box, line, isError) {
+  if (!box) return
+  const row = document.createElement('span')
+  row.className = 'log__line' + (isError ? ' log__line--err' : '')
+  row.textContent = line
+  box.appendChild(row)
+  box.scrollTop = box.scrollHeight
+  const meta = document.querySelector('[data-count="' + box.id + '"]')
+  if (meta) meta.textContent = 'Opus 01 \u00b7 ' + box.children.length + ' lines'
+}
+
 function append(line) {
-  logBox.textContent += line + '\n'
-  logBox.scrollTop = logBox.scrollHeight
+  writeLog(logBox, line, ERROR_LINE.test(line))
 }
 
 function appendTo(id, line) {
-  const box = document.querySelector('#' + id)
-  if (!box) return
-  box.textContent += line + '\n'
-  box.scrollTop = box.scrollHeight
+  writeLog(document.querySelector('#' + id), line, ERROR_LINE.test(line))
 }
+
+// ------------------------------------------------------------- log clearing
+
+// One delegated listener: the Silence buttons sit in the log blocks and clear only their own log, so a tab
+// never wipes a log it does not own. Bound once, because rebinding inside a render stacks handlers.
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-clear]')
+  if (!button) return
+  const log = document.getElementById(button.dataset.clear)
+  if (!log) return
+  log.textContent = ''
+  const meta = document.querySelector('[data-count="' + log.id + '"]')
+  if (meta) meta.textContent = 'Opus 01 \u00b7 0 lines'
+})
 
 window.selena.onLog(append)
 
@@ -666,7 +690,7 @@ function paintUpdate(status) {
   const button = document.querySelector('#btnUpdateNow')
 
   if (!status.ok) {
-    for (const id of ['updLocal', 'updBranch', 'updSha', 'updMsg', 'updDate']) updateRow(id, '—')
+    for (const id of ['updLocal', 'updBranch', 'updSha', 'updMsg', 'updDate']) updateRow(id, '-')
     updateRow('updTree', status.reason, false)
     updateRow('updState', status.reason, false)
     button.disabled = true
@@ -682,7 +706,7 @@ function paintUpdate(status) {
     updateRow('updMsg', status.remote.message, true)
     updateRow('updDate', new Date(status.remote.date).toLocaleString(), true)
   } else {
-    for (const id of ['updSha', 'updMsg', 'updDate']) updateRow(id, '—')
+    for (const id of ['updSha', 'updMsg', 'updDate']) updateRow(id, '-')
   }
 
   const state = !status.remote

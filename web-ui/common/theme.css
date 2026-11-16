@@ -366,6 +366,26 @@ a { color: inherit; text-decoration: none; }
 
 .log { display: flex; flex-direction: column; max-height: 520px; overflow-y: auto; }
 
+/* A log block any surface can mount: the same frame, header and line rhythm the Performance panel
+ * uses. The header carries the surface name, the opus numbering and its clear control. */
+.log__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
+.log__label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-faint); }
+.log__meta { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--silver); }
+.log__head .btn { padding: 5px 12px; font-size: 12px; }
+.log--framed {
+  padding: 12px;
+  min-height: 160px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+}
+.log__line { display: block; white-space: pre-wrap; word-break: break-word; }
+.log__line--err { color: var(--err); }
+
 .entry {
   display: flex;
   flex-direction: column;
@@ -720,6 +740,9 @@ a { color: inherit; text-decoration: none; }
   gap: 12px;
 }
 .field__row > .stepper { flex: 0 0 auto; width: 118px; }
+/* A button label stays on one line: the row gives buttons their own width and lets the inputs
+ * take the rest, so a two word action never stacks into a fat block. */
+.field__row > .btn { flex: 0 0 auto; white-space: nowrap; }
 
 /* ------------------------------------------------------------ custom controls */
 

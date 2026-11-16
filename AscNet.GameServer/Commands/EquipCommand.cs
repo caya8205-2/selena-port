@@ -57,15 +57,20 @@ namespace AscNet.GameServer.Commands
                 case "add":
                     if (Target == "all")
                     {
+                        // The bulk path takes the panel's Amount too, clamped low because every missing entry is
+                        // created that many times: one per entry is the default, a handful is the ceiling.
+                        int bulkCopies = Math.Clamp(Miscs.ParseIntOr(Arg1), 1, 99);
                         HashSet<uint> ownedTemplateIds = session.character.Equips
                             .Select(equip => equip.TemplateId)
                             .ToHashSet();
                         foreach (EquipTable equip in TableReaderV2.Parse<EquipTable>()
                                      .Where(equip => !ownedTemplateIds.Contains((uint)equip.Id)))
                         {
-                            EquipData? newEquip = session.character.AddEquip((uint)equip.Id);
-                            if (newEquip is not null)
+                            for (int index = 0; index < bulkCopies; index += 1)
                             {
+                                EquipData? newEquip = session.character.AddEquip((uint)equip.Id);
+                                if (newEquip is null)
+                                    break;
                                 ownedTemplateIds.Add(newEquip.TemplateId);
                                 notifyEquipData.EquipDataList.Add(newEquip);
                             }

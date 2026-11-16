@@ -1567,8 +1567,9 @@ namespace AscNet.GameServer.Handlers
                 {
                     Slot = slot,
                     Type = request.SelectType!.Value,
-                    // A stat resonance belongs to no construct; only a skill resonance does.
-                    CharacterId = request.SelectType!.Value == EquipResonanceType.Attrib ? 0 : request.CharacterId!.Value,
+                    // A stat resonance carries the construct as well: the client counts a hypertuned
+                    // resonance by this id, so a stat row with 0 never counts toward an awaken.
+                    CharacterId = request.CharacterId!.Value,
                     TemplateId = selectedId,
                     UseItemId = request.UseItemId
                 });
