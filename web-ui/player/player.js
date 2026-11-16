@@ -294,25 +294,9 @@
     if (!host || !native) return;
 
     if (!accountMirror) {
-      // The first control on a real page that uses the bundled element. It wraps the same factory,
-      // so the fallback path below stays for anything that loads without the bundle.
-      if (window.customElements && customElements.get("sel-select")) {
-        var element = document.createElement("sel-select");
-        element.search = "Filter accounts";
-        element.addEventListener("change", function (event) {
-          native.value = event.detail.value;
-          native.dispatchEvent(new Event("change", { bubbles: true }));
-        });
-        host.appendChild(element);
-        native.classList.add("is-mirrored");
-        native.tabIndex = -1;
-        native.setAttribute("aria-hidden", "true");
-        accountMirror = {
-          setOptions: function (list, value) { element.options = list; element.value = value; },
-          setValue: function (value) { element.value = value; },
-        };
-      } else {
-      accountMirror = window.SelenaUI.select([], {
+      // The bundled element on a real page, the factory control otherwise. Both answer the same
+      // handle, so the code below never learns which one it got.
+      accountMirror = window.SelenaUI.picker([], {
         value: native.value,
         search: "Filter accounts",
         onChange: function (value) {
@@ -324,7 +308,6 @@
       native.classList.add("is-mirrored");
       native.tabIndex = -1;
       native.setAttribute("aria-hidden", "true");
-      }
     }
 
     accountMirror.setOptions(Array.from(native.options).map(function (option) {
@@ -678,9 +661,10 @@
     }
 
     if (field.type === "select") {
-      // The panel draws its own dropdown here too: a native popup is the one OS control that does
-      // not follow the console.
-      var picker = window.SelenaUI.select([{ value: "", label: field.placeholder || "None" }], {
+      // The bundled element when the page has it, the factory control otherwise: the panel's own
+      // dropdown either way, because a native popup is the one OS control that does not follow
+      // the console.
+      var fieldPicker = window.SelenaUI.picker([{ value: "", label: field.placeholder || "None" }], {
         value: "",
         search: field.label || "Filter",
         tip: field.hint || field.label || "",
@@ -693,13 +677,13 @@
 
       (field.options || function () { return Promise.resolve([]); })()
         .then(function (list) {
-          picker.setOptions([{ value: "", label: field.placeholder || "None" }].concat((list || []).map(function (item) {
+          fieldPicker.setOptions([{ value: "", label: field.placeholder || "None" }].concat((list || []).map(function (item) {
             return { value: String(item.value), label: item.label };
           })), "");
         })
         .catch(function () { /* placeholder stays; Perform has nothing to send */ });
 
-      wrap.appendChild(picker.node);
+      wrap.appendChild(fieldPicker.node);
       return;
     }
 
@@ -1253,7 +1237,7 @@
           value: memory.id,
           label: memory.name + " · " + memory.star + "★",
         })));
-        const picker = window.SelenaUI.select(list, {
+        const picker = window.SelenaUI.picker(list, {
           value: design.slots[slot],
           search: "Filter memories",
           tip: "Memory for slot " + slot + ". Every memory the tables put in this slot is listed.",
@@ -1299,13 +1283,13 @@
             continue;
           }
 
-          const top = window.SelenaUI.select([{ value: 0, label: "stat: none" }], {
+          const top = window.SelenaUI.picker([{ value: 0, label: "stat: none" }], {
             value: design.resonances[slot].top,
             search: "Filter stats",
             tip: "Resonance slot 1 of this memory: the stat pool the tables give it.",
             onChange: function (value) { design.resonances[slot].top = Number(value); },
           });
-          const bottom = window.SelenaUI.select([{ value: 0, label: "skill: none" }], {
+          const bottom = window.SelenaUI.picker([{ value: 0, label: "skill: none" }], {
             value: design.resonances[slot].bottom,
             search: "Filter skills",
             tip: "Resonance slot 2 of this memory: the construct's own skill pool.",
@@ -1346,7 +1330,7 @@
       const weaponSection = section("Weapon");
       const equipType = (state.detail && state.detail.equipType) || 0;
       const carried = (state.catalog.weapons || []).filter((weapon) => !equipType || weapon.type === equipType);
-      const weaponPicker = window.SelenaUI.select([{ value: 0, label: "empty" }].concat(carried
+      const weaponPicker = window.SelenaUI.picker([{ value: 0, label: "empty" }].concat(carried
         .sort((left, right) => left.star - right.star || String(left.name).localeCompare(String(right.name)))
         .map((weapon) => ({ value: weapon.id, label: weapon.name + " · " + weapon.star + "★" }))), {
         value: design.weapon.templateId,
@@ -1404,7 +1388,7 @@
             weaponGrid.appendChild(cell);
             continue;
           }
-          const picker = window.SelenaUI.select([{ value: 0, label: "none" }], {
+          const picker = window.SelenaUI.picker([{ value: 0, label: "none" }], {
             value: design.weaponResonances[slot - 1] || 0,
             search: "Filter skills",
             tip: "Weapon resonance " + slot + ": the class skill pool the tables give this weapon.",
@@ -1429,7 +1413,7 @@
       // Harmony names a set, never a memory: an active harmony counts as two pieces of that set,
       // so four signature memories plus harmony already complete a four piece bonus.
       const harmony = section("Harmony", "one set, counted as two pieces");
-      const harmonyPicker = window.SelenaUI.select([{ value: 0, label: "none" }], {
+      const harmonyPicker = window.SelenaUI.picker([{ value: 0, label: "none" }], {
         value: design.weapon.harmonySuit,
         search: "Filter sets",
         tip: "Harmony borrows a memory set. Pick the set, not a memory: the weapon then counts as two pieces of it.",

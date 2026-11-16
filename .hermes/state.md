@@ -10,7 +10,10 @@ moment they cost time. A stale note is worse than no note, because it is trusted
 session starts without its earlier context, read this file first, then `git log -5`, then the
 files it names. Do not rely on memory for ports, paths or column names.
 
-Last updated: the acting-account channel - commands run for a database-picked account, no sign-in.
+Last updated: the docs were brought back in line with the code, and every panel select now builds the
+bundled element through `SelenaUI.picker`, with the factory kept as the proven fallback. Section 8
+lists what is still open; section 9 describes the build writer; section 10 carries the game
+vocabulary.
 
 ---
 
@@ -163,6 +166,35 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
   and the rail's sign-in/status block are gone, the "Acting as" dropdown drives every command, and
   the shared action row gained Tutti (arm, then confirm within five seconds) for every section
   that can speak for all entries.
+- Construct tune in one pass: `AscNet.GameServer/TuneBuilder.cs` writes level, rank, promotion, six
+  memories with level, breakthrough, hypertune and two resonances each, the weapon with its three
+  resonances and the harmony set. `POST /api/admin/tune` on the SDK is proxied by the shell as
+  `/api/panel/tune`; the modal in `web-ui/player/player.js` fills its pickers from
+  `/api/panel/tune-catalog` and `/api/panel/tune-character/<id>`, both built in `desktop/main.js`
+  out of the tables alone, because no account is consulted to draw a form. Perform stays the only
+  write, and the tune spends nothing: it writes state, it does not replay the upgrade curve.
+- Resonance labels read from tables, never invented: a memory's upper slot lists the three orb
+  levels and the basic attack (skill types 5, 6, 7, 9), the lower slot the signature move, QTE, core
+  passive and class skill (types 1, 2, 3, 4), both filtered by the construct through its skill
+  groups. Weapon resonance is named by pool position per class, with the class read from
+  `Character.tsv.Career`. `06f98ec`, `af28547`, `a063f42`, `01891b1` and `2000307` are that pass.
+- Weapon rarity gates the feature, in the writer: `TuneBuilder` refuses a resonance or a harmony on
+  a weapon below 6 star, and the message names the weapon and its star. 5 star resonates flat attack
+  only, 4 star is the default weapon and gets nothing custom; the panel shows that where it cannot
+  offer the pickers. The refusal has no test flag of its own yet, so it is covered on the panel path
+  only.
+- Dorm and guild exist in the player panel: `dorm info|fill <room|all>` and
+  `guild info|grant exp|fund|contribution <n> [confirm]`, both answered on
+  `POST /api/admin/command/{name}` so the panel needed no new endpoint. `dorm fill all` granted 1008
+  of the 1024 table pieces and a Cafe fill 18; guild grants move only their own store through
+  `GuildModule.Commit`, and `fund` and `contribution` credit the same pool by design.
+- Design pass, all in `web-ui/common/theme.css` plus the two panel stylesheets: five-line staff
+  under the page title, a hairline `staff--corner` mark on a framed box, an iris watermark at 4.5%
+  behind the Performance panel, a four-petal burst on a successful Perform, a three-bar score meter
+  beside the preview, a spotlight gradient on rail hover, indigo `::selection` with pale gold text
+  and near white Perform text. Rail icons are drawn per section: a butterfly for Coatings, a
+  crescent for Scenes. `DESIGN.md` is the direction and `references/design-language.md` in the skill
+  holds the measured contrast table.
 
 
 ### Scroll containers (one rule, keep it)
@@ -292,26 +324,40 @@ override and every height reads short (a 764 window measured 429 and looked like
 - The shell page served over HTTP has no `window.selena` (the bridge is Electron IPC), so a
   layout or flow test needs `Page.addScriptToEvaluateOnNewDocument` with a stub that returns the
   real token from `admin-token.txt`. That worked for the whole Mail tab, send included.
+- A probe that reads `.sel__option` across the whole page collects the stale list of every picker
+  opened before it, because a closed popover keeps its rows. Scope the query to one control's own
+  `.sel__pop`, or the reading mixes two lists and looks like a control that ignored a pick.
+- A tip on the element host answers for the whole box and hangs over the open list. Pass the tip as
+  the `tip` property: the element forwards it to its inner button, which is the target that
+  describes the control.
 
-## 8. Next after this feature
+## 8. Remaining work
 
-Plan order is A, B, C, E, F, D (see `plans/2026-11-15_112155-inventory-ops-dashboard.md`);
-A, B, C, E and F are done.
+The list lives in `plans/2026-11-16_081900-remaining-polish.md`; this is its state on disk, checked
+against the code.
 
-- G dorm and H guild are planned in `plans/2026-11-15_112155-inventory-ops-dashboard.md` (tasks,
-  open questions and verification each); both need server handlers or command wrappers over the
-  modules that already exist.
-- D character builder is done: the read model, the rank walk, the memory build (level, breakthrough,
-  awaken, resonance) and the weapon overrun all run the game's own handlers, the panel's Construct
-  tab drives them, and `--character-builder-only` / `--equip-builder-only` prove both halves.
-- Mail left open by design: the in-game claim check, and no delete/unread management in the
-  panel (the plan scoped sending only).
+- Task 1, design details: shipped except a reduced-motion guard (the petal burst, the meter and the
+  rail spotlight animate with no `prefers-reduced-motion` rule anywhere) and the author credit line,
+  which waits for the owner's text. The score meter stays hidden when idle instead of drawn still,
+  because three static bars at 12px read as an ellipsis.
+- Task 2, tune presets: not started. It waits on the owner's choice of memory and weapon defaults
+  per preset; a preset fills the modal and Perform stays the only write.
+- Task 3, harmony confirmation: waiting on the owner's end-to-end test. Do not change the writer
+  before that answer: whether the two piece effect needs `WeaponOverrunData.Level` raised first is
+  still unknown.
+- Task 4, weapon catalog edge cases: the `EquipType` question (all three Lee frames share 1, so they
+  see each other's weapons) is the owner's to confirm; the `Level = 0` case follows task 3.
+- Task 5, the remaining panel selects: the form selects in both panels and the ones inside the tune
+  modal now build the bundled element, with the factory kept behind it as the fallback. See the Lit
+  components note in section 10.
+- Task 6, testing owed: dorm and guild Perform from the panel against uid 2, a tune with a full six
+  memory build and a 6 star weapon followed by a client login, and the shell account list, which
+  needs the real Electron window because it reads the preload bridge.
 - Accounts still needs currency, unlock character and max character through the admin channel.
-- Character builder needs the rank and resonance model (S0-S10, SS, PPC skulls, memory
-  resonance presets per construct) before any UI is worth building.
+- Mail stays send-only by design, and one in-game claim of a panel mail has not been clicked.
 
 
-## 9. Construct builder (phase D)
+## 9. Construct build: piece work and the tune writer
 
 - `character info <id>` reads a build: progression, the `next` step with its cost, the account's
   memories (worn first, then the spare pile) and the weapons.
@@ -335,6 +381,32 @@ A, B, C, E and F are done.
   `WeaponSkillPool.tsv`. Generic sets carry four attrib entries on both slots.
 - An admin `equip add` leaves a memory unbound (`CharacterId` 0); the game binds it when the client
   equips it. The panel marks those rows `spare`, so a build made of grants reads honestly.
+
+### The tune writer
+
+`AscNet.GameServer/TuneBuilder.cs` writes a whole build in one pass, and it is the one place that
+does not replay the upgrade curve: it reads no account, spends no shard, cog or item, and states the
+build it was given. `POST /api/admin/tune` takes a `TuneRequest` and answers a `TuneReport`; the
+shell proxies it as `/api/panel/tune`.
+
+- Request: `character {level, quality, star, grade}`, up to six `memories [{slot, templateId, top,
+  bottom}]`, one `memoryLevel` shared by those six, one `hypertune` switch, and one
+  `weapon {templateId, level, resonance[3], harmonySuit}`.
+- Out of range values are clamped, not refused: level to the `LevelUpTemplateId` maximum, quality to
+  `[base gacha rank, table maximum]`, star to that quality's star step count (a star carried into
+  SSS+ is dropped), grade to the table maximum. A template that is not a memory or not a weapon in
+  `Equip.tsv` is refused by name.
+- A memory the construct already holds is reused, so its equip id stays stable across tunes; a build
+  that names fewer than six removes the stale rows, because a seventh memory keeps showing in the
+  client grid. Both resonance slots are written here and a resonance is what binds the memory to the
+  construct, so no later equip step has to do it.
+- Hypertune is the awaken state: `AwakeSlotList` holds the resonance slots that exist, which is what
+  `AwarenessModule.LeveledEvents` counts. A slot with no resonance has nothing to awaken.
+- Harmony writes `ChoseSuit`, appends the set to `ActiveSuits` and sets `Level` to the highest
+  `WeaponOverrun.Level` the weapon has. A weapon with no `WeaponOverrun` rows keeps `Level` 0, and
+  whether that blocks the two piece effect is still the open question in section 8.
+- Rank and promotion in the report are labelled from the tables (`RankName`, `PromotionName`), never
+  from a hand map.
 
 
 ## 10. PGR domain model, in the game's own words
@@ -490,8 +562,18 @@ Weapon, Construct. Never "quality 3" for S, never "awaken" for Hypertune, never
 wrappers over `SelenaUI.select`, `toggle` and `slider`, no shadow root so `theme.css` tokens still
 apply. `desktop/build-components.mjs` bundles them with esbuild (`nodePaths` into
 `desktop/node_modules`, because the sources live under `web-ui`) to `web-ui/common/components.js`,
-which the panel server already serves. The bundle builds and defines all three elements; no page
-uses them yet, so nothing is migrated beyond that.
+which the panel server already serves. The bundle builds and defines all three elements.
+
+`SelenaUI.picker(options, settings)` in `ui.js` is the single shape every call site uses now: it
+answers the element when the bundle is on the page and the factory control when it is not, with the
+same handle (`node`, `value()`, `setOptions`, `setValue`, `setDisabled`). The form selects in both
+panels, the pickers inside the tune modal and both acting-account pickers go through it, so a page
+never learns which control it got. The fallback is proven by loading a page with `components.js`
+blocked: the same lists render from the factory.
+
+A tip travels as the element's `tip` property, never as a `data-tip` on the host: the element hands
+it to its own button. A tip on the host answers for the whole box, including the open list, and hangs
+over it.
 
 ### Browser harness on this machine
 

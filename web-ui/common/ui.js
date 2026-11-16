@@ -660,6 +660,47 @@
     };
   }
 
+  /* A dropdown that is the bundled element when the page has it, and the factory control when it
+   * does not. Both answer the same handle, so a caller keeps one shape while the surface moves to
+   * the elements: node, value(), setOptions, setValue, setDisabled. */
+  function picker(options, settings) {
+    settings = settings || {};
+
+    if (!(window.customElements && customElements.get("sel-select"))) {
+      return select(options || [], settings);
+    }
+
+    function normalise(list) {
+      return (list || []).map(function (option) {
+        return { value: String(option.value), label: option.label };
+      });
+    }
+
+    var element = document.createElement("sel-select");
+    if (settings.search) element.search = settings.search;
+    if (settings.placeholder) element.placeholder = settings.placeholder;
+    if (settings.tip) element.tip = settings.tip;
+    element.disabled = settings.disabled === true;
+    // Assigned before the element is in the document: it applies them when it builds its control,
+    // because the page usually fills a picker first and mounts it afterwards.
+    element.options = normalise(options);
+    element.value = settings.value === undefined ? "" : String(settings.value);
+    element.addEventListener("change", function (event) {
+      if (settings.onChange) settings.onChange(event.detail.value);
+    });
+
+    return {
+      node: element,
+      value: function () { return element.value; },
+      setOptions: function (next, value) {
+        element.options = normalise(next);
+        if (value !== undefined) element.value = String(value);
+      },
+      setValue: function (value) { element.value = String(value); },
+      setDisabled: function (disabled) { element.disabled = disabled === true; },
+    };
+  }
+
   function toggle(settings) {
     settings = settings || {};
     var wrap = document.createElement("label");
@@ -758,7 +799,7 @@
     return { node: wrap, value: function () { return value; }, set: set };
   }
 
-  window.SelenaUI = { combo: combo, stepper: stepper, entry: entry, resetLog: resetLog, initTooltips: initTooltips, hideTip: hideTip, grid: grid, select: select, toggle: toggle, slider: slider };
+  window.SelenaUI = { combo: combo, stepper: stepper, entry: entry, resetLog: resetLog, initTooltips: initTooltips, hideTip: hideTip, grid: grid, select: select, picker: picker, toggle: toggle, slider: slider };
 })();
 
 window.SelenaUI.initTooltips();

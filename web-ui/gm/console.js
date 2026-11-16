@@ -379,8 +379,9 @@
     }
 
     if (field.type === "select") {
-      // The panel draws its own dropdown: a native popup is the one OS control left.
-      var picker = window.SelenaUI.select([{ value: "", label: field.placeholder || "None" }], {
+      // The bundled element when the page has it, the factory control otherwise: the panel draws
+      // its own dropdown either way, a native popup is the one OS control left.
+      var fieldPicker = window.SelenaUI.picker([{ value: "", label: field.placeholder || "None" }], {
         value: "",
         search: field.label || "Filter",
         tip: field.hint || field.label || "",
@@ -393,13 +394,13 @@
 
       (field.options || function () { return Promise.resolve([]); })()
         .then(function (list) {
-          picker.setOptions([{ value: "", label: field.placeholder || "None" }].concat((list || []).map(function (item) {
+          fieldPicker.setOptions([{ value: "", label: field.placeholder || "None" }].concat((list || []).map(function (item) {
             return { value: String(item.value), label: item.label };
           })), "");
         })
         .catch(function () { /* the placeholder stays, so Perform simply has nothing to do */ });
 
-      wrap.appendChild(picker.node);
+      wrap.appendChild(fieldPicker.node);
       return;
     }
 
@@ -815,30 +816,16 @@
 
     if (!accountPicker) {
       // The bundled element when the page has it, the factory otherwise: one control either way.
-      if (window.customElements && customElements.get("sel-select")) {
-        var element = document.createElement("sel-select");
-        element.search = "Filter accounts";
-        element.addEventListener("change", function (event) {
-          var chosen = accounts.filter(function (account) { return String(account.uid) === String(event.detail.value); })[0];
+      accountPicker = window.SelenaUI.picker([], {
+        value: value,
+        search: "Filter accounts",
+        onChange: function (picked) {
+          var chosen = accounts.filter(function (account) { return String(account.uid) === String(picked); })[0];
           if (chosen) localStorage.setItem("selena.activeAccount", JSON.stringify({ uid: chosen.uid, username: chosen.username }));
-          if (native) native.value = String(event.detail.value);
-        });
-        host.appendChild(element);
-        accountPicker = {
-          setOptions: function (list, picked) { element.options = list; element.value = picked; },
-        };
-      } else {
-        accountPicker = window.SelenaUI.select([], {
-          value: value,
-          search: "Filter accounts",
-          onChange: function (picked) {
-            var chosen = accounts.filter(function (account) { return String(account.uid) === String(picked); })[0];
-            if (chosen) localStorage.setItem("selena.activeAccount", JSON.stringify({ uid: chosen.uid, username: chosen.username }));
-            if (native) native.value = String(picked);
-          },
-        });
-        host.appendChild(accountPicker.node);
-      }
+          if (native) native.value = String(picked);
+        },
+      });
+      host.appendChild(accountPicker.node);
 
       // Whatever is in front, the native select only holds the value and never shows.
       if (native) {

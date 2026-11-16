@@ -63,6 +63,13 @@ The remaining selects inside the forms still call `SelenaUI.select` directly thr
 `fieldControl` in both panels. Move them one surface at a time, keep the factory path as the
 fallback, and reload the frames only.
 
+**Done.** `SelenaUI.picker` in `ui.js` returns the element when the bundle is on the page and the
+factory otherwise, with one handle for both, and every call site goes through it: the `select`
+branch of `fieldControl` in both panels, the six pickers inside the tune modal, and the two
+acting-account pickers. The fallback is proven by loading a page with `components.js` blocked. The
+element now takes its tip as a `tip` property and hands it to its inner button, so the tip does not
+answer from the host box or hang over the open list.
+
 ## 6. Testing owed
 
 - Dorm and guild Perform from the panel, against uid 2, then read the account back. The commands

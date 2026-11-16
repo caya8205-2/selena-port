@@ -8,7 +8,12 @@ import { LitElement, html } from 'lit'
  * No shadow root: the Selena tokens live in theme.css, and a shadow boundary would strand them.
  */
 
-const CONTROL_TIP = (element) => element.getAttribute('data-tip') || ''
+/*
+ * The tip belongs on the element's own button, not on the host: a tip on the host answers for the
+ * whole box, including the open list, and hangs over it. So a caller sets the `tip` property and the
+ * data-tip attribute stays as the fallback for markup that already carries one.
+ */
+const CONTROL_TIP = (element) => element.tip || element.getAttribute('data-tip') || ''
 
 class SelSelect extends LitElement {
   static properties = {

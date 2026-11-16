@@ -104,16 +104,23 @@ Implemented in `web-ui/common/theme.css`, `web-ui/player/**` and `web-ui/gm/**`:
   beside the active section marker.
 - Microcopy: Score, Score preview, Performance, Perform, Silence, Opus numbering in the log.
 - Sound cues with a mute button, thin indigo scrollbars.
+- Perform text in near white (`#f8fafc`), measured at 5.15:1 on the button fill.
+- A hairline staff accent under the Performance header (`staff--corner` on a framed box) and an
+  f-hole style corner mark; one use per view, never a background.
+- A low-opacity iris watermark in the corner of the Performance panel (4.5%, behind content).
+- A theatre spotlight gradient on rail hover instead of a flat block change.
+- The amber warning banner recoloured to the palette: champagne gold text on a raised indigo
+  surface with a gold hairline.
+- `::selection` in translucent periwinkle with pale gold text.
+- Equalizer bars beside the score preview; they move only while a request is in flight and stay
+  hidden when idle, because three static bars at 12px read as an ellipsis.
+- Section icons drawn for the section: a butterfly for Coatings, a crescent for Scenes, a house for
+  Dorm, a pair of figures for Guild.
 
 ## Open suggestions, not yet applied
 
-- Perform button text in pale gold (`#f3e5ab`) or near white (`#f8fafc`) instead of dimmed text.
-- A staff-line accent under the header of the Performance panel, and an f-hole corner mark on
-  framed boxes.
-- A low-opacity iris or clef watermark in the corner of the Performance panel.
-- A theatre spotlight gradient on rail hover instead of a flat block change.
-- The amber warning banner recoloured to deep indigo with champagne gold text so it belongs to the
-  palette.
-- `::selection` in translucent periwinkle with pale gold text.
-- Equalizer bars beside the score preview that move while the input is being written.
+- A reduced-motion preference. The petal burst, the meter and the rail spotlight all animate with
+  no `prefers-reduced-motion` guard anywhere in the stylesheets.
+- An author credit line beside the dedication line in the footer. The text is the owner's, so it
+  waits for a name.
 - Lore quotes in empty panels, chosen per panel rather than one repeated line.
