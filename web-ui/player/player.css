@@ -423,5 +423,9 @@
 }
 
 /* The native account select stays as the value holder and is never shown. */
-.account-picker { min-width: 220px; }
+/* The card fits the name it holds; the popover keeps a floor so a long username still reads in the list. */
+.account-picker { width: max-content; min-width: 0; }
+.account-picker .sel { width: max-content; }
+.account-picker .sel__button { width: auto; padding-right: 12px; }
+.account-picker .sel__pop { min-width: max(100%, 200px); }
 .is-mirrored { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
