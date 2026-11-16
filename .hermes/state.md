@@ -115,6 +115,18 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
 - A mail is a `PlayerMail` with `Type` 0 and `GroupId` 0, exactly like `Configs/system_mails.json`;
   `ExpireTime` 0 never expires and the claim key falls back to `mail:{id}`. An online player gets
   `NotifyMails` pushed at delivery, an offline one gets the row at the next login.
+- The welcome mail lives in `Resources/Configs/system_mails.json` and `MailModule.EnsureSystemMails`
+  issues it at login to any account whose mail list lacks its `Id`. So the id decides the audience:
+  keep it and only accounts that never received it (new ones) see the current text; change it and
+  every existing account is handed the new mail at its next login, the old row included. It is
+  branded to this fork now: gold sender `Selena-port`, English only, the free and no-payment
+  statement the upstream authors wrote kept intact, still undeletable. The file is read at every
+  login with no cache, but `AscNet/bin/Debug/net8.0/Configs` is a PreserveNewest copy, so the runtime
+  file has to be updated too when the stack is not rebuilt.
+- The login world-chat greeting (`AccountModule`, the seeded marquee message) is the second branded
+  string and lives in C#: `Hello <name>! Welcome to Selena-port. Read your mail if you have not
+  already.` It ships with a server build, so a change there needs the stack stopped, the build and a
+  restart.
 - Attachments are validated at creation by `MailModule.CreateAttachment`, which runs the same
   `TryProjectReward` the claim runs: equip/character/fashion ids must be count 1, item ids must be
   a client item id. Item ids that exist only in `BigWorldItem.tsv` are accepted (`999999`

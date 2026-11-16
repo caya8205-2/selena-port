@@ -1556,7 +1556,7 @@ namespace AscNet.GameServer.Handlers
             // time the client never creates the marquee component. (Regressed when the payload
             // integration moved world-chat delivery to the EnterWorldChatRequest response.)
             NotifyWorldChat loginWorldChat = new();
-            loginWorldChat.ChatMessages.Add(ChatModule.MakeLuciaWorldMessage($"Hello {session.player.PlayerData.Name}! Welcome to AscNet, please read your mails if you haven't already.\n如果您还没有阅读邮件，请阅读邮件\n\nTry '/help' to get started"));
+            loginWorldChat.ChatMessages.Add(ChatModule.MakeLuciaWorldMessage($"Hello {session.player.PlayerData.Name}! Welcome to Selena-port. Read your mail if you have not already.\nTry '/help' to get started"));
             session.SendPush(loginWorldChat);
             SendEmptyStartupPush(session, "NotifyGuildWarActivityData");
             SendEmptyStartupPush(session, "NotifyWheelchairManualActivityUpdate");
