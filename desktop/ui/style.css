@@ -92,11 +92,17 @@ body {
 .form__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .form__label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-faint); }
 .form__meta { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+.view__grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 396px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
 .form {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: 900px;
   padding: 16px;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -134,7 +140,6 @@ body {
 
 /* The log block itself comes from the shared theme so every surface frames it the same way. */
 /* The log panel is the same panel the Performance block uses: one frame, head and body, no second box. */
-.view .panel { max-width: 900px; margin-top: 18px; }
 .panel__head .btn { padding: 4px 10px; font-size: 11px; }
 .panel__body .log { max-height: 240px; }
 

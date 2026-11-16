@@ -66,7 +66,8 @@ function writeLog(box, line, isError) {
   time.textContent = new Date().toTimeString().slice(0, 8)
   const text = document.createElement('span')
   text.className = 'entry__cmd'
-  text.textContent = line
+  // App lines already carry their own clock; the entry adds one, so the leading stamp is dropped.
+  text.textContent = line.replace(/^\d{1,2}:\d{2}:\d{2}(\s?[APap][Mm])?\s+/, '')
   const tag = document.createElement('span')
   tag.className = 'entry__tag'
   tag.textContent = isError ? 'error' : 'ok'
@@ -77,7 +78,10 @@ function writeLog(box, line, isError) {
   box.scrollTop = box.scrollHeight
 
   const meta = document.querySelector('[data-count="' + box.id + '"]')
-  if (meta) meta.textContent = 'Opus 01 \u00b7 ' + box.querySelectorAll('.entry').length + ' lines'
+  if (meta) {
+    const count = box.querySelectorAll('.entry').length
+    meta.textContent = 'Opus 01 \u00b7 ' + count + (count === 1 ? ' line' : ' lines')
+  }
 }
 
 function append(line) {
