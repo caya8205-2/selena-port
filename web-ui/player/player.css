@@ -392,31 +392,6 @@
 
 /* The tune surface is a modal because a build is written in one pass: the card behind it stays
  * as the reference, and nothing is committed until Perform. */
-.modal { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; }
-.modal[hidden] { display: none; }
-.modal__scrim { position: absolute; inset: 0; background: rgba(8, 10, 18, 0.74); backdrop-filter: blur(3px); }
-.modal__panel {
-  position: relative;
-  width: min(900px, calc(100vw - 48px));
-  max-height: calc(100vh - 56px);
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--line-strong);
-  border-radius: 4px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
-}
-.modal__head { display: flex; align-items: center; justify-content: space-between; padding: 15px 20px; border-bottom: 1px solid var(--line); }
-.modal__title { margin: 0; font-family: var(--serif); font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--silver); }
-.modal__close { background: none; border: 0; color: var(--text-faint); font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; }
-.modal__close:hover { color: var(--silver); }
-.modal__body { padding: 18px 20px; overflow-y: auto; display: grid; gap: 22px; }
-.modal__foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 20px; border-top: 1px solid var(--line); }
-.modal__note { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
-.modal__panel--narrow { width: min(560px, calc(100vw - 48px)); }
-.modal__actions { display: flex; align-items: center; gap: 10px; }
-.tutti__lead { margin: 0; font-size: 13px; line-height: 1.65; color: var(--text-dim); max-width: 60ch; }
-
 .tune { display: grid; gap: 10px; }
 .tune__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .tune__label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-faint); }

@@ -204,16 +204,80 @@ async function loadAccounts() {
   }
 }
 
+// Electron does not implement window.prompt: it returns undefined, so every flow that asked for a value
+// through it did nothing. One dialog serves the three account actions instead.
+function openDialog(options) {
+  return new Promise((resolve) => {
+    const modal = document.querySelector('#shellDialog')
+    const body = document.querySelector('#dialogBody')
+    const confirm = document.querySelector('#dialogConfirm')
+    const cancel = document.querySelector('#dialogCancel')
+    const scrim = modal.querySelector('.modal__scrim')
+
+    document.querySelector('#dialogTitle').textContent = options.title
+    document.querySelector('#dialogNote').textContent = options.note || ''
+    confirm.textContent = options.confirmLabel || 'Save'
+    body.textContent = ''
+
+    const inputs = {}
+    for (const field of options.fields || []) {
+      const wrap = document.createElement('label')
+      wrap.className = 'field'
+      const label = document.createElement('span')
+      label.className = 'field__label'
+      label.textContent = field.label
+      const input = document.createElement('input')
+      input.className = 'input' + (field.type === 'number' ? ' input--mono' : '')
+      input.type = field.type === 'number' ? 'number' : 'text'
+      input.value = field.value === undefined ? '' : String(field.value)
+      wrap.append(label, input)
+      body.appendChild(wrap)
+      inputs[field.key] = input
+    }
+
+    function finish(value) {
+      modal.hidden = true
+      confirm.removeEventListener('click', onConfirm)
+      cancel.removeEventListener('click', onCancel)
+      scrim.removeEventListener('click', onCancel)
+      document.removeEventListener('keydown', onKey)
+      resolve(value)
+    }
+    function onConfirm() {
+      const values = {}
+      for (const key of Object.keys(inputs)) values[key] = inputs[key].value
+      finish(values)
+    }
+    function onCancel() { finish(null) }
+    function onKey(event) { if (event.key === 'Escape') finish(null) }
+
+    confirm.addEventListener('click', onConfirm)
+    cancel.addEventListener('click', onCancel)
+    scrim.addEventListener('click', onCancel)
+    document.addEventListener('keydown', onKey)
+
+    modal.hidden = false
+    const first = Object.values(inputs)[0]
+    if (first) first.focus()
+  })
+}
+
 async function editAccount(account) {
-  const name = window.prompt('Commandant name', account.playerName || '')
-  if (name === null) return
-  const level = window.prompt('Level', String(account.level || 1))
-  if (level === null) return
+  const values = await openDialog({
+    title: 'Edit ' + account.username,
+    note: 'UID ' + account.uid,
+    confirmLabel: 'Save',
+    fields: [
+      { key: 'name', label: 'Commandant name', value: account.playerName || '' },
+      { key: 'level', label: 'Level', type: 'number', value: account.level || 1 },
+    ],
+  })
+  if (!values) return
 
   try {
     await adminRequest(`/api/admin/accounts/${account.uid}/player`, {
-      Name: name.trim() || null,
-      Level: Number(level) > 0 ? Number(level) : null,
+      Name: values.name.trim() || null,
+      Level: Number(values.level) > 0 ? Number(values.level) : null,
     })
     appendTo('accountsLog', `updated ${account.username}`)
     loadAccounts()
@@ -223,9 +287,14 @@ async function editAccount(account) {
 }
 
 async function confirmAccountAction(kind, account) {
-  const typed = window.prompt(`Type ${account.username} to ${kind} UID ${account.uid}`)
-  if (typed === null) return
-  if (typed.trim() !== account.username) {
+  const values = await openDialog({
+    title: (kind === 'delete' ? 'Delete ' : 'Reset ') + account.username,
+    note: `UID ${account.uid}, type the username to confirm`,
+    confirmLabel: kind === 'delete' ? 'Delete' : 'Reset',
+    fields: [{ key: 'typed', label: 'Username', value: '' }],
+  })
+  if (!values) return
+  if (values.typed.trim() !== account.username) {
     appendTo('accountsLog', `${kind} cancelled: the username did not match`)
     return
   }

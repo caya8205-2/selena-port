@@ -288,6 +288,24 @@
       <div class="log log--framed" id="updateLog"></div>
       </div>
     </section>
+  <div class="modal" id="shellDialog" hidden>
+    <div class="modal__scrim" data-close="dialog"></div>
+    <div class="modal__panel modal__panel--narrow" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+      <header class="modal__head">
+        <h2 class="modal__title" id="dialogTitle">Edit</h2>
+        <button class="modal__close" type="button" data-close="dialog">Close</button>
+      </header>
+      <div class="modal__body" id="dialogBody"></div>
+      <footer class="modal__foot">
+        <span class="modal__note" id="dialogNote"></span>
+        <span class="modal__actions">
+          <button class="btn btn--quiet" id="dialogCancel" type="button">Cancel</button>
+          <button class="btn btn--primary" id="dialogConfirm" type="button">Save</button>
+        </span>
+      </footer>
+    </div>
+  </div>
+
   </main>
 <script src="/common/ui.js"></script>
 <script src="/common/components.js"></script>
