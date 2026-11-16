@@ -325,6 +325,11 @@
 
   /* The list comes from the server's admin endpoints, so it appears as soon as the server runs:
    * nothing here needs a signed-in game session. */
+  /* The list and the signature that decides when it needs rebuilding live at module scope: the poll runs
+   * outside every section renderer, and `state` there belongs to the build card, not to this file. */
+  var accountList = [];
+  var accountSignature = null;
+
   async function loadAccounts() {
     var select = $("#accountSelect");
 
@@ -335,19 +340,24 @@
       var accounts = (payload && payload.accounts) || [];
 
       if (accounts.length === 0) {
-        select.parentElement.hidden = true;
+        /* The block stays where it is: hiding it on an empty read hid the picker for good, because the
+         * poll below never brought it back. */
+        accountList = [];
         fillPreviewPlaceholder("no account in the database yet - create one from the Accounts tab");
         return;
       }
 
-      // A player who signs in changes the list behind this picker, so the list is re-read on a timer and
-      // on focus. The rebuild only happens when something actually changed, or the picker would reset the
-      // selection under the user every few seconds.
+      accountList = accounts;
+      select.parentElement.hidden = false;
+
+      /* A player who signs in changes the list behind this picker, so it is re-read on a timer and on
+       * focus; the rebuild only happens when something actually changed, or the picker would reset the
+       * selection under the user every five seconds. */
       var signature = accounts.map(function (account) {
         return account.uid + ":" + (account.playerPresent ? "1" : "0") + ":" + (account.level || 0);
       }).join("|");
-      if (signature === state.accountSignature) return;
-      state.accountSignature = signature;
+      if (signature === accountSignature) return;
+      accountSignature = signature;
 
       var stored = null;
       try { stored = JSON.parse(localStorage.getItem("selena.activeAccount") || "null"); } catch (error) { stored = null; }
@@ -356,7 +366,7 @@
       accounts.forEach(function (account) {
         var option = document.createElement("option");
         option.value = String(account.uid);
-        option.textContent = account.username + " · UID " + account.uid + (account.playerPresent ? "" : " · no player yet");
+        option.textContent = account.username + " \u00b7 UID " + account.uid + (account.playerPresent ? "" : " \u00b7 no player yet");
         select.appendChild(option);
       });
 
@@ -366,12 +376,7 @@
 
       buildAccountMirror(accounts);
       selectAccount(accounts);
-      select.addEventListener("change", function () {
-        syncAccountMirror();
-        selectAccount(accounts);
-      });
     } catch (error) {
-      select.parentElement.hidden = true;
       fillPreviewPlaceholder("account list unavailable - is the server running?");
     }
   }
@@ -1815,8 +1820,14 @@
     if ((event.ctrlKey || event.metaKey) && event.key === "Enter") perform(event);
   });
 
-  loadAccounts();
-  setInterval(loadAccounts, 5000);
+  // Bound once: the list is rebuilt on changes, and a listener added inside that rebuild would stack.
+    $("#accountSelect").addEventListener("change", function () {
+      syncAccountMirror();
+      selectAccount(accountList);
+    });
+
+    loadAccounts();
+    setInterval(loadAccounts, 5000);
   window.addEventListener("focus", loadAccounts);
   renderSection("items");
   /* One delegated listener: rail clicks are re-rendered often, so binding per
