@@ -57,8 +57,14 @@ const defaults = {
     : path.join(__dirname, '..', 'AscNet', 'bin', 'Debug', 'net8.0'),
   // Filled in by detectGameDir at startup: a path here would be one machine's, not the player's.
   gameDir: '',
-  tableDir: isPackaged ? path.join(resources, 'table') : path.join(__dirname, '..', 'Resources', 'table'),
-  webUi: isPackaged ? path.join(__dirname, 'web-ui') : path.join(__dirname, '..', 'web-ui'),
+  // The server's publish output already carries the tables, so an installed copy reads them there
+  // instead of shipping a second copy through extraResources.
+  tableDir: isPackaged
+    ? path.join(resources, 'runtime', 'server', 'table')
+    : path.join(__dirname, '..', 'Resources', 'table'),
+  // The panels live beside the app in a checkout and in extraResources once packed, because they sit
+  // outside desktop/ and cannot ride inside the asar.
+  webUi: isPackaged ? path.join(resources, 'web-ui') : path.join(__dirname, '..', 'web-ui'),
   repoRoot: isPackaged ? '' : path.join(__dirname, '..'),
   repoUrl: '',
   repo: '',

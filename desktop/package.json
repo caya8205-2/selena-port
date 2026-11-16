@@ -25,19 +25,17 @@
       "output": "release"
     },
     "files": [
-      "main.js",
-      "preload.js",
-      "ui/**",
-      "web-ui/**"
+      "*.js",
+      "ui/**"
     ],
     "extraResources": [
       {
-        "from": "../Resources/table",
-        "to": "table"
-      },
-      {
         "from": "runtime",
         "to": "runtime"
+      },
+      {
+        "from": "../web-ui",
+        "to": "web-ui"
       }
     ],
     "win": {
@@ -45,7 +43,7 @@
         "nsis",
         "portable"
       ],
-      "icon": "../web-ui/icon.webp"
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
