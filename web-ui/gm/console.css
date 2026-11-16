@@ -98,7 +98,12 @@
   transition: color 120ms, background 120ms, border-color 120ms;
 }
 
-.rail__item:hover { color: var(--text); background: var(--surface-2); }
+/* Hover is a stage light from the left, not a block of colour: the eye reads the rail as
+ * a lit edge rather than a menu that changes state. */
+.rail__item:hover {
+  color: var(--text);
+  background: linear-gradient(90deg, var(--accent-soft) 0%, transparent 72%), var(--surface-2);
+}
 
 /* Gold marks a real state here: this section is the one currently open. */
 .rail__item[aria-current="page"] {
