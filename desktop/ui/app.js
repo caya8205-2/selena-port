@@ -47,7 +47,7 @@ show(restored)
 // ------------------------------------------------------------------- logging
 
 const logBox = document.querySelector('#log')
-const ERROR_LINE = /failed|error|refused|not found|unavailable/i
+const ERROR_LINE = /failed|error|refused|not found|unavailable|cannot|could not|missing/i
 
 // One row per line in the shape the Performance panel draws: time, the line, then a tag. The block
 // opens with the panel's empty state and the first line clears it.

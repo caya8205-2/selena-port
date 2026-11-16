@@ -33,318 +33,268 @@
 </header>
 
 <main class="main">
-    <section class="view is-active" data-view="console">
-    <header class="view__head">
-      <h1>Console</h1>
-      <span class="view__meta">stack, client and the log this window writes</span>
-    </header>
-    <div class="view__grid">
-
-          <div class="form">
-      <div class="form__head">
-      <span class="form__label">Stack</span>
-      <span class="form__meta">mongo, server, client</span>
-    </div>
-<div class="rows">
-        <div class="row"><span>MongoDB</span><b id="rowMongo">checking…</b></div>
-        <div class="row"><span>Server (SDK / game)</span><b id="rowSdk">checking…</b></div>
-        <div class="row"><span>Game directory</span><b id="rowGameDir" class="dim">-</b></div>
-      </div>
-
-      <div class="actions">
-        <button class="btn btn--primary" id="btnStart">Start private server</button>
-        <button class="btn" id="btnStop">Stop</button>
-        <button class="btn" id="btnLaunch">Launch game</button>
-      <button class="btn btn--quiet" id="btnOpenLogs">Open logs</button>
-      </div>
-    </div>
-      <section class="panel">
-        <div class="panel__head">
-          <div class="panel__title">Console</div>
-          <div class="corner">
-            <span class="staff--corner" aria-hidden="true"></span>
-            <div class="panel__meta" data-count="log">Opus 01 · 0 lines</div>
-            <button class="btn btn--quiet" type="button" data-clear="log">Silence</button>
+        <section class="view is-active" data-view="console">
+      <header class="view__head">
+        <h1>Console</h1>
+        <span class="view__meta">stack, client and the log this window writes</span>
+      </header>
+      <div class="view__grid">
+        <div class="form">
+          <div class="form__head">
+            <span class="form__label">Stack</span>
+            <span class="form__meta">mongo, server, client</span>
+          </div>
+          <div class="rows">
+            <div class="row"><span>MongoDB</span><b id="rowMongo">checking…</b></div>
+            <div class="row"><span>Server (SDK / game)</span><b id="rowSdk">checking…</b></div>
+            <div class="row"><span>Game directory</span><b id="rowGameDir" class="dim">-</b></div>
+          </div>
+          <div class="actions">
+            <button class="btn btn--primary" id="btnStart">Start private server</button>
+            <button class="btn" id="btnStop">Stop</button>
+            <button class="btn" id="btnLaunch">Launch game</button>
+            <button class="btn btn--quiet" id="btnOpenLogs">Open logs</button>
           </div>
         </div>
-        <div class="panel__body">
-          <div class="log" id="log"></div>
-        </div>
+        <section class="panel">
+          <div class="panel__head">
+            <div class="panel__title">Performance</div>
+            <div class="corner">
+              <span class="staff--corner" aria-hidden="true"></span>
+              <div class="panel__meta" data-count="log">Opus 01 · 0 lines</div>
+              <button class="btn btn--quiet" type="button" data-clear="log">Silence</button>
+            </div>
+          </div>
+          <div class="panel__body"><div class="log" id="log"></div></div>
+        </section>
       </div>
-  </section>
     </section>
 
-    <section class="view" data-view="player">
+<section class="view" data-view="player">
       <iframe class="frame" id="framePlayer" title="Control room"></iframe>
     </section>
 
-    <section class="view" data-view="accounts">
-    <header class="view__head">
-      <h1>Accounts</h1>
-      <span class="view__meta">who may sign in, and their player documents</span>
-    </header>
-    <div class="view__grid">
-
-    <div class="form">
-      <div class="form__head">
-        <span class="form__label">Directory</span>
+        <section class="view" data-view="accounts">
+      <header class="view__head">
+        <h1>Accounts</h1>
+        <span class="view__meta">who may sign in, and their player documents</span>
+      </header>
+      <div class="view__grid">
+        <div class="form">
+          <div class="form__head">
+            <span class="form__label">Score</span>
+          </div>
+          <div class="actions">
+            <button class="btn btn--primary" id="btnRefreshAccounts">Refresh</button>
+            <span class="field__note" id="accountsNote"></span>
+          </div>
+          <div class="field__row">
+            <input class="input" id="newUsername" type="text" placeholder="new account username" spellcheck="false">
+            <input class="input" id="newPassword" type="password" placeholder="password">
+            <button class="btn btn--primary" id="btnCreateAccount">Create account</button>
+          </div>
+          <table class="table" id="accountsTable">
+            <thead>
+              <tr><th>Account</th><th>UID</th><th>Player</th><th>Level</th><th></th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <section class="panel">
+          <div class="panel__head">
+            <div class="panel__title">Performance</div>
+            <div class="corner">
+              <span class="staff--corner" aria-hidden="true"></span>
+              <div class="panel__meta" data-count="accountsLog">Opus 01 · 0 lines</div>
+              <button class="btn btn--quiet" type="button" data-clear="accountsLog">Silence</button>
+            </div>
+          </div>
+          <div class="panel__body"><div class="log" id="accountsLog"></div></div>
+        </section>
       </div>
+    </section>
 
-      <div class="actions">
-        <button class="btn btn--primary" id="btnRefreshAccounts">Refresh</button>
-        <span class="field__note" id="accountsNote"></span>
+    <section class="view" data-view="mail">
+      <header class="view__head">
+        <h1>Mail</h1>
+        <span class="view__meta">compose a mail and read a mailbox</span>
+      </header>
+      <div class="view__grid">
+        <div class="form">
+          <div class="form__head">
+            <span class="form__label">Score</span>
+          </div>
+          <label class="field">
+            <span class="field__label">Recipient <em>offline accounts receive it at their next login</em></span>
+            <span class="field__row">
+              <sel-select id="mailRecipient"></sel-select>
+              <button class="btn btn--quiet" id="btnRefreshMail">Refresh</button>
+            </span>
+          </label>
+          <label class="field">
+            <span class="field__label">Sender <em>the name the mail is signed with</em></span>
+            <input class="input" id="mailSender" type="text" value="Selena" spellcheck="false">
+          </label>
+          <label class="field">
+            <span class="field__label">Subject</span>
+            <input class="input" id="mailSubject" type="text">
+          </label>
+          <label class="field">
+            <span class="field__label">Message</span>
+            <textarea class="input input--area" id="mailBody" rows="4" spellcheck="false"></textarea>
+          </label>
+          <div class="field">
+            <span class="field__label">Attachment <em>one stack, claimed like any mail reward</em></span>
+            <span class="field__row">
+              <input class="input" id="mailItemSearch" type="text" placeholder="search an item by name or id" spellcheck="false">
+              <input class="input input--count" id="mailItemCount" type="text" value="1" inputmode="numeric">
+              <button class="btn" id="btnAddAttachment">Add</button>
+            </span>
+            <span class="field__note" id="mailItemNote"></span>
+            <ul class="hits" id="mailItemHits"></ul>
+          </div>
+          <table class="table" id="mailAttachmentTable">
+            <thead>
+              <tr><th>Attachment</th><th>Count</th><th></th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <div class="actions">
+            <button class="btn btn--primary" id="btnSendMail">Send</button>
+            <span class="field__note" id="mailNote"></span>
+          </div>
+          <table class="table" id="mailRecentTable">
+            <thead>
+              <tr><th>Mailbox - newest first</th><th>From</th><th>Received</th><th>Items</th><th>Status</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <section class="panel">
+          <div class="panel__head">
+            <div class="panel__title">Performance</div>
+            <div class="corner">
+              <span class="staff--corner" aria-hidden="true"></span>
+              <div class="panel__meta" data-count="mailLog">Opus 01 · 0 lines</div>
+              <button class="btn btn--quiet" type="button" data-clear="mailLog">Silence</button>
+            </div>
+          </div>
+          <div class="panel__body"><div class="log" id="mailLog"></div></div>
+        </section>
       </div>
+    </section>
 
-      <div class="field__row">
-        <input class="input" id="newUsername" type="text" placeholder="new account username" spellcheck="false">
-        <input class="input" id="newPassword" type="password" placeholder="password">
-        <button class="btn btn--primary" id="btnCreateAccount">Create account</button>
-      </div>
-
-      <table class="table" id="accountsTable">
-        <thead>
-          <tr><th>Account</th><th>UID</th><th>Player</th><th>Level</th><th></th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <section class="panel">
-        <div class="panel__head">
-          <div class="panel__title">Accounts</div>
-          <div class="corner">
-            <span class="staff--corner" aria-hidden="true"></span>
-            <div class="panel__meta" data-count="accountsLog">Opus 01 · 0 lines</div>
-            <button class="btn btn--quiet" type="button" data-clear="accountsLog">Silence</button>
+    <section class="view" data-view="config">
+      <header class="view__head">
+        <h1>Config</h1>
+        <span class="view__meta">paths, tools and maintenance</span>
+      </header>
+      <div class="view__grid">
+        <div class="form">
+          <div class="form__head">
+            <span class="form__label">Score</span>
+          </div>
+          <div class="rows" id="setupRows">
+            <div class="row"><span>Setup</span><b class="dim">checking…</b></div>
+          </div>
+          <label class="field">
+            <span class="field__label">Repository <em>cloned once, then built locally</em></span>
+            <span class="field__row">
+              <input class="input" id="cfgRepoUrl" type="text" placeholder="https://github.com/owner/name.git" spellcheck="false">
+              <button class="btn" id="btnCloneRepo">Clone repository</button>
+            </span>
+          </label>
+          <label class="field">
+            <span class="field__label">Game directory <em>folder that contains PGR.exe</em></span>
+            <span class="field__row">
+              <input class="input" id="cfgGameDir" type="text" spellcheck="false">
+              <button class="btn" data-browse="gameDir">Browse</button>
+            </span>
+          </label>
+          <label class="field">
+            <span class="field__label">Server build <em>folder with AscNet.dll</em></span>
+            <span class="field__row">
+              <input class="input" id="cfgServerDir" type="text" spellcheck="false">
+              <button class="btn" data-browse="serverDir">Browse</button>
+            </span>
+          </label>
+          <label class="field">
+            <span class="field__label">MongoDB binary <em>mongod.exe</em></span>
+            <span class="field__row">
+              <input class="input" id="cfgMongoBinary" type="text" spellcheck="false">
+              <button class="btn" data-browse="mongoBinary">Browse</button>
+              <button class="btn" id="btnInstallMongo">Install MongoDB</button>
+            </span>
+            <span class="field__note" id="mongoNote"></span>
+          </label>
+          <div class="actions">
+            <button class="btn btn--primary" id="btnSaveConfig">Save</button>
+            <button class="btn" id="btnRebuild">Rebuild server</button>
+            <button class="btn" id="btnBackup">Backup now</button>
+            <button class="btn btn--quiet" id="btnOpenBackups">Open backups</button>
           </div>
         </div>
-        <div class="panel__body">
-          <div class="log" id="accountsLog"></div>
-        </div>
-    </div>
-  </section>
-    </div>
-  </section>
-
-  <section class="view" data-view="mail">
-    <header class="view__head">
-      <h1>Mail</h1>
-      <span class="view__meta">compose a mail and read a mailbox</span>
-    </header>
-    <div class="view__grid">
-
-    <div class="form">
-      <div class="form__head">
-        <span class="form__label">Compose</span>
-      </div>
-      <label class="field">
-        <span class="field__label">Recipient <em>offline accounts receive it at their next login</em></span>
-        <span class="field__row">
-          <sel-select id="mailRecipient"></sel-select>
-          <button class="btn btn--quiet" id="btnRefreshMail">Refresh</button>
-        </span>
-      </label>
-
-      <label class="field">
-        <span class="field__label">Sender <em>the name the mail is signed with</em></span>
-        <input class="input" id="mailSender" type="text" value="Selena" spellcheck="false">
-      </label>
-
-      <label class="field">
-        <span class="field__label">Subject</span>
-        <input class="input" id="mailSubject" type="text">
-      </label>
-
-      <label class="field">
-        <span class="field__label">Message</span>
-        <textarea class="input input--area" id="mailBody" rows="4" spellcheck="false"></textarea>
-      </label>
-
-      <div class="field">
-        <span class="field__label">Attachment <em>one stack, claimed like any mail reward</em></span>
-        <span class="field__row">
-          <input class="input" id="mailItemSearch" type="text" placeholder="search an item by name or id" spellcheck="false">
-          <input class="input input--count" id="mailItemCount" type="text" value="1" inputmode="numeric">
-          <button class="btn" id="btnAddAttachment">Add</button>
-        </span>
-        <span class="field__note" id="mailItemNote"></span>
-        <ul class="hits" id="mailItemHits"></ul>
-      </div>
-
-      <table class="table" id="mailAttachmentTable">
-        <thead>
-          <tr><th>Attachment</th><th>Count</th><th></th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-
-      <div class="actions">
-        <button class="btn btn--primary" id="btnSendMail">Send</button>
-        <span class="field__note" id="mailNote"></span>
-      </div>
-
-      <table class="table" id="mailRecentTable">
-        <thead>
-          <tr><th>Mailbox - newest first</th><th>From</th><th>Received</th><th>Items</th><th>Status</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <section class="panel">
-        <div class="panel__head">
-          <div class="panel__title">Mail</div>
-          <div class="corner">
-            <span class="staff--corner" aria-hidden="true"></span>
-            <div class="panel__meta" data-count="mailLog">Opus 01 · 0 lines</div>
-            <button class="btn btn--quiet" type="button" data-clear="mailLog">Silence</button>
+        <section class="panel">
+          <div class="panel__head">
+            <div class="panel__title">Performance</div>
+            <div class="corner">
+              <span class="staff--corner" aria-hidden="true"></span>
+              <div class="panel__meta" data-count="configLog">Opus 01 · 0 lines</div>
+              <button class="btn btn--quiet" type="button" data-clear="configLog">Silence</button>
+            </div>
           </div>
-        </div>
-        <div class="panel__body">
-          <div class="log" id="mailLog"></div>
-        </div>
-    </div>
-  </section>
-    </div>
-  </section>
-
-  <section class="view" data-view="config">
-    <header class="view__head">
-      <h1>Config</h1>
-      <span class="view__meta">paths, tools and maintenance</span>
-    </header>
-    <div class="view__grid">
-
-      <div class="form">
-      <div class="form__head">
-        <span class="form__label">Paths and tools</span>
-      </div>
-        <div class="rows" id="setupRows">
-          <div class="row"><span>Setup</span><b class="dim">checking…</b></div>
-        </div>
-
-      <label class="field">
-        <span class="field__label">Repository <em>cloned once, then built locally</em></span>
-        <span class="field__row">
-          <input class="input" id="cfgRepoUrl" type="text" placeholder="https://github.com/owner/name.git" spellcheck="false">
-          <button class="btn" id="btnCloneRepo">Clone repository</button>
-        </span>
-      </label>
-
-        <label class="field">
-          <span class="field__label">Game directory <em>folder that contains PGR.exe</em></span>
-          <span class="field__row">
-            <input class="input" id="cfgGameDir" type="text" spellcheck="false">
-            <button class="btn" data-browse="gameDir">Browse</button>
-          </span>
-        </label>
-
-        <label class="field">
-          <span class="field__label">Server build <em>folder with AscNet.dll</em></span>
-          <span class="field__row">
-            <input class="input" id="cfgServerDir" type="text" spellcheck="false">
-            <button class="btn" data-browse="serverDir">Browse</button>
-          </span>
-        </label>
-
-        <label class="field">
-          <span class="field__label">MongoDB binary <em>mongod.exe</em></span>
-          <span class="field__row">
-            <input class="input" id="cfgMongoBinary" type="text" spellcheck="false">
-            <button class="btn" data-browse="mongoBinary">Browse</button>
-            <button class="btn" id="btnInstallMongo">Install MongoDB</button>
-          </span>
-        <span class="field__note" id="mongoNote"></span>
-        </label>
-
-        <div class="actions">
-          <button class="btn btn--primary" id="btnSaveConfig">Save</button>
-          <button class="btn" id="btnRebuild">Rebuild server</button>
-          <button class="btn" id="btnBackup">Backup now</button>
-          <button class="btn btn--quiet" id="btnOpenBackups">Open backups</button>
-        </div>
-      <section class="panel">
-        <div class="panel__head">
-          <div class="panel__title">Config</div>
-          <div class="corner">
-            <span class="staff--corner" aria-hidden="true"></span>
-            <div class="panel__meta" data-count="configLog">Opus 01 · 0 lines</div>
-            <button class="btn btn--quiet" type="button" data-clear="configLog">Silence</button>
-          </div>
-        </div>
-        <div class="panel__body">
-          <div class="log" id="configLog"></div>
-        </div>
-    </div>
-  </section>
+          <div class="panel__body"><div class="log" id="configLog"></div></div>
+        </section>
       </div>
     </section>
 
     <section class="view" data-view="update">
-    <header class="view__head">
-      <h1>Update</h1>
-      <span class="view__meta">follow the upstream repository</span>
-    </header>
-    <div class="view__grid">
-
-      <div class="form">
-      <div class="form__head">
-        <span class="form__label">Repository</span>
-      </div>
-        <label class="field">
-          <span class="field__label">Repository <em>owner/name, tracked for new commits</em></span>
-          <span class="field__row">
-            <input class="input" id="cfgRepo" type="text" placeholder="owner/name" spellcheck="false">
-            <button class="btn btn--primary" id="btnCheckUpdate">Check</button>
-          </span>
-        </label>
-
-        <div class="rows">
-          <div class="row"><span>Local HEAD</span><b id="updLocal" class="dim">-</b></div>
-          <div class="row"><span>Branch</span><b id="updBranch" class="dim">-</b></div>
-          <div class="row"><span>Working tree</span><b id="updTree" class="dim">-</b></div>
-          <div class="row"><span>Latest on GitHub</span><b id="updSha" class="dim">-</b></div>
-          <div class="row"><span>Message</span><b id="updMsg" class="dim">-</b></div>
-          <div class="row"><span>Date</span><b id="updDate" class="dim">-</b></div>
-          <div class="row"><span>Status</span><b id="updState" class="dim">-</b></div>
-        </div>
-
-        <div class="actions">
-          <button class="btn btn--primary" id="btnUpdateNow" disabled>Update now</button>
-          <button class="btn btn--quiet" id="btnOpenRepo">Open on GitHub</button>
-        </div>
-        <span class="field__note" id="updNote">Update snapshots the database, stops the stack, pulls fast-forward only, rebuilds and starts it again.</span>
-      <section class="panel">
-        <div class="panel__head">
-          <div class="panel__title">Update</div>
-          <div class="corner">
-            <span class="staff--corner" aria-hidden="true"></span>
-            <div class="panel__meta" data-count="updateLog">Opus 01 · 0 lines</div>
-            <button class="btn btn--quiet" type="button" data-clear="updateLog">Silence</button>
+      <header class="view__head">
+        <h1>Update</h1>
+        <span class="view__meta">follow the upstream repository</span>
+      </header>
+      <div class="view__grid">
+        <div class="form">
+          <div class="form__head">
+            <span class="form__label">Score</span>
           </div>
+          <label class="field">
+            <span class="field__label">Repository <em>owner/name, tracked for new commits</em></span>
+            <span class="field__row">
+              <input class="input" id="cfgRepo" type="text" placeholder="owner/name" spellcheck="false">
+              <button class="btn btn--primary" id="btnCheckUpdate">Check</button>
+            </span>
+          </label>
+          <div class="rows">
+            <div class="row"><span>Local HEAD</span><b id="updLocal" class="dim">-</b></div>
+            <div class="row"><span>Branch</span><b id="updBranch" class="dim">-</b></div>
+            <div class="row"><span>Working tree</span><b id="updTree" class="dim">-</b></div>
+            <div class="row"><span>Latest on GitHub</span><b id="updSha" class="dim">-</b></div>
+            <div class="row"><span>Message</span><b id="updMsg" class="dim">-</b></div>
+            <div class="row"><span>Date</span><b id="updDate" class="dim">-</b></div>
+            <div class="row"><span>Status</span><b id="updState" class="dim">-</b></div>
+          </div>
+          <div class="actions">
+            <button class="btn btn--primary" id="btnUpdateNow" disabled>Update now</button>
+            <button class="btn btn--quiet" id="btnOpenRepo">Open on GitHub</button>
+          </div>
+          <span class="field__note" id="updNote">Update snapshots the database, stops the stack, pulls fast-forward only, rebuilds and starts it again.</span>
         </div>
-        <div class="panel__body">
-          <div class="log" id="updateLog"></div>
-        </div>
-    </div>
-  </section>
+        <section class="panel">
+          <div class="panel__head">
+            <div class="panel__title">Performance</div>
+            <div class="corner">
+              <span class="staff--corner" aria-hidden="true"></span>
+              <div class="panel__meta" data-count="updateLog">Opus 01 · 0 lines</div>
+              <button class="btn btn--quiet" type="button" data-clear="updateLog">Silence</button>
+            </div>
+          </div>
+          <div class="panel__body"><div class="log" id="updateLog"></div></div>
+        </section>
       </div>
     </section>
-  <div class="modal" id="shellDialog" hidden>
-    <div class="modal__scrim" data-close="dialog"></div>
-    <div class="modal__panel modal__panel--narrow" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
-      <header class="modal__head">
-        <h2 class="modal__title" id="dialogTitle">Edit</h2>
-        <button class="modal__close" type="button" data-close="dialog">Close</button>
-      </header>
-      <div class="modal__body" id="dialogBody"></div>
-      <footer class="modal__foot">
-        <span class="modal__note" id="dialogNote"></span>
-        <span class="modal__actions">
-          <button class="btn btn--quiet" id="dialogCancel" type="button">Cancel</button>
-          <button class="btn btn--primary" id="dialogConfirm" type="button">Save</button>
-        </span>
-      </footer>
-    </div>
-  </div>
 
-  </main>
+</main>
 <script src="/common/ui.js"></script>
 <script src="/common/components.js"></script>
 <script src="app.js"></script>

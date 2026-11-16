@@ -1744,7 +1744,7 @@
 
     var lead = document.createElement("p");
     lead.className = "tutti__lead";
-    lead.textContent = "Tutti runs " + section.title + " for every entry at once, not for the one picked in the form. "
+    lead.textContent = "Applies " + section.title + " to every entry at once, instead of only the one picked in the form. "
       + "Nothing is granted until you press Perform here.";
     body.appendChild(lead);
 

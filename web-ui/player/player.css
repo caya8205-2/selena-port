@@ -13,8 +13,6 @@
 
 /* ------------------------------------------------------------ rail */
 
-.rail__foot { margin-top: auto; padding-top: 18px; }
-.rail__staff { opacity: 0.45; }
 .rail {
   display: flex;
   flex-direction: column;
@@ -144,7 +142,14 @@
   padding: 0 8px;
 }
 
-.rail__foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+.rail__foot { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+/* Five hairlines, the staff that closes the rail under its last item. */
+.rail__staff {
+  height: 9px;
+  border: 0;
+  opacity: 0.5;
+  background-image: repeating-linear-gradient(to bottom, var(--line) 0, var(--line) 1px, transparent 1px, transparent 2px);
+}
 
 /* ------------------------------------------------------------ main */
 
