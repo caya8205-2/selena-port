@@ -93,6 +93,7 @@ namespace AscNet.Test
                 Character = new TuneCharacter { Level = 80, Quality = 5, Star = 3, Grade = maxGrade },
                 MemoryLevel = 45,
                 Hypertune = true,
+                SkillLevel = 18,
                 Weapon = new TuneWeapon { TemplateId = weapon.Id, Level = 45, HarmonySuit = (int)memories[1].SuitId },
             };
 
@@ -160,6 +161,18 @@ namespace AscNet.Test
                 AssertEqual("SSS3", report.Rank, "tune rank label");
                 AssertEqual(maxGrade, stored.Grade, "tune promotion");
                 AssertEqual(80, stored.Level, "tune level");
+
+                // every skill of the construct reaches the requested level, clamped to its own ceiling
+                AssertEqual(true, report.Skills.Count > 0, "tune writes skill levels");
+                foreach (TuneSkillResult skill in report.Skills)
+                {
+                    int skillCap = DbCharacter.CharacterSkillMaxLevel(skill.Id);
+                    AssertEqual(Math.Min(18, skillCap), skill.Level, $"tune skill level {skill.Id}");
+                    AssertEqual(skill.Level, stored.SkillList.Single(entry => entry.Id == skill.Id).Level,
+                        $"tune stored skill level {skill.Id}");
+                }
+                AssertEqual(true, report.Skills.Any(skill => skill.Level > 1), "tune raises a skill above its first level");
+                AssertEqual(report.Skills.Count, stored.SkillList.Count, "tune levels every skill the login reconciliation keeps");
 
                 // six memories, bound to the construct, each with two resonances and hypertuned
                 List<EquipData> storedMemories = document.Equips

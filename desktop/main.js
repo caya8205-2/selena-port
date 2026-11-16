@@ -460,7 +460,27 @@ function tuneCharacter(characterId) {
   const equipTypeAt = characters.header.indexOf('EquipType')
   const equipType = Number(character[equipTypeAt] || 0)
 
-  return { characterId, maxLevel: maxLevel || 80, stars, promotions, equipType }
+  // Skill levels: the ceiling is the highest CharacterSkillLevelEffect row the construct's own
+  // skills reach, which is also what the writer clamps to, so the slider cannot ask for a level
+  // the client cannot build.
+  let skillMax = 0
+  let skillCount = 0
+  const skillEffects = tableRows('share/character/skill/CharacterSkillLevelEffect.tsv')
+  const ownSkills = characterSkills(characterId)
+  if (skillEffects && ownSkills && ownSkills.size > 0) {
+    const effectSkillAt = skillEffects.header.indexOf('SkillId')
+    const effectLevelAt = skillEffects.header.indexOf('Level')
+    const caps = new Map()
+    for (const cells of skillEffects.rows) {
+      const skillId = Number(cells[effectSkillAt])
+      if (!ownSkills.has(skillId)) continue
+      caps.set(skillId, Math.max(caps.get(skillId) || 0, Number(cells[effectLevelAt] || 0)))
+    }
+    for (const cap of caps.values()) skillMax = Math.max(skillMax, cap)
+    skillCount = caps.size
+  }
+
+  return { characterId, maxLevel: maxLevel || 80, stars, promotions, equipType, skillMax, skillCount }
 }
 
 // Which resonances a slot can hold, from the game's own pools: a memory takes a stat on slot 1

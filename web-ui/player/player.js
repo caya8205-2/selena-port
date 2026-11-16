@@ -1071,6 +1071,7 @@
         grade: current ? current.character.grade : promos[0].grade,
         memoryLevel: MEMORY_LEVEL_CAP,
         hypertune: true,
+        skillLevel: detail.skillMax || 0,
         slots: {},
         weapon: { templateId: 0, level: WEAPON_LEVEL_CAP, harmonySuit: 0 },
         resonances: {},
@@ -1086,6 +1087,7 @@
       design.weapon.harmonySuit = 0;
       return {
         levels: { min: 1, max: Math.max(1, detail.maxLevel || 80) },
+        skills: { min: 1, max: Math.max(0, detail.skillMax || 0), count: detail.skillCount || 0 },
         promotions: promos,
         stars: detail.stars || {},
         baseQuality,
@@ -1203,7 +1205,8 @@
       const paintProgression = function () {
         progressionValue.textContent = steps[rankIndex].label
           + " · " + state.template.promotions[promotionIndex].name
-          + " · Lv " + design.level;
+          + " · Lv " + design.level
+          + (state.template.skills.max > 1 ? " · Skills Lv " + (design.skillLevel || state.template.skills.min) : "");
       };
       progression.appendChild(slider("Level", 1, state.template.levels.max, design.level, (value) => "Lv " + value, (value) => {
         design.level = value;
@@ -1220,6 +1223,14 @@
         design.grade = state.template.promotions[value].grade;
         paintProgression();
       }));
+      // Skill levels: the game raises every skill of a construct from its own page, and the ceiling
+      // is the highest level the client can build, which the catalog reads from the skill effect rows.
+      if (state.template.skills.max > 1) {
+        progression.appendChild(slider("Skills", state.template.skills.min, state.template.skills.max, design.skillLevel || state.template.skills.min, (value) => "Lv " + value, (value) => {
+          design.skillLevel = value;
+          paintProgression();
+        }));
+      }
       paintProgression();
       body.appendChild(progression);
 
@@ -1464,6 +1475,7 @@
         Uid: Number($("#accountSelect").value),
         CharacterId: state.characterId,
         Character: { Level: design.level, Quality: design.quality, Star: design.star, Grade: design.grade },
+        SkillLevel: design.skillLevel || 0,
         MemoryLevel: design.memoryLevel,
         Hypertune: design.hypertune,
         Memories: memories,
@@ -1493,7 +1505,15 @@
         const payload = await response.json();
         if (!response.ok || payload.ok === false) throw new Error(payload.msg || "the tune was refused");
         const report = payload.data || {};
-        note.textContent = `wrote ${label}${payload.live === false ? " · stored in the database, the client shows it at its next login" : ""}`;
+        // One resonance on a memory is legal, but it is the difference between a finished build and a
+        // half one, so the note says which slots were written with a single slot instead of leaving it
+        // to be noticed in game. It reads the report the server answered with, not the form.
+        const written = report.memories || report.Memories || [];
+        const single = written.filter((memory) => (memory.resonance || memory.Resonance || []).length < 2);
+        const slots = single.map((memory) => memory.slot || memory.Slot).join(", ");
+        note.textContent = `wrote ${label}`
+          + (single.length > 0 ? ` · ${single.length} of ${written.length} memories kept one resonance (slot ${slots})` : "")
+          + (payload.live === false ? " · stored in the database, the client shows it at its next login" : "");
         log("tune", ["character", String(state.characterId)], true, JSON.stringify(report, null, 2));
         $("#tuneModal").hidden = true;
         await select(state.characterId);
@@ -1513,6 +1533,7 @@
       design.grade = state.template.promotions[state.template.promotions.length - 1].grade;
       design.memoryLevel = MEMORY_LEVEL_CAP;
       design.hypertune = true;
+      design.skillLevel = state.template.skills.max || 0;
       design.weapon.level = WEAPON_LEVEL_CAP;
 
       // a maxed build still needs pieces named: take the first memory the tables give each slot

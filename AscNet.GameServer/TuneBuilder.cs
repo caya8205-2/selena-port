@@ -76,6 +76,25 @@ namespace AscNet.GameServer
             report.Rank = RankName(character.Quality, character.Star);
             report.Promotion = PromotionName(row.Id, character.Grade);
 
+            // Skill levels. A construct pushed up a rank has to unlock the groups that rank gates before
+            // levels exist to raise, so this runs the same reconciliation a login runs and then states the
+            // level on every skill it produced. The ceiling is the level the client can actually build,
+            // not the upgrade row's terminal level, so a short skill (QTE, signature) never gets an
+            // unconstructible number.
+            if (request.SkillLevel > 0)
+            {
+                session.character.UnlockQualityGatedSkills(character, session.player.GatherRewards);
+                session.character.NormalizeCharactersForCurrentTables(session.player.GatherRewards);
+                foreach (CharacterSkill skill in character.SkillList)
+                {
+                    int cap = DbCharacter.CharacterSkillMaxLevel((int)skill.Id);
+                    if (cap <= 0)
+                        continue;
+                    skill.Level = Math.Clamp(request.SkillLevel, 1, cap);
+                    report.Skills.Add(new TuneSkillResult { Id = (int)skill.Id, Level = skill.Level });
+                }
+            }
+
             // the six memories: reuse a row that already belongs to this construct, otherwise make one
             Dictionary<int, EquipTable> equipRows = TableReaderV2.Parse<EquipTable>()
                 .ToDictionary(equip => equip.Id);
@@ -421,15 +440,17 @@ namespace AscNet.GameServer
     }
 
     public sealed class TuneRequest
-    {
-        public long Uid { get; set; }
-        public int CharacterId { get; set; }
-        public TuneCharacter Character { get; set; } = new();
-        public int MemoryLevel { get; set; }
-        public bool Hypertune { get; set; }
-        public List<TuneMemorySlot> Memories { get; set; } = [];
-        public TuneWeapon? Weapon { get; set; }
-    }
+        {
+            public long Uid { get; set; }
+            public int CharacterId { get; set; }
+            public TuneCharacter Character { get; set; } = new();
+            public int MemoryLevel { get; set; }
+            public bool Hypertune { get; set; }
+            /// <summary>Every skill of the construct to this level; 0 leaves the current levels alone.</summary>
+            public int SkillLevel { get; set; }
+            public List<TuneMemorySlot> Memories { get; set; } = [];
+            public TuneWeapon? Weapon { get; set; }
+        }
 
     public sealed class TuneCharacter
     {
@@ -469,7 +490,14 @@ namespace AscNet.GameServer
         public string Rank { get; set; } = string.Empty;
         public string Promotion { get; set; } = string.Empty;
         public List<TuneMemoryResult> Memories { get; set; } = [];
+        public List<TuneSkillResult> Skills { get; set; } = [];
         public TuneWeaponResult? Weapon { get; set; }
+    }
+
+    public sealed class TuneSkillResult
+    {
+        public int Id { get; set; }
+        public int Level { get; set; }
     }
 
     public sealed class TuneMemoryResult
