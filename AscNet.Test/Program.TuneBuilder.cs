@@ -106,9 +106,11 @@ namespace AscNet.Test
             }
             Dictionary<int, int> skillTypeById = TableReaderV2.Parse<CharacterSkillTypeTable>()
                 .ToDictionary(row => row.Id, row => row.Type);
-            int orbSkillId = ownedSkillIds.FirstOrDefault(id => skillTypeById.GetValueOrDefault(id) is 5 or 6 or 7 or 9);
-            int kitSkillId = ownedSkillIds.FirstOrDefault(id => skillTypeById.GetValueOrDefault(id) is 1 or 2 or 3 or 4);
-            AssertEqual(true, orbSkillId > 0 && kitSkillId > 0, "tune builder: the construct has both skill kinds");
+            // pool 1 feeds the upper slot with types 1-4 (basic attack and the three orb levels); pool 2
+            // feeds the lower slot with types 5, 6, 7, 9 (signature, QTE, core passive, class skill)
+            int upperPoolSkillId = ownedSkillIds.FirstOrDefault(id => skillTypeById.GetValueOrDefault(id) is 1 or 2 or 3 or 4);
+            int lowerPoolSkillId = ownedSkillIds.FirstOrDefault(id => skillTypeById.GetValueOrDefault(id) is 5 or 6 or 7 or 9);
+            AssertEqual(true, upperPoolSkillId > 0 && lowerPoolSkillId > 0, "tune builder: the construct has both skill kinds");
 
             TuneRequest request = new()
             {
@@ -130,7 +132,7 @@ namespace AscNet.Test
                     Slot = site,
                     TemplateId = memory.Id,
                     Top = new TuneResonance { Slot = 1, Type = "attrib", TemplateId = attribId },
-                    Bottom = new TuneResonance { Slot = 2, Type = "skill", TemplateId = orbSkillId },
+                    Bottom = new TuneResonance { Slot = 2, Type = "skill", TemplateId = lowerPoolSkillId },
                 });
             }
 
@@ -296,7 +298,7 @@ namespace AscNet.Test
                     {
                         Uid = uid,
                         CharacterId = character.Id,
-                        Memories = [new TuneMemorySlot { Slot = 1, TemplateId = memories[1].Id, Top = new TuneResonance { Slot = 1, Type = "skill", TemplateId = orbSkillId } }],
+                        Memories = [new TuneMemorySlot { Slot = 1, TemplateId = memories[1].Id, Top = new TuneResonance { Slot = 1, Type = "skill", TemplateId = lowerPoolSkillId } }],
                     };
                     TuneBuilder.Apply(harness.Session, wrongUpper);
                 }
@@ -304,7 +306,7 @@ namespace AscNet.Test
                 {
                     refusedOrbOnUpper = true;
                 }
-                AssertEqual(true, refusedOrbOnUpper, "an orb level is refused on the upper slot");
+                AssertEqual(true, refusedOrbOnUpper, "a kit skill is refused on the upper slot");
 
                 bool refusedKitOnLower = false;
                 try
@@ -313,7 +315,7 @@ namespace AscNet.Test
                     {
                         Uid = uid,
                         CharacterId = character.Id,
-                        Memories = [new TuneMemorySlot { Slot = 1, TemplateId = memories[1].Id, Bottom = new TuneResonance { Slot = 2, Type = "skill", TemplateId = kitSkillId } }],
+                        Memories = [new TuneMemorySlot { Slot = 1, TemplateId = memories[1].Id, Bottom = new TuneResonance { Slot = 2, Type = "skill", TemplateId = upperPoolSkillId } }],
                     };
                     TuneBuilder.Apply(harness.Session, wrongLower);
                 }
@@ -321,7 +323,7 @@ namespace AscNet.Test
                 {
                     refusedKitOnLower = true;
                 }
-                AssertEqual(true, refusedKitOnLower, "a kit skill is refused on the lower slot");
+                AssertEqual(true, refusedKitOnLower, "an orb level is refused on the lower slot");
 
                 Console.WriteLine(
                     $"tune builder: {character.Name} to {report.Rank} {report.Promotion} level {report.Level}, "

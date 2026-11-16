@@ -518,15 +518,18 @@ function characterSkills(characterId) {
 // The construct's skill name is client-side text this server does not ship, but the skill type is
 // a table column and it is the same for every construct: type 5 is the red orb, 6 yellow, 7 blue,
 // and 9 the basic attack. That is what the resonance list needs to say.
+// Skill types in the game's own order: pool 1 (types 1-4) feeds the upper slot with the basic attack
+// and the three orb levels, pool 2 (5, 6, 7, 9) feeds the lower slot with signature, QTE, core passive
+// and class skill. The table ships no names, so these follow that pool split.
 const SKILL_TYPE_LABELS = {
-  1: 'Signature Move Level',
-  2: 'QTE Level',
-  3: 'Core Passive',
-  4: 'Class Skill Level',
-  5: 'Red Orb Level',
-  6: 'Yellow Orb Level',
-  7: 'Blue Orb Level',
-  9: 'Basic Attack Level',
+  1: 'Basic Attack Level',
+  2: 'Red Orb Level',
+  3: 'Yellow Orb Level',
+  4: 'Blue Orb Level',
+  5: 'Signature Move Level',
+  6: 'QTE Level',
+  7: 'Core Passive',
+  9: 'Class Skill Level',
 };
 
 function skillTypeOf(skillId) {
@@ -648,10 +651,9 @@ function resonanceEntries(templateId, slot, characterId) {
     return entries
   }
 
-  // Both memory slots offer the same four stat picks. What differs is the skill list: the upper
-  // slot carries the construct's kit skills (signature, QTE, core, class) and the lower slot the orb
-  // levels plus the basic attack. That is the layout the client shows, and the tables split it by
-  // skill type, 1/2/3/4 against 5/6/7/9.
+  // Both memory slots offer the same four stat picks. What differs is the skill list: the upper slot
+  // carries the basic attack and the three orb levels, the lower slot the signature, QTE, core passive
+  // and class skill. The tables split it by skill type, 1-4 against 5/6/7/9.
   const attribPoolId = Number(row[resonance.column('AttribPoolId', slot)] || 0)
   const wantedTypes = slot === 1 ? [1, 2, 3, 4] : [5, 6, 7, 9]
   const entries = []

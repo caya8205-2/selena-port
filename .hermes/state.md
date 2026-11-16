@@ -185,11 +185,12 @@ Ports: MongoDB 27017, server/SDK 8085, .NET panel 8081, game 2335, HTTP 80/HTTPS
   `/api/panel/tune-catalog` and `/api/panel/tune-character/<id>`, both built in `desktop/main.js`
   out of the tables alone, because no account is consulted to draw a form. Perform stays the only
   write, and the tune spends nothing: it writes state, it does not replay the upgrade curve.
-- Resonance labels read from tables, never invented: a memory's upper slot lists the signature
-  move, QTE, core passive and class skill (skill types 1, 2, 3, 4) and the lower slot the three orb
-  levels plus the basic attack (types 5, 6, 7, 9), both filtered by the construct through its skill
-  groups. That is the client's own layout; the opposite reading shipped once and put the orb levels
-  in the upper list. Both slots offer the same four stat picks. Weapon resonance is named by pool position per class, with the class read from
+- Resonance labels read from tables, never invented: a memory's upper slot (slot 1) lists the basic
+  attack and the three orb levels (skill types 1, 2, 3, 4) and the lower slot (slot 2) the signature
+  move, QTE, core passive and class skill (types 5, 6, 7, 9), both filtered by the construct through
+  its skill groups. Slot 1 is the upper resonance and slot 2 the lower one. The type numbers were read
+  inverted once, which is what put a signature pick where the client draws a red orb. Both slots offer
+  the same four stat picks. Weapon resonance is named by pool position per class, with the class read from
   `Character.tsv.Career`. `06f98ec`, `af28547`, `a063f42`, `01891b1` and `2000307` are that pass.
 - Weapon rarity gates the feature, in the writer: `TuneBuilder` refuses a resonance or a harmony on
   a weapon below 6 star, and the message names the weapon and its star. 5 star resonates flat attack
@@ -480,11 +481,10 @@ player-facing name that must be used in copy, in labels and in this file.
 Both slots offer the same four stat picks, the "Ex -" entries from
 `AttribPool.tsv` (`EquipResonance.AttribPoolId[slot]`). The skill list differs:
 
-- Upper, slot 1: signature move, QTE, core passive and class skill level. This is the client's
-  layout: the kit skills sit on the upper slot.
+- Upper, slot 1: basic attack and the three orb levels (types 1-4). Slot 1 is the upper resonance.
   level. These are `CharacterSkillType.Type` 5, 6, 7 and 9.
-- Lower, slot 2: red orb level, yellow orb level, blue orb level, basic attack level. Both slots
-  still offer the same four stat picks.
+- Lower, slot 2: signature move, QTE, core passive and class skill level (types 5, 6, 7, 9). Both
+  slots still offer the same four stat picks.
   These are types 1, 2, 3 and 4.
 
 The pools live in `EquipResonance.CharacterSkillPoolId[1..2]`, but the game's own

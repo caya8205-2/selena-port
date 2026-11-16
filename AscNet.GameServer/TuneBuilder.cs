@@ -393,6 +393,10 @@ namespace AscNet.GameServer
 
                 // Upper carries the construct's kit skills (signature, QTE, core, class) and lower the
                 // orb levels plus the basic attack, which is the layout the client shows.
+                // Pool 1 (types 1-4) belongs to the upper slot: the basic attack and the three orb
+                // levels. Pool 2 (types 5, 6, 7, 9) belongs to the lower slot: signature, QTE, core passive
+                // and class skill. Reading the types the other way round is what put a signature where
+                // the client draws an orb.
                 HashSet<int> wanted = slot == 1 ? [1, 2, 3, 4] : [5, 6, 7, 9];
                 Dictionary<int, int> skillTypes = TableReaderV2.Parse<CharacterSkillTypeTable>()
                     .ToDictionary(candidate => candidate.Id, candidate => candidate.Type);
