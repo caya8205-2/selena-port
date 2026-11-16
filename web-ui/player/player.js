@@ -340,6 +340,15 @@
         return;
       }
 
+      // A player who signs in changes the list behind this picker, so the list is re-read on a timer and
+      // on focus. The rebuild only happens when something actually changed, or the picker would reset the
+      // selection under the user every few seconds.
+      var signature = accounts.map(function (account) {
+        return account.uid + ":" + (account.playerPresent ? "1" : "0") + ":" + (account.level || 0);
+      }).join("|");
+      if (signature === state.accountSignature) return;
+      state.accountSignature = signature;
+
       var stored = null;
       try { stored = JSON.parse(localStorage.getItem("selena.activeAccount") || "null"); } catch (error) { stored = null; }
 
@@ -442,17 +451,17 @@
       reset();
     }));
 
-    var devRow = document.createElement("label");
-    devRow.className = "check";
-    var devBox = document.createElement("input");
-    devBox.type = "checkbox";
-    devBox.addEventListener("change", function () {
-      state.developed = devBox.checked;
-      state.token = null;
-      reset();
-    });
-    devRow.appendChild(devBox);
-    devRow.appendChild(document.createTextNode("Also delete levelled and promoted entries"));
+    /* The panel's own switch, not the OS checkbox: one control language across every surface. */
+    var devRow = window.SelenaUI.toggle({
+      label: "Also delete levelled and promoted entries",
+      checked: state.developed,
+      tip: "Entries that carry a level or a promotion are kept unless this is on.",
+      onChange: function (checked) {
+        state.developed = checked;
+        state.token = null;
+        reset();
+      },
+    }).node;
 
     var previewBtn = document.createElement("button");
     previewBtn.type = "button";
@@ -1807,6 +1816,8 @@
   });
 
   loadAccounts();
+  setInterval(loadAccounts, 5000);
+  window.addEventListener("focus", loadAccounts);
   renderSection("items");
   /* One delegated listener: rail clicks are re-rendered often, so binding per
    * element would stack handlers and play several plucks at once. */

@@ -1087,6 +1087,26 @@ function startUiServer() {
         return sendJson(res, { code: 0, characterId, count: entries.length, entries })
       }
 
+      // A shell that reloads itself when its own files change: a reload with focus inside the panel
+      // frame left the outer document showing an older header, and the only cure was guessing at Ctrl+R.
+      if (url.pathname === '/api/panel/shell-version') {
+        const files = [
+          path.join(__dirname, 'ui', 'index.html'),
+          path.join(__dirname, 'ui', 'app.js'),
+          path.join(__dirname, 'ui', 'style.css'),
+          path.join(config.webUi, 'common', 'theme.css'),
+        ]
+        const stamp = files.map((file) => {
+          try {
+            const stat = fs.statSync(file)
+            return `${path.basename(file)}:${stat.mtimeMs}:${stat.size}`
+          } catch {
+            return `${path.basename(file)}:missing`
+          }
+        }).join('|')
+        return sendJson(res, { ok: true, stamp })
+      }
+
       if (url.pathname.startsWith('/api/')) return proxy(req, res, req.url)
 
       // The shell page lives beside main.js; the panels live in the repo's web-ui.

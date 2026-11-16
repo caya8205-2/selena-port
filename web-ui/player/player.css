@@ -13,6 +13,8 @@
 
 /* ------------------------------------------------------------ rail */
 
+.rail__foot { margin-top: auto; padding-top: 18px; }
+.rail__staff { opacity: 0.45; }
 .rail {
   display: flex;
   flex-direction: column;

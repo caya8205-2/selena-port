@@ -49,16 +49,35 @@ show(restored)
 const logBox = document.querySelector('#log')
 const ERROR_LINE = /failed|error|refused|not found|unavailable/i
 
-// One row per line, inside the shared log block, with the header's opus count kept honest.
+// One row per line in the shape the Performance panel draws: time, the line, then a tag. The block
+// opens with the panel's empty state and the first line clears it.
 function writeLog(box, line, isError) {
   if (!box) return
-  const row = document.createElement('span')
-  row.className = 'log__line' + (isError ? ' log__line--err' : '')
-  row.textContent = line
+  const empty = box.querySelector('.empty')
+  if (empty) empty.remove()
+
+  const row = document.createElement('div')
+  row.className = 'entry ' + (isError ? 'entry--err' : 'entry--ok')
+
+  const head = document.createElement('div')
+  head.className = 'entry__head'
+  const time = document.createElement('span')
+  time.className = 'entry__time'
+  time.textContent = new Date().toTimeString().slice(0, 8)
+  const text = document.createElement('span')
+  text.className = 'entry__cmd'
+  text.textContent = line
+  const tag = document.createElement('span')
+  tag.className = 'entry__tag'
+  tag.textContent = isError ? 'error' : 'ok'
+
+  head.append(time, text, tag)
+  row.appendChild(head)
   box.appendChild(row)
   box.scrollTop = box.scrollHeight
+
   const meta = document.querySelector('[data-count="' + box.id + '"]')
-  if (meta) meta.textContent = 'Opus 01 \u00b7 ' + box.children.length + ' lines'
+  if (meta) meta.textContent = 'Opus 01 \u00b7 ' + box.querySelectorAll('.entry').length + ' lines'
 }
 
 function append(line) {
@@ -78,10 +97,27 @@ document.addEventListener('click', (event) => {
   if (!button) return
   const log = document.getElementById(button.dataset.clear)
   if (!log) return
-  log.textContent = ''
+  window.SelenaUI.resetLog(log, 'The stage is quiet',
+    'Commandant, this block writes here: start the stack, send a mail, or open a log.')
   const meta = document.querySelector('[data-count="' + log.id + '"]')
   if (meta) meta.textContent = 'Opus 01 \u00b7 0 lines'
 })
+
+// The shell reloads itself when index.html, app.js, style.css or theme.css change on disk, so a stale
+// header or an older log style cannot survive a save behind a reload aimed at the wrong frame.
+let shellStamp = null
+async function watchShellVersion() {
+  try {
+    const response = await fetch('/api/panel/shell-version', { cache: 'no-store' })
+    if (!response.ok) return
+    const payload = await response.json()
+    if (!payload || !payload.stamp) return
+    if (shellStamp === null) { shellStamp = payload.stamp; return }
+    if (payload.stamp !== shellStamp) { shellStamp = payload.stamp; location.reload() }
+  } catch { /* the next tick retries */ }
+}
+setInterval(watchShellVersion, 4000)
+watchShellVersion()
 
 window.selena.onLog(append)
 
