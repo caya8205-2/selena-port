@@ -7,8 +7,7 @@ const views = document.querySelectorAll('.view')
 // The subtitle names the tool the user is looking at, not the shell.
 const SUBTITLES = {
   console: 'Console',
-  gm: 'GM console',
-  player: 'Player console',
+  player: 'Control room',
   accounts: 'Accounts',
   mail: 'Mail',
   config: 'Configuration',
@@ -26,7 +25,6 @@ function show(view) {
   if (subtitle) subtitle.textContent = SUBTITLES[view] || 'Console'
 
   // Frames load lazily so a panel only runs once it is actually opened.
-  if (view === 'gm' && !document.querySelector('#frameGm').src) document.querySelector('#frameGm').src = '/gm/index.html'
   if (view === 'player' && !document.querySelector('#framePlayer').src) document.querySelector('#framePlayer').src = '/player/index.html'
   if (view === 'accounts') loadAccounts()
   if (view === 'mail') loadMailRecipients()

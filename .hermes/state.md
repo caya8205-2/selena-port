@@ -698,6 +698,11 @@ Weapon, Construct. Never "quality 3" for S, never "awaken" for Hypertune, never
   resonance, harmony). Every slider starts at `as is`, and the rank stops run `as is` then S0 upward, so a B
   or A construct jumps straight to S0 instead of walking B1..B10 and A0..A10. The `Max` button is gone.
 - The four shell logs (accounts, mail, config, update) carry the same `Silence` button as the player console.
+- The shell exposes one admin surface, named Control room. The GM tab is gone: `web-ui/gm` still answers at
+  `/gm` and speaks the same admin channel, but it carries eight sections while `web-ui/player` carries those
+  eight plus build (Construct and tune), dorm, guild and cleanup, so the superset is the only one worth a tab.
+- Edit, Reset and Delete on Accounts go through an in-app dialog, not `window.prompt`: Electron does not
+  implement prompt, so those three flows exited before sending anything.
   The block itself is shared now: `web-ui/common/theme.css` carries `.log__head`, `.log__label`, `.log__meta`,
   `.log--framed` and `.log__line`, so the shell Console, Accounts, Mail, Config and Update logs render the same
   frame, mono rhythm and `Opus 01 · N lines` header as the Performance panel, and an error line takes the error
