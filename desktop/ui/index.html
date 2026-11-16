@@ -232,6 +232,7 @@
             <button class="btn" id="btnRebuild">Rebuild server</button>
             <button class="btn" id="btnBackup">Backup now</button>
             <button class="btn btn--quiet" id="btnOpenBackups">Open backups</button>
+            <button class="btn btn--quiet" id="btnSetup">Setup</button>
           </div>
         </div>
         <section class="panel">
@@ -295,8 +296,29 @@
     </section>
 
 </main>
+<div class="wizard" id="wizard" hidden>
+  <div class="wizard__card" role="dialog" aria-modal="true" aria-labelledby="wizardTitle">
+    <div class="wizard__head">
+      <div>
+        <div class="wizard__title" id="wizardTitle">Setup</div>
+        <div class="wizard__meta">What this app needs before the first login</div>
+      </div>
+      <button class="btn btn--quiet" type="button" id="wizardLater">Later</button>
+    </div>
+    <div class="wizard__steps" id="wizardSteps"></div>
+    <div class="wizard__foot">
+      <span class="wizard__note" id="wizardNote">Every line reads ready before the server can start.</span>
+      <div class="wizard__actions">
+        <button class="btn btn--quiet" type="button" id="wizardRecheck">Check again</button>
+        <button class="btn btn--primary" type="button" id="wizardStart" disabled>Start private server</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="/common/ui.js"></script>
 <script src="/common/components.js"></script>
 <script src="app.js"></script>
+
 </body>
 </html>

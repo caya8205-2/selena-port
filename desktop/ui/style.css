@@ -269,3 +269,82 @@ body {
 .table td { padding: 10px; border-bottom: 1px solid var(--line); color: var(--text-dim); }
 .table tr:hover td { background: var(--surface); }
 .table__actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+/* ------------------------------------------------------------------ setup wizard
+   Shown when a launch finds something missing, and reopenable from Config. Four lines, one control each,
+   in the same cards and hairlines as the rest of the shell. */
+.wizard {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(6, 8, 14, 0.74);
+}
+.wizard[hidden] { display: none; }
+.wizard__card {
+  width: min(640px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.wizard__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.wizard__title {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--silver);
+}
+.wizard__meta { margin-top: 6px; font-size: 12px; color: var(--text-faint); }
+.wizard__steps { display: flex; flex-direction: column; }
+.wizard__step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.wizard__step:last-child { border-bottom: 0; }
+.wizard__num { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-faint); }
+.wizard__text { flex: 1; min-width: 0; }
+.wizard__step-title { display: block; font-size: 13px; color: var(--text); }
+.wizard__step-detail {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-faint);
+  overflow-wrap: anywhere;
+}
+.wizard__state {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.wizard__state.is-ready { color: var(--gold); }
+.wizard__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line-strong);
+}
+.wizard__note { font-size: 11.5px; color: var(--text-faint); }
+.wizard__actions { display: flex; gap: 8px; }
+
+/* A Start that cannot run yet reads as unavailable, not as a claim. */
+.wizard .btn:disabled { opacity: 0.45; cursor: not-allowed; }

@@ -1142,6 +1142,7 @@ function settingsSnapshot() {
     repoCloned: Boolean(config.repoRoot && fs.existsSync(path.join(config.repoRoot, 'AscNet', 'AscNet.csproj'))),
     serverExists: Boolean(config.serverDir && fs.existsSync(path.join(config.serverDir, 'AscNet.dll'))),
     sdkPort: config.sdkPort,
+    packaged: app.isPackaged,
   }
 }
 

@@ -892,6 +892,161 @@ document.querySelector('#btnOpenRepo').addEventListener('click', async () => {
   if (repo) await window.selena.open(`https://github.com/${repo}`)
 })
 
+// First-run setup: four lines in a player's language, each with the one control that fixes it.
+// A packaged app carries the server and the database, so only a development checkout ever offers a build.
+
+const WIZARD_STEPS = [
+  {
+    id: 'game',
+    title: 'Where the game is',
+    ready: 'found',
+    hint: 'The folder that holds PGR.exe. The app looks for it on its own and asks only when it cannot tell.',
+    action: 'Choose folder',
+    run: async () => { await window.selena.browse({ key: 'gameDir' }) },
+  },
+  {
+    id: 'mongod',
+    title: 'Database',
+    ready: 'ready',
+    hint: 'MongoDB holds the player data. It is installed once, inside the app folder.',
+    action: 'Install',
+    run: async () => { await window.selena.installMongo() },
+  },
+  {
+    id: 'server',
+    title: 'Server files',
+    ready: 'in place',
+    hint: 'The game server itself. In an installed copy these ship with the app.',
+    action: 'Build',
+    run: async () => { await window.selena.rebuildServer() },
+  },
+  {
+    id: 'patch',
+    title: 'Game patch',
+    ready: 'applied',
+    hint: 'Applied the first time the game starts. The original files are copied aside before anything changes.',
+    action: 'Launch game',
+    run: async () => { await window.selena.launch() },
+  },
+]
+
+const wizardEl = document.querySelector('#wizard')
+const wizardStepsEl = document.querySelector('#wizardSteps')
+const wizardStartEl = document.querySelector('#wizardStart')
+const wizardNoteEl = document.querySelector('#wizardNote')
+let wizardPackaged = false
+
+function wizardLine(className, text) {
+  const node = document.createElement('span')
+  node.className = className
+  node.textContent = text
+  return node
+}
+
+function openWizard() {
+  if (wizardEl) wizardEl.hidden = false
+}
+
+function closeWizard() {
+  if (wizardEl) wizardEl.hidden = true
+}
+
+function renderWizard(result) {
+  if (!wizardStepsEl || !result) return
+  const byId = Object.fromEntries(result.checks.map((check) => [check.id, check]))
+  wizardStepsEl.textContent = ''
+
+  for (const [index, step] of WIZARD_STEPS.entries()) {
+    const check = byId[step.id] || { ok: false, detail: 'not checked yet' }
+    const row = document.createElement('div')
+    row.className = 'wizard__step'
+    row.dataset.id = step.id
+
+    row.appendChild(wizardLine('wizard__num', String(index + 1).padStart(2, '0')))
+
+    const text = document.createElement('div')
+    text.className = 'wizard__text'
+    text.appendChild(wizardLine('wizard__step-title', step.title))
+    const detail = wizardLine('wizard__step-detail', check.ok ? step.ready : (check.detail || step.hint))
+    text.appendChild(detail)
+    row.appendChild(text)
+
+    const state = wizardLine('wizard__state', check.ok ? 'ready' : 'waiting')
+    if (check.ok) state.classList.add('is-ready')
+    row.appendChild(state)
+
+    // A packaged app cannot build its own server, so a failed server line there is a reinstall, not a button.
+    const offersAction = !check.ok && !(step.id === 'server' && wizardPackaged)
+    if (offersAction) {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'btn btn--quiet'
+      button.textContent = step.action
+      button.addEventListener('click', async () => {
+        button.disabled = true
+        button.textContent = 'working\u2026'
+        try {
+          await step.run()
+        } catch (err) {
+          append('setup step failed: ' + err.message)
+        }
+        await refreshWizard(false)
+      })
+      row.appendChild(button)
+    }
+
+    wizardStepsEl.appendChild(row)
+  }
+
+  const needed = ['game', 'mongod', 'server'].filter((id) => !(byId[id] && byId[id].ok))
+  if (wizardStartEl) wizardStartEl.disabled = needed.length > 0
+  if (wizardNoteEl) {
+    wizardNoteEl.textContent = result.ok
+      ? 'Everything is in place. Start the server, then create your account in Accounts.'
+      : 'Still missing: ' + needed.map((id) => WIZARD_STEPS.find((step) => step.id === id).title.toLowerCase()).join(', ')
+  }
+}
+
+async function refreshWizard(openWhenIncomplete) {
+  if (!window.selena || !wizardEl) return
+  let result
+  try {
+    result = await window.selena.verifySetup()
+  } catch (err) {
+    return
+  }
+  wizardPackaged = Boolean(settings && settings.packaged)
+  renderWizard(result)
+  if (openWhenIncomplete && !result.ok) openWizard()
+}
+
+if (wizardEl) {
+  document.querySelector('#wizardLater').addEventListener('click', closeWizard)
+  document.querySelector('#wizardRecheck').addEventListener('click', () => refreshWizard(false))
+  document.querySelector('#btnSetup').addEventListener('click', () => {
+    refreshWizard(false)
+    openWizard()
+  })
+  wizardStartEl.addEventListener('click', async () => {
+    wizardStartEl.disabled = true
+    try {
+      await window.selena.start()
+    } catch (err) {
+      append('start failed: ' + err.message)
+    }
+    closeWizard()
+    refresh()
+    refreshWizard(false)
+  })
+}
+
+// A first launch is incomplete by definition: open the wizard when anything is still missing.
+window.selena.settings().then((value) => {
+  settings = value
+  wizardPackaged = Boolean(value.packaged)
+  refreshWizard(true)
+})
+
 // ------------------------------------------------------------------- startup
 
 window.selena.logs().then((lines) => lines.forEach(append))
