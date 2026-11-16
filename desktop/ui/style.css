@@ -93,10 +93,9 @@ body {
 .form__label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-faint); }
 .form__meta { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
 .view__grid {
-  display: grid;
-  grid-template-columns: minmax(300px, 396px) minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 18px;
-  align-items: start;
 }
 
 .form {
@@ -197,7 +196,7 @@ body {
 .view[data-view="config"],
 .view[data-view="update"] { padding: 26px 28px; overflow-y: auto; }
 
-.form { display: grid; gap: 16px; max-width: 760px; }
+
 .field { display: grid; gap: 7px; }
 
 .field__label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-faint); }

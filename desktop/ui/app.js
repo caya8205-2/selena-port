@@ -123,6 +123,14 @@ async function watchShellVersion() {
 setInterval(watchShellVersion, 4000)
 watchShellVersion()
 
+// An empty log says so, in the same words the Performance panel uses, instead of showing a bare box.
+for (const box of document.querySelectorAll('.view .log')) {
+  if (box.children.length === 0) {
+    window.SelenaUI.resetLog(box, 'The stage is quiet',
+      'Commandant, this block writes here: start the stack, send a mail, or open a log.')
+  }
+}
+
 window.selena.onLog(append)
 
 // ------------------------------------------------------------------- status
