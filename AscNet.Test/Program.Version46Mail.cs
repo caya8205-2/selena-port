@@ -108,7 +108,7 @@ internal partial class Program
         AssertEqual(true, (bool)ensure.Invoke(null, [player, now])!,
             "new player receives configured welcome mail");
         PlayerMail welcome = player.Mails.Single();
-        AssertEqual(true, welcome.Title.Contains("Welcome to AscNet", StringComparison.Ordinal),
+        AssertEqual(true, welcome.Title.Contains("Welcome to Selena-port", StringComparison.Ordinal),
             "new player welcome mail title");
         AssertEqual(true, welcome.IsForbidDelete,
             "new player welcome mail cannot be bulk-deleted");

@@ -4,9 +4,9 @@
       "Id": "ascnet-disclaimer",
       "GroupId": 0,
       "Type": 0,
-      "SendName": "<color=#8b0000><b>AscNet</b></color> Developers",
-      "Title": "<b>Welcome to AscNet</b> [欢迎来到 AscNet]",
-      "Content": "Hello Commandant!\nWelcome to <color=#8b0000><b>AscNet</b></color>, we are happy that you are using this <b>Server Software</b>.\nThis <b>Server Software</b> is always free and if you are paying to gain access to this you are being SCAMMED.\n\n欢迎来到 <color=#8b0000><b>AscNet</b></color>，我们很高兴您使用本服务器软件。\n本服务器软件始终是免费的，如果您是通过付费来使用本软件，那您就被骗了。",
+      "SendName": "<color=#d4af37><b>Selena-port</b></color>",
+      "Title": "<b>Welcome to Selena-port</b>",
+      "Content": "Hello Commandant!\nWelcome to <color=#d4af37><b>Selena-port</b></color>, a local server built on the free <b>AscNet</b> software by its own authors. The server is their work; this build only carries it.\nEverything here is free. If anyone charges you for access to it, you are being scammed.\nGrants, mails and builds are managed from the control panel that came with this server, not from this screen.\nEnjoy the concert.",
       "IsForbidDelete": true
     }
   ]
