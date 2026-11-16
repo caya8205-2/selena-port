@@ -80,6 +80,8 @@ namespace AscNet.GameServer
             Dictionary<int, EquipTable> equipRows = TableReaderV2.Parse<EquipTable>()
                 .ToDictionary(equip => equip.Id);
             List<uint> keep = [];
+            List<EquipData> writtenEquips = [];
+            List<uint> removedEquipIds = [];
             foreach (TuneMemorySlot slot in request.Memories.Where(slot => slot.Slot >= 1 && slot.Slot <= MemorySlots).OrderBy(slot => slot.Slot))
             {
                 if (!equipRows.TryGetValue(slot.TemplateId, out EquipTable? memoryRow) || memoryRow.Site <= 0)
@@ -106,6 +108,7 @@ namespace AscNet.GameServer
                     : [];
 
                 keep.Add(equip.Id);
+                writtenEquips.Add(equip);
                 report.Memories.Add(new TuneMemoryResult
                 {
                     Slot = slot.Slot,
@@ -120,23 +123,42 @@ namespace AscNet.GameServer
             if (request.Memories.Count > 0)
             {
                 // anything this construct used to carry that the build no longer names is removed,
-                // because a stale seventh memory would keep showing in the grid
-                session.character.Equips.RemoveAll(equip =>
-                    equip.CharacterId == character.Id
-                    && equipRows.TryGetValue((int)equip.TemplateId, out EquipTable? candidate)
-                    && candidate.Site > 0
-                    && !keep.Contains(equip.Id));
+                // because a stale seventh memory would keep showing in the grid. The client has to
+                // hear about the removal too, or it keeps drawing the piece it was handed at login.
+                List<EquipData> stale = session.character.Equips
+                    .Where(equip => equip.CharacterId == character.Id
+                        && equipRows.TryGetValue((int)equip.TemplateId, out EquipTable? candidate)
+                        && candidate.Site > 0
+                        && !keep.Contains(equip.Id))
+                    .ToList();
+                removedEquipIds.AddRange(stale.Select(equip => equip.Id));
+                session.character.Equips.RemoveAll(equip => stale.Contains(equip));
             }
 
             if (request.Weapon is not null)
-                report.Weapon = ApplyWeapon(session, character, request.Weapon, equipRows);
+            {
+                (TuneWeaponResult weaponReport, EquipData weaponEquip) = ApplyWeapon(session, character, request.Weapon, equipRows);
+                report.Weapon = weaponReport;
+                writtenEquips.Add(weaponEquip);
+            }
 
             session.character.Save();
+
+            // A client that is in game keeps the construct and the gear it was handed at login, so the
+            // write on its own is invisible: every handler that changes a construct or a piece of gear
+            // pushes the same two notifications. A socketless session has no writer, and Send drops
+            // the frame there.
+            NotifyEquipDataList equipPush = new();
+            equipPush.EquipDataList.AddRange(writtenEquips);
+            equipPush.DeletedEquipIdList.AddRange(removedEquipIds);
+            if (equipPush.EquipDataList.Count > 0 || equipPush.DeletedEquipIdList.Count > 0)
+                session.SendPush(equipPush);
+            session.SendPush(new NotifyCharacterDataList { CharacterDataList = { character } });
 
             return report;
         }
 
-        private static TuneWeaponResult ApplyWeapon(
+        private static (TuneWeaponResult Report, EquipData Equip) ApplyWeapon(
             Session session,
             CharacterData character,
             TuneWeapon request,
@@ -181,14 +203,14 @@ namespace AscNet.GameServer
                 equip.WeaponOverrunData.Level = overrunRows.Select(candidate => candidate.Level).DefaultIfEmpty(0).Max();
             }
 
-            return new TuneWeaponResult
+            return (new TuneWeaponResult
             {
                 TemplateId = (int)equip.TemplateId,
                 Name = weaponRow.Name,
                 Level = equip.Level,
                 Resonance = equip.ResonanceInfo.Select(info => info.TemplateId).ToList(),
                 HarmonySuit = equip.WeaponOverrunData?.ChoseSuit ?? 0,
-            };
+            }, equip);
         }
 
         private static EquipData ResolveEquip(Session session, CharacterData character, int templateId, int site, int tableSite)

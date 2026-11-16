@@ -419,6 +419,13 @@ shell proxies it as `/api/panel/tune`.
   whether that blocks the two piece effect is still the open question in section 8.
 - Rank and promotion in the report are labelled from the tables (`RankName`, `PromotionName`), never
   from a hand map.
+- The write alone is invisible to a client that is in game: it keeps the construct and the gear it
+  was handed at login. So the writer pushes `NotifyEquipDataList` (every memory and weapon it wrote,
+  plus the ids of the stale rows it removed) and `NotifyCharacterDataList` after `Save`, which is
+  what every handler that changes a construct or a piece of gear does. A socketless session has no
+  writer and `Send` drops the frame there, so an offline tune just stores. The regression is
+  covered: `--tune-builder-only` reads the frames off a loopback session and fails when the pushes
+  are missing.
 
 
 ## 10. PGR domain model, in the game's own words

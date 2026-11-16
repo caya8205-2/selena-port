@@ -9,6 +9,7 @@ using AscNet.Table.V2.share.character.quality;
 using AscNet.Table.V2.share.character.skill;
 using AscNet.Table.V2.share.equip;
 using MongoDB.Driver;
+using MessagePack;
 using DbCharacter = AscNet.Common.Database.Character;
 
 namespace AscNet.Test
@@ -123,6 +124,34 @@ namespace AscNet.Test
 
                 using LoopbackSessionHarness harness = new(document, player, inventory: inventory, sessionId: $"tune-builder-{uid}");
                 TuneReport report = TuneBuilder.Apply(harness.Session, request);
+
+                // a live client only learns about the build from the pushes: it keeps what it was
+                // handed at login, so a write with no push reads as "nothing happened" in game
+                List<(string Name, byte[] Content)> pushes = [];
+                DateTime deadline = DateTime.UtcNow.AddMilliseconds(3000);
+                while (DateTime.UtcNow < deadline)
+                {
+                    if (!harness.TryReadAvailablePacket("tune push", out Packet pushedPacket))
+                    {
+                        if (pushes.Count >= 2) break;
+                        Thread.Sleep(20);
+                        continue;
+                    }
+                    if (pushedPacket.Type != Packet.ContentType.Push) continue;
+                    Packet.Push push = MessagePackSerializer.Deserialize<Packet.Push>(pushedPacket.Content);
+                    pushes.Add((push.Name, push.Content));
+                }
+                AssertEqual(true, pushes.Any(push => push.Name == nameof(NotifyEquipDataList)),
+                    "tune pushes the gear to a live client");
+                AssertEqual(true, pushes.Any(push => push.Name == nameof(NotifyCharacterDataList)),
+                    "tune pushes the construct to a live client");
+                NotifyEquipDataList pushedGear = MessagePackSerializer.Deserialize<NotifyEquipDataList>(
+                    pushes.First(push => push.Name == nameof(NotifyEquipDataList)).Content);
+                AssertEqual(7, pushedGear.EquipDataList.Count, "tune push carries six memories and the weapon");
+                NotifyCharacterDataList pushedConstruct = MessagePackSerializer.Deserialize<NotifyCharacterDataList>(
+                    pushes.First(push => push.Name == nameof(NotifyCharacterDataList)).Content);
+                AssertEqual(1, pushedConstruct.CharacterDataList.Count, "tune push carries the one construct");
+                AssertEqual((uint)character.Id, (uint)pushedConstruct.CharacterDataList[0].Id, "tune push names the construct");
 
                 // the construct reaches the rank that was asked for, and the report speaks in ranks
                 CharacterData stored = document.Characters.Single();
