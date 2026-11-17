@@ -1440,10 +1440,11 @@
       // that fills every upper slot with a stat writes a build that cannot awaken.
       const resonanceNote = document.createElement("p");
       resonanceNote.className = "hint-block";
-      resonanceNote.textContent = "A stat resonance, such as ATK +15 or CRIT +15, never counts toward an "
-        + "awaken: the upper slot needs a skill resonance, such as Red Orb Level. So if you want to awaken right "
-        + "after tuning, set the upper resonance to a skill, or leave that slot empty and set it in game "
-        + "afterwards. The lower slot can stay as written.";
+      resonanceNote.textContent = "A stat resonance, such as ATK +15 or CRIT +15, does not count toward an "
+        + "awaken: the upper slot has to carry a skill resonance, such as Red Orb Level. To keep both, set the "
+        + "upper slot to a skill, awaken, then swap that slot to the stat in game. The awaken is permanent, so "
+        + "the extra skill stays even though the upper slot no longer counts, and after a relog the game shows "
+        + "the condition unmet without taking the skill back.";
       resonanceSection.appendChild(resonanceNote);
       const resonanceGrid = document.createElement("div");
       resonanceGrid.className = "tune__grid";

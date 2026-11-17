@@ -661,6 +661,12 @@ Weapon, Construct. Never "quality 3" for S, never "awaken" for Hypertune, never
   reference, check the tables against it, and implement it. Never argue it away because a column reads
   differently, never call a game rule "does not make sense", and never present data as more credible than
   their experience. The tables explain fields; they do not outrank the player.
+- Awaken only counts a **skill** resonance in the upper slot (Red Orb/Yellow Orb/Blue Orb/Basic Attack Level).
+  A stat resonance there never counts, and in this fork a stat written to the upper slot by the panel also does
+  not satisfy the client's counter even when the game shows it equipped; official servers do count it, so this
+  is a fork bug. The workaround that works: tune the upper slot to a skill, awaken, then overwrite that slot
+  with the stat in game. Awaken cannot be locked again, so the extra skill stays after the overwrite, and a
+  relog shows the condition unmet without revoking it.
 - Rank ladders in the panel: **as is** belongs to Tutti only (leave that construct's rank alone). A tune
   opens at the target's base rank, so an S-rank target starts at S0 and an A-rank at A0, and each rank walks
   its ten nodes (S0..S10, SS0..SS10, …) before the next one starts. Star counts are the highest node, not
