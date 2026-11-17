@@ -744,3 +744,13 @@ https://github.com/rafi1212122/AscNet
 ```
 
 This branch is intended to document and preserve the current-client compatibility work separately from upstream.
+## Desktop app release
+
+`desktop/package.json` carries the app version and its format is `YY.MM.DD` (26.11.17). A push does not ship by
+itself: `.github/workflows/app-release.yml` reads that version and skips every job when the tag `v<version>`
+already exists, so releasing is one bump commit and an ordinary commit costs a skipped run.
+
+The app ships no server. The packed build is the Electron shell plus `web-ui`; a player's machine installs the
+.NET SDK, Git and MongoDB from inside the app, clones the source and builds it. CI still runs
+`dotnet build AscNet/AscNet.csproj` before packaging, so a broken server build fails the release instead of the
+player's machine.

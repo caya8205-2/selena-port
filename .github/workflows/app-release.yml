@@ -1,0 +1,131 @@
+name: App release
+
+# A push ships only when the version moved. desktop/package.json holds the version, its format is YY.MM.DD
+# (26.11.17), and the tag v<version> is the switch: if that tag already exists this push builds nothing.
+# So routine commits cost a skipped run, and a release costs one bump commit.
+
+on:
+  push:
+    branches: [master, selena-panel]
+    paths:
+      - 'desktop/**'
+      - 'web-ui/**'
+      - 'Resources/**'
+      - 'AscNet/**'
+      - 'AscNet.Common/**'
+      - 'AscNet.GameServer/**'
+      - 'AscNet.SDKServer/**'
+      - 'AscNet.Table/**'
+      - 'AscNet.Logging/**'
+      - 'Directory.Build.props'
+      - '.github/workflows/app-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+      release: ${{ steps.read.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: read
+        name: Read the version and decide
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./desktop/package.json').version")"
+          echo "package.json version: $version"
+          [[ "$version" =~ ^[0-9]{2}\.[0-9]{2}\.[0-9]{2}$ ]] \
+            || { echo "version must look like YY.MM.DD (26.11.17), not $version"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "tag v$version already exists, this push does not bump the version"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "v$version is new, this push releases"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      # The app builds the server on the player's machine, so a broken server build must fail here first.
+      - name: Build the server
+        run: dotnet build AscNet/AscNet.csproj -c Debug --nologo
+      - name: Package the app
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run dist
+      - name: Check the package
+        working-directory: desktop
+        run: |
+          set -euo pipefail
+          ls -l release/*.exe
+          test -f release/win-unpacked/resources/web-ui/player/index.html
+          for file in main.js preload.js verify.js backup.js game-detect.js; do
+            npx asar list release/win-unpacked/resources/app.asar | grep -qx "\\\\$file"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.blockmap
+          if-no-files-found: error
+
+  release:
+    needs: [version, build]
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-release
+          path: dist
+      - name: Publish the release
+        run: |
+          set -euo pipefail
+          ls -l dist
+          gh release create "v$VERSION" dist/*.exe dist/*.blockmap \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Selena-port $VERSION" --generate-notes --latest
+      - name: Verify the release
+        run: |
+          set -euo pipefail
+          sleep 5
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" > release.json
+          jq -e --arg v "v$VERSION" '.tag_name == $v and .draft == false' release.json
+          want="$(cd dist && printf '%s\n' *.exe *.blockmap | sort)"
+          got="$(jq -r '.assets[].name' release.json | sort)"
+          [ "$want" = "$got" ] || { printf 'assets differ\nwant:\n%s\ngot:\n%s\n' "$want" "$got"; exit 1; }
+          echo "released v$VERSION with: $got"

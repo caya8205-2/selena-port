@@ -651,6 +651,8 @@ const CONFIG_FIELDS = {
   mongoBinary: '#cfgMongoBinary',
   repoRoot: '#cfgRepoRoot',
   launcherPath: '#cfgLauncher',
+  dotnetDir: '#cfgDotnet',
+  gitPath: '#cfgGit',
 }
 
 // The setup block answers "what is missing" before the user hits a failure later.
@@ -704,9 +706,7 @@ async function loadConfig() {
   // time and "Rebuild" afterwards instead of asking the user to know which applies.
   document.querySelector('#btnRebuild').textContent = settings.serverExists ? 'Rebuild server' : 'Build server'
   document.querySelector('#btnInstallMongo').textContent = settings.mongoExists ? 'Reinstall MongoDB' : 'Install MongoDB'
-  document.querySelector('#cfgDotnet').value = settings.dotnetExe || 'not installed'
   document.querySelector('#btnInstallDotnet').textContent = settings.dotnetExe ? 'Reinstall .NET' : 'Install .NET'
-  document.querySelector('#cfgGit').value = settings.git || 'not installed'
   document.querySelector('#btnInstallGit').textContent = settings.git ? 'Reinstall Git' : 'Install Git'
   document.querySelector('#cfgPatchDir').value = settings.patchDir || 'choose the game folder first'
   document.querySelector('#btnCloneRepo').textContent = settings.repoCloned ? 'Repository cloned' : 'Clone repository'

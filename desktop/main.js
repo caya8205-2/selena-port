@@ -280,6 +280,7 @@ async function startMongo() {
 // control centre finds it. An apphost cannot locate a runtime installed outside Program Files
 // without DOTNET_ROOT, and the user sees "You must install .NET" instead of a server.
 function dotnetRoot() {
+  if (config.dotnetDir && fs.existsSync(path.join(config.dotnetDir, 'dotnet.exe'))) return config.dotnetDir
   if (process.env.DOTNET_ROOT) return process.env.DOTNET_ROOT
 
   const candidates = []
@@ -1131,7 +1132,8 @@ function startUiServer() {
 // ---------------------------------------------------------------- settings & tools
 
 const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json')
-const SETTINGS_KEYS = ['gameDir', 'serverDir', 'mongoBinary', 'mongoDataDir', 'repo', 'repoUrl', 'repoRoot', 'launcherPath']
+const SETTINGS_KEYS = ['gameDir', 'serverDir', 'mongoBinary', 'mongoDataDir', 'repo', 'repoUrl', 'repoRoot',
+  'launcherPath', 'dotnetDir', 'gitPath']
 
 function settingsSnapshot() {
   return {
@@ -1146,6 +1148,8 @@ function settingsSnapshot() {
     serverExists: Boolean(config.serverDir && fs.existsSync(path.join(config.serverDir, 'AscNet.dll'))),
     sdkPort: config.sdkPort,
     packaged: app.isPackaged,
+    dotnetDir: config.dotnetDir || dotnetRoot(),
+    gitPath: config.gitPath || gitExe(),
     dotnetRoot: dotnetRoot(),
     dotnetExe: dotnetRoot() ? path.join(dotnetRoot(), 'dotnet.exe') : '',
     git: gitExe(),
@@ -1166,9 +1170,11 @@ function persistSettings(next) {
 
 async function browsePath(key, current) {
   const { dialog } = require('electron')
-  const wantsFile = key === 'mongoBinary'
+  const wantsFile = key === 'mongoBinary' || key === 'gitPath'
+  const titles = { mongoBinary: 'Select mongod.exe', gitPath: 'Select git.exe' }
+  const title = titles[key] || 'Select folder'
   const result = await dialog.showOpenDialog({
-    title: wantsFile ? 'Select mongod.exe' : 'Select folder',
+    title,
     defaultPath: current || undefined,
     properties: wantsFile ? ['openFile'] : ['openDirectory'],
     filters: wantsFile ? [{ name: 'Executable', extensions: ['exe'] }] : undefined,
@@ -1243,6 +1249,7 @@ async function gitOut(git, args) {
 
 // MinGit is a plain zip with git.exe in cmd/, so nobody needs an installer or an admin prompt.
 function gitExe() {
+  if (config.gitPath && fs.existsSync(config.gitPath)) return config.gitPath
   const bundled = path.join(toolsRoot, 'git', 'cmd', 'git.exe')
   if (fs.existsSync(bundled)) return bundled
   for (const entry of (process.env.PATH || '').split(path.delimiter)) {

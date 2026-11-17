@@ -236,14 +236,16 @@
           <label class="field">
             <span class="field__label">.NET SDK <em>installs for this Windows user, no admin</em></span>
             <span class="field__row">
-              <input class="input" id="cfgDotnet" type="text" readonly>
+              <input class="input" id="cfgDotnet" type="text" placeholder="not installed" spellcheck="false">
+              <button class="btn" data-browse="dotnetDir">Browse</button>
               <button class="btn" id="btnInstallDotnet">Install .NET</button>
             </span>
           </label>
           <label class="field">
             <span class="field__label">Git <em>fetches the source, then pulls its updates</em></span>
             <span class="field__row">
-              <input class="input" id="cfgGit" type="text" readonly>
+              <input class="input" id="cfgGit" type="text" placeholder="not installed" spellcheck="false">
+              <button class="btn" data-browse="gitPath">Browse</button>
               <button class="btn" id="btnInstallGit">Install Git</button>
             </span>
           </label>
