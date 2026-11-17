@@ -656,6 +656,15 @@ Weapon, Construct. Never "quality 3" for S, never "awaken" for Hypertune, never
 
 ### Operational lessons
 
+- **The owner's account of the game outranks my inference.** Caya has played PGR for years and describes
+  mechanics from play. When they say how the rank ladder, a node or a label behaves, treat it as the
+  reference, check the tables against it, and implement it. Never argue it away because a column reads
+  differently, never call a game rule "does not make sense", and never present data as more credible than
+  their experience. The tables explain fields; they do not outrank the player.
+- Rank ladders in the panel: **as is** belongs to Tutti only (leave that construct's rank alone). A tune
+  opens at the target's base rank, so an S-rank target starts at S0 and an A-rank at A0, and each rank walks
+  its ten nodes (S0..S10, SS0..SS10, …) before the next one starts. Star counts are the highest node, not
+  the number of stops: `star <= highest`, not `star < count`.
 - The running `AscNet.exe` executes the code it was started with. A C# fix is not
   live until the process is stopped, rebuilt and started again. Verifying a write
   against a stale process measures the old behaviour.
