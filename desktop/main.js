@@ -16,6 +16,7 @@ const fs = require('fs')
 const path = require('path')
 const net = require('net')
 const { spawn, spawnSync, execFile } = require('child_process')
+const crypto = require('crypto')
 const { buildChecks } = require('./verify')
 const { createBackup, listBackups } = require('./backup')
 const { detectGameDir } = require('./game-detect')
@@ -1336,7 +1337,7 @@ function latestAsset(repo, pattern) {
         try {
           const assets = (JSON.parse(body).assets || []).filter((asset) => pattern.test(asset.name))
           if (!assets.length) return reject(new Error('no matching asset in the latest release'))
-          resolve({ name: assets[0].name, url: assets[0].browser_download_url })
+          resolve({ name: assets[0].name, url: assets[0].browser_download_url, digest: assets[0].digest || '' })
         } catch (err) {
           reject(err)
         }
@@ -1402,6 +1403,25 @@ async function reapplyPatch() {
 // app fetches the published zip the way it fetches MongoDB.
 const LAUNCHER_REPO = 'reiserFSs/InfiniteLoop'
 
+// A download that unpacks into the app's own folder is worth checking against the release: the archive comes
+// over the network, and a truncated or swapped zip would otherwise be extracted and trusted.
+function sha256Of(file) {
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
+}
+
+// GitHub records a digest per asset; older releases only ship the .sha256 file, so both shapes are read.
+async function publishedChecksum(asset, repo, checksumName) {
+  if (asset.digest && asset.digest.startsWith('sha256:')) return asset.digest.slice('sha256:'.length)
+
+  const sidecar = await latestAsset(repo, new RegExp('^' + checksumName + '$'))
+  const target = path.join(toolsRoot, checksumName)
+  await download(sidecar.url, target)
+  const text = fs.readFileSync(target, 'utf8')
+  fs.rmSync(target, { force: true })
+  const match = /[a-f0-9]{64}/i.exec(text)
+  return match ? match[0].toLowerCase() : ''
+}
+
 async function installLauncher() {
   const existing = launcherExe()
   if (existing) return { launcher: existing, already: true }
@@ -1411,6 +1431,17 @@ async function installLauncher() {
   const zip = path.join(toolsRoot, 'AscNetLauncher.zip')
   log(`downloading ${asset.name}`)
   await download(asset.url, zip)
+
+  const actual = sha256Of(zip)
+  const expected = await publishedChecksum(asset, LAUNCHER_REPO, 'AscNetLauncher.sha256')
+  if (!expected) {
+    log('this release publishes no checksum, continuing with the archive as downloaded')
+  } else if (actual !== expected) {
+    fs.rmSync(zip, { force: true })
+    throw new Error(`checksum mismatch: the release lists ${expected.slice(0, 12)}…, the download is ${actual.slice(0, 12)}…`)
+  } else {
+    log(`checksum ${actual.slice(0, 12)}… matches the release`)
+  }
 
   const target = path.join(toolsRoot, 'launcher')
   fs.rmSync(target, { recursive: true, force: true })
