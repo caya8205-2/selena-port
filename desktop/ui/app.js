@@ -775,6 +775,28 @@ document.querySelector('#btnBackup').addEventListener('click', async () => {
 
 document.querySelector('#btnOpenBackups').addEventListener('click', () => window.selena.openBackups())
 
+// An update is a pull plus a rebuild: the checkout stays, so a new commit costs a diff instead of another
+// copy of the toolchain. The log says which commit moved.
+document.querySelector('#btnUpdateSource').addEventListener('click', async (event) => {
+  const button = event.currentTarget
+  button.disabled = true
+  appendTo('configLog', 'checking the source for updates\u2026')
+  try {
+    const result = await window.selena.updateSource()
+    if (!result || result.updated === false) {
+      appendTo('configLog', 'source is already current')
+    } else {
+      appendTo('configLog', `source moved ${String(result.from).slice(0, 7)} to ${String(result.to).slice(0, 7)}`)
+      appendTo('configLog', result.build && result.build.ok ? 'build finished' : 'build failed')
+    }
+    refreshSetup()
+  } catch (err) {
+    appendTo('configLog', 'update failed: ' + err.message)
+  } finally {
+    button.disabled = false
+  }
+})
+
 document.querySelector('#btnRebuild').addEventListener('click', async (event) => {
   const button = event.currentTarget
   button.disabled = true
@@ -898,6 +920,7 @@ document.querySelector('#btnOpenRepo').addEventListener('click', async () => {
 const WIZARD_STEPS = [
   {
     id: 'game',
+    short: 'game folder',
     title: 'Where the game is',
     ready: 'found',
     hint: 'The folder that holds PGR.exe. The app looks for it on its own and asks only when it cannot tell.',
@@ -905,7 +928,44 @@ const WIZARD_STEPS = [
     run: async () => { await window.selena.browse({ key: 'gameDir' }) },
   },
   {
+    id: 'dotnet',
+    short: '.NET SDK',
+    title: '.NET SDK',
+    ready: 'installed',
+    hint: 'Builds the server. Installed for this Windows user, so there is no admin prompt once the download runs.',
+    action: 'Install',
+    run: async () => { await window.selena.installDotnet() },
+  },
+  {
+    id: 'git',
+    short: 'Git',
+    title: 'Git',
+    ready: 'installed',
+    hint: 'Fetches the server source, and later pulls its updates instead of downloading them again.',
+    action: 'Install',
+    run: async () => { await window.selena.installGit() },
+  },
+  {
+    id: 'repo',
+    short: 'server source',
+    title: 'Server source',
+    ready: 'cloned',
+    hint: 'The checkout this app builds from. Keep it: an update is a pull, not a fresh copy.',
+    action: 'Clone',
+    run: async () => { await window.selena.cloneRepo((settings && settings.repoUrl) || '') },
+  },
+  {
+    id: 'server',
+    short: 'server build',
+    title: 'Server build',
+    ready: 'built',
+    hint: 'Compiled from that checkout. Build again after each update, and the running server picks it up on the next start.',
+    action: 'Build',
+    run: async () => { await window.selena.rebuildServer() },
+  },
+  {
     id: 'mongod',
+    short: 'database',
     title: 'Database',
     ready: 'ready',
     hint: 'MongoDB holds the player data. It is installed once, inside the app folder.',
@@ -913,15 +973,8 @@ const WIZARD_STEPS = [
     run: async () => { await window.selena.installMongo() },
   },
   {
-    id: 'server',
-    title: 'Server files',
-    ready: 'in place',
-    hint: 'The game server itself. In an installed copy these ship with the app.',
-    action: 'Build',
-    run: async () => { await window.selena.rebuildServer() },
-  },
-  {
     id: 'patch',
+    short: 'game patch',
     title: 'Game patch',
     ready: 'applied',
     hint: 'Applied the first time the game starts. The original files are copied aside before anything changes.',
@@ -934,7 +987,6 @@ const wizardEl = document.querySelector('#wizard')
 const wizardStepsEl = document.querySelector('#wizardSteps')
 const wizardStartEl = document.querySelector('#wizardStart')
 const wizardNoteEl = document.querySelector('#wizardNote')
-let wizardPackaged = false
 
 function wizardLine(className, text) {
   const node = document.createElement('span')
@@ -967,7 +1019,11 @@ function renderWizard(result) {
     const text = document.createElement('div')
     text.className = 'wizard__text'
     text.appendChild(wizardLine('wizard__step-title', step.title))
-    const detail = wizardLine('wizard__step-detail', check.ok ? step.ready : (check.detail || step.hint))
+    const needsUrl = step.id === 'repo' && !(settings && settings.repoUrl)
+    const detailText = check.ok
+      ? step.ready
+      : (needsUrl ? 'paste the repository URL in Config, then clone from here' : (check.detail || step.hint))
+    const detail = wizardLine('wizard__step-detail', detailText)
     text.appendChild(detail)
     row.appendChild(text)
 
@@ -976,7 +1032,7 @@ function renderWizard(result) {
     row.appendChild(state)
 
     // A packaged app cannot build its own server, so a failed server line there is a reinstall, not a button.
-    const offersAction = !check.ok && !(step.id === 'server' && wizardPackaged)
+    const offersAction = !check.ok && !(step.id === 'repo' && !(settings && settings.repoUrl))
     if (offersAction) {
       const button = document.createElement('button')
       button.type = 'button'
@@ -998,12 +1054,12 @@ function renderWizard(result) {
     wizardStepsEl.appendChild(row)
   }
 
-  const needed = ['game', 'mongod', 'server'].filter((id) => !(byId[id] && byId[id].ok))
+  const needed = ['game', 'dotnet', 'git', 'repo', 'server', 'mongod'].filter((id) => !(byId[id] && byId[id].ok))
   if (wizardStartEl) wizardStartEl.disabled = needed.length > 0
   if (wizardNoteEl) {
     wizardNoteEl.textContent = result.ok
       ? 'Everything is in place. Start the server, then create your account in Accounts.'
-      : 'Still missing: ' + needed.map((id) => WIZARD_STEPS.find((step) => step.id === id).title.toLowerCase()).join(', ')
+      : 'Still missing: ' + needed.map((id) => WIZARD_STEPS.find((step) => step.id === id).short).join(', ')
   }
 }
 
@@ -1015,7 +1071,6 @@ async function refreshWizard(openWhenIncomplete) {
   } catch (err) {
     return
   }
-  wizardPackaged = Boolean(settings && settings.packaged)
   renderWizard(result)
   if (openWhenIncomplete && !result.ok) openWizard()
 }
@@ -1043,7 +1098,6 @@ if (wizardEl) {
 // A first launch is incomplete by definition: open the wizard when anything is still missing.
 window.selena.settings().then((value) => {
   settings = value
-  wizardPackaged = Boolean(value.packaged)
   refreshWizard(true)
 })
 

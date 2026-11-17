@@ -15,7 +15,7 @@ const https = require('https')
 const fs = require('fs')
 const path = require('path')
 const net = require('net')
-const { spawn, spawnSync } = require('child_process')
+const { spawn, spawnSync, execFile } = require('child_process')
 const { buildChecks } = require('./verify')
 const { createBackup, listBackups } = require('./backup')
 const { detectGameDir } = require('./game-detect')
@@ -49,23 +49,20 @@ const defaults = {
   sdkPort: 8085,
   gamePort: 2335,
   mongoPort: 27017,
-  mongoBinary: isPackaged
-    ? path.join(resources, 'runtime', 'mongodb', 'mongod.exe')
-    : 'D:\\mongo\\mongodb-win32-x86_64-windows-7.0.48\\bin\\mongod.exe',
-  serverDir: isPackaged
-    ? path.join(resources, 'runtime', 'server')
-    : path.join(__dirname, '..', 'AscNet', 'bin', 'Debug', 'net8.0'),
+  // Nothing of the server ships with the app. Everything the build produces lives in the checkout the
+  // user owns, under their profile, and the tooling that builds it is installed on demand.
+  mongoBinary: isPackaged ? path.join(app.getPath('userData'), 'mongo', 'mongod.exe') : '',
+  serverDir: path.join(isPackaged ? path.join(app.getPath('userData'), 'repo') : path.join(__dirname, '..'),
+    'AscNet', 'bin', 'Debug', 'net8.0'),
   // Filled in by detectGameDir at startup: a path here would be one machine's, not the player's.
   gameDir: '',
-  // The server's publish output already carries the tables, so an installed copy reads them there
-  // instead of shipping a second copy through extraResources.
-  tableDir: isPackaged
-    ? path.join(resources, 'runtime', 'server', 'table')
-    : path.join(__dirname, '..', 'Resources', 'table'),
+  tableDir: path.join(isPackaged ? path.join(app.getPath('userData'), 'repo') : path.join(__dirname, '..'),
+    'Resources', 'table'),
   // The panels live beside the app in a checkout and in extraResources once packed, because they sit
   // outside desktop/ and cannot ride inside the asar.
   webUi: isPackaged ? path.join(resources, 'web-ui') : path.join(__dirname, '..', 'web-ui'),
-  repoRoot: isPackaged ? '' : path.join(__dirname, '..'),
+  // The checkout a player ends up with is theirs to keep: updating is a pull, never a reinstall.
+  repoRoot: isPackaged ? path.join(app.getPath('userData'), 'repo') : path.join(__dirname, '..'),
   repoUrl: '',
   repo: '',
   // Where mongod keeps its files. The desktop app and the control-centre script must
@@ -1218,6 +1215,105 @@ function findFile(root, name) {
   return null
 }
 
+// ---------------------------------------------------------------- prerequisites
+// The app installs what the server needs instead of shipping it. A player's copy stays small, and an
+// update is a pull plus a rebuild rather than another 300 MB download.
+
+const toolsRoot = path.join(app.getPath('userData'), 'tools')
+
+function run(file, args, options = {}) {
+  return new Promise((resolve) => {
+    execFile(file, args, { windowsHide: true, maxBuffer: 4 * 1024 * 1024, ...options }, (error, stdout, stderr) => {
+      resolve({ code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, stdout: stdout || '', stderr: stderr || '' })
+    })
+  })
+}
+
+async function gitOut(git, args) {
+  const result = await run(git, args)
+  if (result.code !== 0) throw new Error(result.stderr.trim() || result.stdout.trim() || `git ${args[0]} failed`)
+  return result.stdout.trim()
+}
+
+// MinGit is a plain zip with git.exe in cmd/, so nobody needs an installer or an admin prompt.
+function gitExe() {
+  const bundled = path.join(toolsRoot, 'git', 'cmd', 'git.exe')
+  if (fs.existsSync(bundled)) return bundled
+  for (const entry of (process.env.PATH || '').split(path.delimiter)) {
+    if (!entry) continue
+    const candidate = path.join(entry, 'git.exe')
+    if (fs.existsSync(candidate)) return candidate
+  }
+  return ''
+}
+
+function latestAsset(repo, pattern) {
+  return new Promise((resolve, reject) => {
+    const url = `https://api.github.com/repos/${repo}/releases/latest`
+    https.get(url, { headers: { 'User-Agent': 'selena-port', Accept: 'application/vnd.github+json' } }, (response) => {
+      let body = ''
+      response.on('data', (chunk) => { body += chunk })
+      response.on('end', () => {
+        if (response.statusCode !== 200) return reject(new Error(`GitHub answered ${response.statusCode}`))
+        try {
+          const assets = (JSON.parse(body).assets || []).filter((asset) => pattern.test(asset.name))
+          if (!assets.length) return reject(new Error('no matching asset in the latest release'))
+          resolve({ name: assets[0].name, url: assets[0].browser_download_url })
+        } catch (err) {
+          reject(err)
+        }
+      })
+    }).on('error', reject)
+  })
+}
+
+async function installGit() {
+  const existing = gitExe()
+  if (existing && existing.startsWith(toolsRoot)) return { git: existing, already: true }
+
+  const asset = await latestAsset('git-for-windows/git', /^MinGit-\d+[^/]*-64-bit\.zip$/)
+  fs.mkdirSync(toolsRoot, { recursive: true })
+  const zip = path.join(toolsRoot, asset.name)
+  log(`downloading ${asset.name}`)
+  await download(asset.url, zip)
+  log('extracting git')
+  await extractZip(zip, path.join(toolsRoot, 'git'))
+  fs.rmSync(zip, { force: true })
+
+  const git = path.join(toolsRoot, 'git', 'cmd', 'git.exe')
+  if (!fs.existsSync(git)) throw new Error('git.exe was not found in the downloaded archive')
+  log(`git ready at ${git}`)
+  return { git }
+}
+
+async function installDotnet() {
+  const root = dotnetRoot()
+  if (root) return { dotnet: path.join(root, 'dotnet.exe'), already: true }
+
+  fs.mkdirSync(toolsRoot, { recursive: true })
+  const script = path.join(toolsRoot, 'dotnet-install.ps1')
+  log('downloading the .NET install script')
+  await download('https://dot.net/v1/dotnet-install.ps1', script)
+
+  // The project targets net8.0 and the script installs into the per-user folder the app already probes,
+  // so no admin prompt and nothing added to the machine PATH.
+  const target = path.join(process.env.LOCALAPPDATA || app.getPath('userData'), 'Microsoft', 'dotnet')
+  log(`installing the .NET SDK into ${target}`)
+  const result = await run('powershell', [
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script,
+    '-Channel', '8.0', '-InstallDir', target, '-NoPath',
+  ])
+  if (result.code !== 0) {
+    const detail = (result.stderr || result.stdout).trim().split(/\r?\n/).slice(-3).join(' ')
+    throw new Error(`the .NET installer failed: ${detail}`)
+  }
+
+  const dotnet = path.join(target, 'dotnet.exe')
+  if (!fs.existsSync(dotnet)) throw new Error('dotnet.exe was not found after the install')
+  log(`dotnet ready at ${dotnet}`)
+  return { dotnet }
+}
+
 const MONGO_ZIP = 'https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-7.0.48.zip'
 
 async function installMongo() {
@@ -1259,7 +1355,9 @@ function cloneRepo(url) {
   log(`cloning ${url} into ${target}`)
 
   return new Promise((resolve, reject) => {
-    const child = spawnHidden('git', ['clone', '--depth', '1', url, target], {})
+    const git = gitExe()
+    if (!git) return reject(new Error('git is not installed - press Install Git first'))
+    const child = spawnHidden(git, ['clone', '--depth', '1', url, target], {})
     child.on('error', () => reject(new Error('git was not found; install Git or clone the repository manually')))
     child.on('exit', (code) => {
       if (code !== 0) return reject(new Error(`git clone exited with ${code}`))
@@ -1359,6 +1457,36 @@ async function rebuildServer() {
   const result = await buildServer()
   await startAll().catch((err) => log(`restart failed: ${err.message}`))
   return result
+}
+
+// An update is a pull and a rebuild: the checkout the user already has is what the app builds, so a new
+// commit costs a diff instead of another copy of the toolchain.
+async function updateSource() {
+  const git = gitExe()
+  if (!git) throw new Error('git is not installed - press Install Git first')
+
+  const repo = config.repoRoot
+  if (!fs.existsSync(path.join(repo, 'AscNet', 'AscNet.csproj'))) throw new Error('the source is not cloned yet')
+
+  const remotes = (await gitOut(git, ['-C', repo, 'remote'])).split(/\r?\n/).filter(Boolean)
+  if (!remotes.includes('origin')) throw new Error('this checkout has no origin remote to pull from')
+
+  const branch = await gitOut(git, ['-C', repo, 'rev-parse', '--abbrev-ref', 'HEAD'])
+  const before = await gitOut(git, ['-C', repo, 'rev-parse', 'HEAD'])
+
+  log(`checking origin/${branch}`)
+  await gitOut(git, ['-C', repo, 'fetch', '--depth', '1', 'origin', branch])
+  const newest = await gitOut(git, ['-C', repo, 'rev-parse', `origin/${branch}`])
+  if (before === newest) {
+    log('source is already current')
+    return { updated: false, commit: before }
+  }
+
+  await gitOut(git, ['-C', repo, 'pull', '--ff-only', 'origin', branch])
+  const now = await gitOut(git, ['-C', repo, 'rev-parse', 'HEAD'])
+  log(`source updated ${before.slice(0, 7)} to ${now.slice(0, 7)}, rebuilding`)
+  const build = await rebuildServer()
+  return { updated: true, from: before, to: now, build }
 }
 
 function checkUpdate(repo) {
@@ -1643,8 +1771,14 @@ app.whenReady().then(async () => {
   ipcMain.handle('update:status', (_event, repo) => updateStatus(repo))
   ipcMain.handle('update:apply', () => applyUpdate())
   ipcMain.handle('tools:clone', (_event, url) => cloneRepo(url))
+  ipcMain.handle('tools:install-git', () => installGit())
+  ipcMain.handle('tools:install-dotnet', () => installDotnet())
+  ipcMain.handle('tools:update-source', () => updateSource())
   ipcMain.handle('shell:logs', () => shell.openPath(logDir))
-  ipcMain.handle('setup:verify', () => buildChecks(config))
+  ipcMain.handle('setup:verify', () => buildChecks(config, {
+    git: gitExe(),
+    dotnet: dotnetRoot() ? path.join(dotnetRoot(), 'dotnet.exe') : '',
+  }))
   ipcMain.handle('admin:token', () => {
     // The server generates it beside its build; reading it here keeps the token out of
     // the page and out of any URL.

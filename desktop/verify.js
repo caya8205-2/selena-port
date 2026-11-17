@@ -14,7 +14,7 @@ function exists(target) {
   }
 }
 
-function buildChecks(config) {
+function buildChecks(config, tools = {}) {
   const checks = []
   const add = (id, ok, detail, fix, label) => checks.push({ id, label, ok, detail, fix })
 
@@ -24,6 +24,10 @@ function buildChecks(config) {
     const repoProject = path.join(config.repoRoot, 'AscNet', 'AscNet.csproj')
     add('repo', exists(repoProject), exists(repoProject) ? config.repoRoot : 'source not cloned yet', 'clone-repo', 'Repository')
   }
+
+  // The source is built here, so the two programs that build it are setup as well.
+  add('git', Boolean(tools.git), tools.git || 'git not installed', 'install-git', 'Git')
+  add('dotnet', Boolean(tools.dotnet), tools.dotnet || '.NET SDK not installed', 'install-dotnet', '.NET SDK')
 
   const serverDll = path.join(config.serverDir || '', 'AscNet.dll')
   add('server', exists(serverDll), exists(serverDll) ? config.serverDir : 'server not built yet', 'build-server', 'Server build')

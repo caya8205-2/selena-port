@@ -9,9 +9,8 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "dist": "npm run prepare-runtime && electron-builder --win nsis portable",
-    "dev": "electron . --dev",
-    "prepare-runtime": "node prepare-runtime.mjs"
+    "dist": "electron-builder --win nsis portable",
+    "dev": "electron . --dev"
   },
   "devDependencies": {
     "electron": "^33.4.11",
@@ -29,10 +28,6 @@
       "ui/**"
     ],
     "extraResources": [
-      {
-        "from": "runtime",
-        "to": "runtime"
-      },
       {
         "from": "../web-ui",
         "to": "web-ui"
