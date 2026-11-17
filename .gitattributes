@@ -64,3 +64,15 @@ Mods/**/*.tab text eol=crlf
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+###############################################################################
+# Language breakdown
+#
+# The statistics should describe what this project writes, not the game data it
+# ships for the client. Resources/ holds the client's tables, configs and notice
+# pages (96 MB of HTML alone) and Docs/ is documentation; without these lines the
+# repository reads as 85% HTML.
+###############################################################################
+Resources/** linguist-vendored
+Docs/** linguist-documentation
+*.tsv linguist-vendored

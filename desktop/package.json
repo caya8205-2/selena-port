@@ -43,7 +43,11 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "perMachine": false
+      "perMachine": false,
+      "artifactName": "Selena-port-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Selena-port-Portable-${version}.${ext}"
     }
   },
   "dependencies": {
