@@ -44,8 +44,9 @@ jobs:
           set -euo pipefail
           version="$(node -p "require('./desktop/package.json').version")"
           echo "package.json version: $version"
-          [[ "$version" =~ ^[0-9]{2}\.[0-9]{2}\.[0-9]{2}$ ]] \
-            || { echo "version must look like YY.MM.DD (26.11.17), not $version"; exit 1; }
+          # YY.MM.DD, plus a two digit build counter when the same day ships again: 26.11.18, then 26.11.1801.
+          [[ "$version" =~ ^[0-9]{2}\.[0-9]{2}\.[0-9]{2}[0-9]{0,2}$ ]] \
+            || { echo "version must look like YY.MM.DD (26.11.18) or YY.MM.DDNN (26.11.1801), not $version"; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
             echo "tag v$version already exists, this push does not bump the version"

@@ -746,7 +746,8 @@ https://github.com/rafi1212122/AscNet
 This branch is intended to document and preserve the current-client compatibility work separately from upstream.
 ## Desktop app release
 
-`desktop/package.json` carries the app version and its format is `YY.MM.DD` (26.11.17). A push does not ship by
+`desktop/package.json` carries the app version and its format is `YY.MM.DD` (26.11.18), with a two digit
+build counter appended when the same day ships again (`26.11.1801`). A push does not ship by
 itself: `.github/workflows/app-release.yml` reads that version and skips every job when the tag `v<version>`
 already exists, so releasing is one bump commit and an ordinary commit costs a skipped run.
 
