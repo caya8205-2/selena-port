@@ -1347,10 +1347,15 @@ function latestAsset(repo, pattern) {
 
 // The patcher is its own program (ascnet-launcher), so the app points at it instead of reimplementing it.
 function launcherExe() {
+  // A checkout builds the launcher itself, so its own binary wins there; an installed copy only has the
+  // released one under tools/. config.launcherPath still overrides both, because the user pointed at it.
+  const checkout = isPackaged ? '' : path.join(__dirname, '..', 'AscNet.Launcher', 'target', 'release')
   const candidates = [
     config.launcherPath,
+    checkout ? path.join(checkout, 'ascnet-launcher.exe') : '',
+    checkout ? path.join(checkout, 'AscNetLauncher.exe') : '',
+    path.join(toolsRoot, 'launcher', 'AscNetLauncher.exe'),
     path.join(toolsRoot, 'launcher', 'ascnet-launcher.exe'),
-    isPackaged ? '' : path.join(__dirname, '..', 'AscNet.Launcher', 'target', 'release', 'ascnet-launcher.exe'),
   ].filter(Boolean)
   return candidates.find((file) => fs.existsSync(file)) || ''
 }
@@ -1390,6 +1395,49 @@ async function reapplyPatch() {
   const state = await inspectPatch()
   log(`client patch state: ${state.state || 'unknown'}`)
   return state
+}
+
+// The launcher is a separate program with its own release: Rust, not the .NET server, and the release carries
+// the patch worker. Asking a player to build it is the same mistake as asking them to build the server, so the
+// app fetches the published zip the way it fetches MongoDB.
+const LAUNCHER_REPO = 'reiserFSs/InfiniteLoop'
+
+async function installLauncher() {
+  const existing = launcherExe()
+  if (existing) return { launcher: existing, already: true }
+
+  const asset = await latestAsset(LAUNCHER_REPO, /^AscNetLauncher\.zip$/)
+  fs.mkdirSync(toolsRoot, { recursive: true })
+  const zip = path.join(toolsRoot, 'AscNetLauncher.zip')
+  log(`downloading ${asset.name}`)
+  await download(asset.url, zip)
+
+  const target = path.join(toolsRoot, 'launcher')
+  fs.rmSync(target, { recursive: true, force: true })
+  fs.mkdirSync(target, { recursive: true })
+  log('extracting the launcher')
+  await extractZip(zip, target)
+  fs.rmSync(zip, { force: true })
+
+  const exe = path.join(target, 'AscNetLauncher.exe')
+  if (!fs.existsSync(exe)) throw new Error('AscNetLauncher.exe was not found in the downloaded archive')
+
+  // Windows builds answer --inspect with the patch state; --self-update-probe exists only on macOS. So the
+  // proof that the extracted binary runs is an inspect against the chosen game folder, when there is one.
+  if (config.gameDir) {
+    const probe = await run(exe, ['--inspect', config.gameDir])
+    const answer = (probe.stdout || '').trim()
+    if (probe.code !== 0 || !answer.startsWith('{')) {
+      const detail = (probe.stderr || answer || 'no output').trim().slice(0, 120)
+      throw new Error(`the launcher did not answer --inspect: ${detail}`)
+    }
+    log(`launcher reports ${answer.replace(/\s+/g, ' ')} for the game folder`)
+  }
+
+  config.launcherPath = exe
+  persistSettings({ launcherPath: exe })
+  log(`launcher ready at ${exe}`)
+  return { launcher: exe }
 }
 
 async function installGit() {
@@ -1915,11 +1963,13 @@ app.whenReady().then(async () => {
   ipcMain.handle('update:apply', () => applyUpdate())
   ipcMain.handle('tools:clone', (_event, url) => cloneRepo(url))
   ipcMain.handle('tools:install-git', () => installGit())
+  ipcMain.handle('tools:install-launcher', () => installLauncher())
   ipcMain.handle('tools:install-dotnet', () => installDotnet())
   ipcMain.handle('tools:update-source', () => updateSource())
   ipcMain.handle('shell:logs', () => shell.openPath(logDir))
   ipcMain.handle('setup:verify', () => buildChecks(config, {
     git: gitExe(),
+    launcher: launcherExe(),
     dotnet: runtimeRoot() ? path.join(runtimeRoot(), 'dotnet.exe') : '',
   }))
   ipcMain.handle('admin:token', () => {

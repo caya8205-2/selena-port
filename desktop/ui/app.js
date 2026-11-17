@@ -709,6 +709,7 @@ async function loadConfig() {
   document.querySelector('#btnInstallMongo').textContent = settings.mongoExists ? 'Reinstall MongoDB' : 'Install MongoDB'
   document.querySelector('#btnInstallDotnet').textContent = settings.dotnetExe ? 'Reinstall .NET' : 'Install .NET'
   document.querySelector('#btnInstallGit').textContent = settings.git ? 'Reinstall Git' : 'Install Git'
+  document.querySelector('#btnInstallLauncher').textContent = settings.launcherPath ? 'Reinstall launcher' : 'Install launcher'
   document.querySelector('#btnCloneRepo').textContent = settings.repoCloned ? 'Repository cloned' : 'Clone repository'
   document.querySelector('#btnCloneRepo').disabled = Boolean(settings.repoCloned)
 
@@ -812,6 +813,22 @@ document.querySelector('#btnInstallDotnet').addEventListener('click', async (eve
     loadConfig()
   } catch (err) {
     appendTo('configLog', 'the .NET install failed: ' + err.message)
+  } finally {
+    button.disabled = false
+  }
+})
+
+document.querySelector('#btnInstallLauncher').addEventListener('click', async (event) => {
+  const button = event.currentTarget
+  button.disabled = true
+  appendTo('configLog', 'installing the launcher\u2026')
+  try {
+    const result = await window.selena.installLauncher()
+    appendTo('configLog', result && result.version ? 'launcher ' + result.version + ' is ready' : 'the launcher is ready')
+    settings = await window.selena.settings()
+    loadConfig()
+  } catch (err) {
+    appendTo('configLog', 'the launcher install failed: ' + err.message)
   } finally {
     button.disabled = false
   }
@@ -1024,6 +1041,15 @@ const WIZARD_STEPS = [
     run: async () => { await window.selena.installMongo() },
   },
   {
+    id: 'launcher',
+    short: 'launcher',
+    title: 'Launcher',
+    ready: 'installed',
+    hint: 'Applies and restores the game patch. It ships as its own download, not with the server build.',
+    action: 'Install',
+    run: async () => { await window.selena.installLauncher() },
+  },
+  {
     id: 'patch',
     short: 'game patch',
     title: 'Game patch',
@@ -1105,7 +1131,7 @@ function renderWizard(result) {
     wizardStepsEl.appendChild(row)
   }
 
-  const needed = ['game', 'dotnet', 'git', 'repo', 'server', 'mongod'].filter((id) => !(byId[id] && byId[id].ok))
+  const needed = ['game', 'dotnet', 'git', 'repo', 'server', 'mongod', 'launcher'].filter((id) => !(byId[id] && byId[id].ok))
   if (wizardStartEl) wizardStartEl.disabled = needed.length > 0
   if (wizardNoteEl) {
     wizardNoteEl.textContent = result.ok

@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('selena', {
   applyUpdate: () => ipcRenderer.invoke('update:apply'),
   cloneRepo: (url) => ipcRenderer.invoke('tools:clone', url),
   installGit: () => ipcRenderer.invoke('tools:install-git'),
+  installLauncher: () => ipcRenderer.invoke('tools:install-launcher'),
   installDotnet: () => ipcRenderer.invoke('tools:install-dotnet'),
   reapplyPatch: () => ipcRenderer.invoke('tools:reapply-patch'),
   updateSource: () => ipcRenderer.invoke('tools:update-source'),

@@ -29,6 +29,9 @@ function buildChecks(config, tools = {}) {
   add('git', Boolean(tools.git), tools.git || 'git not installed', 'install-git', 'Git')
   add('dotnet', Boolean(tools.dotnet), tools.dotnet || '.NET SDK not installed', 'install-dotnet', '.NET SDK')
 
+  // The patch is applied by the launcher, which ships as its own download.
+  add('launcher', Boolean(tools.launcher), tools.launcher || 'the launcher is not installed', 'install-launcher', 'Launcher')
+
   const serverDll = path.join(config.serverDir || '', 'AscNet.dll')
   add('server', exists(serverDll), exists(serverDll) ? config.serverDir : 'server not built yet', 'build-server', 'Server build')
 
