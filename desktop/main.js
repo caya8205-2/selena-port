@@ -293,12 +293,54 @@ function dotnetRoot() {
   return found ? path.dirname(found) : ''
 }
 
+// The server targets net8.0. A machine with only a newer runtime cannot start it: the apphost reports
+// 0x80008096 and the console reads like a crash. Building and running therefore ask different questions -
+// any SDK can compile net8.0, but the run needs the 8.x shared framework.
+const REQUIRED_RUNTIME = '8.'
+
+function hasRuntime(root, framework) {
+  if (!root) return false
+  try {
+    return fs.readdirSync(path.join(root, 'shared', framework)).some((entry) => entry.startsWith(REQUIRED_RUNTIME))
+  } catch {
+    return false
+  }
+}
+
+// The root that can actually run the build: config first, then whatever the PATH or the machine offers.
+function runtimeRoot() {
+  const candidates = []
+  if (config.dotnetDir) candidates.push(config.dotnetDir)
+  for (const entry of (process.env.PATH || '').split(path.delimiter)) {
+    if (entry) candidates.push(path.dirname(path.join(entry, 'dotnet.exe')))
+  }
+  if (process.env.DOTNET_ROOT) candidates.push(process.env.DOTNET_ROOT)
+  if (process.env.LOCALAPPDATA) candidates.push(path.join(process.env.LOCALAPPDATA, 'Microsoft', 'dotnet'))
+  candidates.push('C:\\Program Files\\dotnet')
+
+  return candidates.find((dir) => hasRuntime(dir, 'Microsoft.NETCore.App')
+    && hasRuntime(dir, 'Microsoft.AspNetCore.App')) || ''
+}
+
+// A self-contained build carries its own runtime, so only a framework-dependent one needs a root.
+function needsRuntime(serverDir) {
+  try {
+    const configFile = JSON.parse(fs.readFileSync(path.join(serverDir, 'AscNet.runtimeconfig.json'), 'utf8'))
+    return Boolean(configFile.runtimeOptions && configFile.runtimeOptions.framework)
+  } catch {
+    return false
+  }
+}
+
 async function startServer() {
   if (await portOpen(config.sdkPort)) { log('server already listening'); return }
 
   const exe = path.join(config.serverDir, 'AscNet.exe')
   const dll = path.join(config.serverDir, 'AscNet.dll')
-  const root = dotnetRoot()
+  const root = runtimeRoot()
+  if (!root && needsRuntime(config.serverDir)) {
+    throw new Error('the .NET 8 runtime is missing - press Install .NET in Config, then start again')
+  }
   const env = root
     ? { ...process.env, DOTNET_ROOT: root, PATH: `${root}${path.delimiter}${process.env.PATH || ''}` }
     : process.env
@@ -1150,8 +1192,8 @@ function settingsSnapshot() {
     packaged: app.isPackaged,
     dotnetDir: config.dotnetDir || dotnetRoot(),
     gitPath: config.gitPath || gitExe(),
-    dotnetRoot: dotnetRoot(),
-    dotnetExe: dotnetRoot() ? path.join(dotnetRoot(), 'dotnet.exe') : '',
+    dotnetRoot: runtimeRoot(),
+    dotnetExe: runtimeRoot() ? path.join(runtimeRoot(), 'dotnet.exe') : '',
     git: gitExe(),
     launcherPath: launcherExe() || config.launcherPath || '',
     patchDir: patchDir(),
@@ -1348,8 +1390,8 @@ async function installGit() {
 }
 
 async function installDotnet() {
-  const root = dotnetRoot()
-  if (root) return { dotnet: path.join(root, 'dotnet.exe'), already: true }
+  const ready = runtimeRoot()
+  if (ready) return { dotnet: path.join(ready, 'dotnet.exe'), already: true }
 
   fs.mkdirSync(toolsRoot, { recursive: true })
   const script = path.join(toolsRoot, 'dotnet-install.ps1')
@@ -1371,6 +1413,7 @@ async function installDotnet() {
 
   const dotnet = path.join(target, 'dotnet.exe')
   if (!fs.existsSync(dotnet)) throw new Error('dotnet.exe was not found after the install')
+  if (!runtimeRoot()) throw new Error('the installer finished but the 8.x runtime is still missing')
   log(`dotnet ready at ${dotnet}`)
   return { dotnet }
 }
@@ -1839,7 +1882,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('shell:logs', () => shell.openPath(logDir))
   ipcMain.handle('setup:verify', () => buildChecks(config, {
     git: gitExe(),
-    dotnet: dotnetRoot() ? path.join(dotnetRoot(), 'dotnet.exe') : '',
+    dotnet: runtimeRoot() ? path.join(runtimeRoot(), 'dotnet.exe') : '',
   }))
   ipcMain.handle('admin:token', () => {
     // The server generates it beside its build; reading it here keeps the token out of

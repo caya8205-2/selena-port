@@ -279,7 +279,15 @@
     return tipEl;
   }
 
+  function modalOpen() {
+    return Boolean(document.querySelector(".modal:not([hidden]), .wizard:not([hidden])"));
+  }
+
   function showTip(target) {
+    if (modalOpen()) {
+      hideTip(target);
+      return;
+    }
     var text = target.getAttribute("data-tip");
     if (!text) return;
 
@@ -314,22 +322,22 @@
 
   function initTooltips() {
     document.addEventListener("mouseover", function (event) {
-      var target = event.target.closest("[data-tip]");
+      var target = event.target instanceof Element ? event.target.closest("[data-tip]") : null;
       if (target) showTip(target);
     });
 
     document.addEventListener("mouseout", function (event) {
-      var target = event.target.closest("[data-tip]");
+      var target = event.target instanceof Element ? event.target.closest("[data-tip]") : null;
       if (target && !target.contains(event.relatedTarget)) hideTip(target);
     });
 
     document.addEventListener("focusin", function (event) {
-      var target = event.target.closest("[data-tip]");
+      var target = event.target instanceof Element ? event.target.closest("[data-tip]") : null;
       if (target) showTip(target);
     });
 
     document.addEventListener("focusout", function (event) {
-      var target = event.target.closest("[data-tip]");
+      var target = event.target instanceof Element ? event.target.closest("[data-tip]") : null;
       if (target) hideTip(target);
     });
 
@@ -338,6 +346,16 @@
     });
 
     window.addEventListener("scroll", function () { hideTip(null); }, true);
+
+    // Alt-tab returns focus to the control that opened the modal and the browser re-fires focusin on it, so
+    // both leaving the window and coming back with a dialog up have to clear the tip.
+    // A click is what opens the dialog, so it is also the moment to retire the tip the click was hovering over.
+    document.addEventListener("click", function () { hideTip(null); }, true);
+
+    window.addEventListener("blur", function () { hideTip(null); });
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) hideTip(null);
+    });
   }
 
 
