@@ -1,69 +1,124 @@
-# InfiniteLoop
+# Selena-port
 
-> **This is the [Selena-port](SELENA.md) fork.** Upstream InfiniteLoop is kept as
-> the base and left intact; this fork adds a browser self-service panel
-> (`web-ui/`) and keeps the Android-port research in `docs/apk-port/`.
-> Licensing is mixed and documented in [LICENSE.md](LICENSE.md) and
-> [NOTICE.md](NOTICE.md).
+Play **Punishing: Gray Raven** on your own PC, against a private server that runs on your machine.
 
-<img width="1500" height="500" alt="image" src="https://github.com/user-attachments/assets/f41daa42-e75a-4fb5-a612-daae67b2cc30" />
+Selena-port is a fork of [InfiniteLoop](https://github.com/reiserFSs/InfiniteLoop), which itself is a branch of
+[AscNet](https://github.com/rafi1212122/AscNet). The server side is upstream's work; this fork adds the thing
+that was missing for a player: an app that sets the whole stack up for you, and a panel that shows a save
+instead of a chat prompt. What changed and why is in [SELENA.md](SELENA.md); licensing is documented in
+[LICENSE.md](LICENSE.md) and [NOTICE.md](NOTICE.md).
 
-
-Play **Punishing: Gray Raven** on your own PC, against a private server that runs on your machine. InfiniteLoop is a branch of [AscNet](https://github.com/rafi1212122/AscNet).
-
-This is a fan project, not an official service. Everything runs locally: your progress is stored on your computer, and there are no other players unless you share your server.
+This is a fan project, not an official service. Everything runs locally: your progress is stored on your
+computer, and there are no other players unless you share your server.
 
 ## What you need
 
-- A Windows 10/11 PC (64-bit). macOS and Linux work through CrossOver or Wine.
-- About 72 GB of free space if the launcher downloads the game for you.
-- An internet connection for the first setup and the game download.
-
-Game version **4.9.0** is supported, in these editions: English (Global), 繁體中文 (Taiwan), 한국어 (Korea), 日本語 (Japan) and 简体中文 (China).
+- A Windows 10/11 PC (64-bit). The app is the supported path; the launcher and server can still be run by hand.
+- A Punishing: Gray Raven install you are allowed to modify: the official launcher's folder or the Steam copy.
+- An internet connection for the first setup (the app downloads the tools it needs) and for updates.
 
 ## Getting started
 
-1. Download `AscNetLauncher.zip` from the [latest release](https://github.com/reiserFSs/InfiniteLoop/releases/latest) and extract it to its own folder.
-2. Run `AscNetLauncher.exe`.
-3. Press **SELECT GAME** and choose a language and an install folder:
-   - An empty folder: press **DOWNLOAD** to install the game.
-   - A folder that already has the game (official launcher or Steam): press **ADOPT** to use it, or **UPDATE** if it's an older version.
-4. Press **SETUP**. The first setup downloads the tools it needs and builds your local server, so it takes a while.
-5. Press **PLAY**.
-6. In the game's login screen, enter any email and password. The account is created the first time you use it; use the same details next time to get the same save.
+Download **`Selena-port-Setup-<version>.exe`** from the
+[latest release](https://github.com/caya8205-2/selena-port/releases/latest) and install it, or run
+**`Selena-port-Portable-<version>.exe`** without installing anything. Both open the same app, and the portable
+build keeps its data in the same place as the installed one.
 
-After the first time, just open the launcher and press **PLAY**.
+On first launch a setup dialog lists what the machine still needs. Each line carries its own button:
+
+1. **Where the game is.** The app looks for the game itself and fills the folder in; **Choose folder** is there
+   when it cannot tell, or when you keep more than one copy.
+2. **.NET SDK.** Installs for the current Windows user, with no admin prompt. The server is built with it.
+3. **Git.** Fetches the server source, and later pulls its updates instead of downloading them again.
+4. **Server source.** Clones the checkout the app builds from. Keep it: an update is a pull, not a new copy.
+5. **Server build.** Compiles the server from that checkout.
+6. **Database.** Installs MongoDB inside the app's own folder.
+7. **Launcher.** Applies and restores the game patch. It ships as its own download.
+8. **Game patch.** Applied the first time the game starts; the original files are copied aside first.
+
+Press **Start** when every line reads ready. The dialog closes itself and the Console shows the stack running.
+
+Then open **Accounts**, press **Create account**, and **Launch game** from the Console. In the game's login
+screen use the same email and password you created; the save belongs to that account.
+
+After the first time, the app opens on the Console: **Start** brings the stack up, **Launch game** starts the
+client.
+
+## Updating
+
+Two different things update on two different schedules:
+
+- **The app itself** ships as a new release when the version changes, and the version is the date
+  (`26.11.18`). Install the new one over the old.
+- **The server source** updates in place. **Config → Update source** pulls the checkout the app already has and
+  rebuilds it, so a new commit costs a diff and a compile instead of another download. The **Update** tab
+  watches the repository this checkout came from and says whether a newer commit exists.
+
+## Where things live
+
+`%APPDATA%\Selena-port` holds everything the app keeps, and `%LOCALAPPDATA%\Microsoft\dotnet` holds the .NET
+SDK it installed:
+
+| What | Where |
+| --- | --- |
+| Settings | `%APPDATA%\Selena-port\config.json` |
+| App, server and database logs | `%APPDATA%\Selena-port\logs\` (`app.log`, `server.out.log`, `mongo.out.log`) |
+| Player database | `%APPDATA%\Selena-port\mongo-data` |
+| Downloaded tools (Git, MongoDB, launcher) | `%APPDATA%\Selena-port\tools\` |
+| Server source and its build | `%APPDATA%\Selena-port\repo` |
+| Launcher log | `launcher.log`, next to `AscNetLauncher.exe` |
+| Game patch log | `ascnet-patch.log`, next to `PGR.exe` in the game folder |
+| Game log | the newest file in `%USERPROFILE%\AppData\LocalLow\kurogame\PGR\log\` |
+
+The panel keeps no copy of its own: it reads the database the server writes.
 
 ## Tips
 
-- **Chat commands:** type `/help` in the in-game chat for commands that give currency, items, characters, levels and stage clears.
-- **GM menu and client mods:** in the launcher, open **SETTINGS → CLIENT MODS**, switch on **Client mods (game debug mode)**, and enable the mods you want. Restart the game afterwards. The included GM menu opens with **Ctrl+Shift+D**. More in [Mods](Mods/README.md).
-- **Repairing the game:** **SETTINGS → Game client…** has **VERIFY & REPAIR**, which re-checks every game file and re-downloads anything damaged. For the Global (EN) client it also restores the in-game patch files (`PGR_Data/StreamingAssets/document`: the newest audio, video and script patch) from Kuro's patch servers, so the game doesn't need to download them itself. That is about 3.7 GB the first time.
+- **Chat commands** still work: type `/help` in the in-game chat for currency, items, characters, levels and
+  stage clears.
+- **The panel** does the same work with controls: grant items, tune a construct's level, rank, memories and
+  resonances, clean out spares, and apply one tab to every entry at once with **Tutti**.
+- **Client mods:** the launcher's **SETTINGS → CLIENT MODS** switch enables the debug menu and the included
+  mods. Restart the game afterwards; the GM menu opens with **Ctrl+Shift+D**.
+- **Repairing the game:** the launcher's **SETTINGS → Game client…** has **VERIFY & REPAIR**, which re-checks
+  every file and re-downloads anything damaged. For the Global client it also restores the in-game patch files
+  from Kuro's servers, about 3.7 GB the first time.
 
 ## What works
 
-Most of the game is playable: story, characters and gear, gacha, shops, tasks, events, guilds, dorms, friends and the regular PvE modes.
+Most of the game is playable: story, characters and gear, gacha, shops, tasks, events, guilds, dorms, friends
+and the regular PvE modes.
 
 Some things are missing or limited:
 
 - **Multiplayer and co-op rooms** don't work yet.
 - **Some older or minor events** have no server support.
-- **A few rewards, shops and banners stay closed** because the game files don't contain the data needed to run them; [Docs/closed.md](Docs/closed.md) lists each one.
-- **Event calendars:** the game files don't include the official event calendar, so some events are simply always open.
+- **A few rewards, shops and banners stay closed** because the game files don't contain the data needed to run
+  them; [Docs/closed.md](Docs/closed.md) lists each one.
+- **Event calendars:** the game files don't include the official calendar, so some events are simply always
+  open.
 
 ## Having a problem?
 
-When you report a bug, include what you did, what happened, your game language, and these log files (`%LOCALAPPDATA%` is `C:\Users\<you>\AppData\Local`):
+When you report a bug, include what you did, what happened, your game language, and the logs. The app's
+**Open logs** button opens the folder the first three live in.
 
-| Log | Where |
-| --- | --- |
-| Server | `%LOCALAPPDATA%\AscNetLauncher\local\logs\server.log` (the previous run is `server.previous.log`) |
-| Launcher | `launcher.log`, next to `AscNetLauncher.exe` |
-| Game patch | `ascnet-patch.log`, next to `PGR.exe` in the game folder |
-| Game | the newest file in `%USERPROFILE%\AppData\LocalLow\kurogame\PGR\log\` |
-
-If the game doesn't reach the login screen, the [player diagnostics guide](AscNet.Launcher/docs/player-diagnostics.md) explains what the patch log lines mean.
+If the game doesn't reach the login screen, the
+[player diagnostics guide](AscNet.Launcher/docs/player-diagnostics.md) explains what the patch log lines mean.
 
 ## For developers
 
-Building the server, running it without the launcher, the protocol and feature notes, and the test suite are in the [developer guide](Docs/development.md). Repository rules for contributors and agents are in [AGENTS.md](AGENTS.md).
+The app is Electron plus the panel's own HTML, CSS and JS; the server is .NET 8. From the repository root:
+
+```bash
+cd desktop && npm install && npm run dev      # the app, pointed at this checkout
+dotnet build AscNet/AscNet.csproj             # the server the app runs
+cd AscNet.Launcher && cargo build --release   # the launcher, a separate program
+```
+
+`SELENA_USER_DATA=<folder> npm run dev` starts the app against a scratch profile, which is how the first-run
+dialog gets tested on a machine that is already set up. Nothing in the default profile is touched.
+
+Building the server, running it without the app, the protocol and feature notes, and the test suite are in the
+[developer guide](Docs/development.md). Repository rules for contributors and agents are in
+[AGENTS.md](AGENTS.md).
