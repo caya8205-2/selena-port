@@ -64,7 +64,8 @@ const defaults = {
   // The checkout a player ends up with is theirs to keep: updating is a pull, never a reinstall.
   repoRoot: isPackaged ? path.join(app.getPath('userData'), 'repo') : path.join(__dirname, '..'),
   repoUrl: '',
-  repo: '',
+  // The Update tab follows this repository unless the clone says otherwise.
+  repo: 'caya8205-2/selena-port',
   // Where mongod keeps its files. The desktop app and the control-centre script must
   // agree here, or "start" silently opens a different database than the one the user
   // already has accounts in.
@@ -330,6 +331,20 @@ function needsRuntime(serverDir) {
   } catch {
     return false
   }
+}
+
+// The Update tab tracks the repository this app actually builds, which is the origin of the checkout -
+// normally the fork, not the upstream it was forked from.
+function repoFromOrigin() {
+  const git = gitExe()
+  const root = config.repoRoot
+  if (!git || !root || !fs.existsSync(path.join(root, '.git'))) return ''
+
+  const result = spawnSync(git, ['-C', root, 'remote', 'get-url', 'origin'], { windowsHide: true, encoding: 'utf8' })
+  if (result.status !== 0) return ''
+
+  const match = /github\.com[:/]([^/]+)\/(.+?)(?:\.git)?\s*$/.exec((result.stdout || '').trim())
+  return match ? match[1] + '/' + match[2] : ''
 }
 
 async function startServer() {
@@ -1832,6 +1847,15 @@ app.whenReady().then(async () => {
   // Only the instance that owns the lock starts a server or opens a window.
   if (!singleInstance) return
   fs.mkdirSync(logDir, { recursive: true })
+
+  // The Update tab answers "is there a newer commit" for the checkout under the app, so it starts on that
+  // repository instead of asking the user to type owner/name.
+  const originRepo = repoFromOrigin()
+  if (originRepo && originRepo !== config.repo) {
+    config.repo = originRepo
+    persistSettings({ repo: originRepo })
+    log(`updates follow ${originRepo}`)
+  }
 
   // A player installs through Steam and never learns the folder name: fill it in rather than sending them
   // to a Browse dialog first. A configured folder that no longer holds PGR.exe is replaced the same way.
