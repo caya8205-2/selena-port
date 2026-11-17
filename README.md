@@ -41,6 +41,10 @@ Press **Start** when every line reads ready. The dialog closes itself and the Co
 Then open **Accounts**, press **Create account**, and **Launch game** from the Console. In the game's login
 screen use the same email and password you created; the save belongs to that account.
 
+From there, reach the lobby before pressing Perform in the panel. Writes made while the game is closed are
+stored, but the client only shows them at its next login; [Commands and Perform](#commands-and-perform) covers
+what that looks like in the log.
+
 After the first time, the app opens on the Console: **Start** brings the stack up, **Launch game** starts the
 client.
 
@@ -83,6 +87,26 @@ The panel keeps no copy of its own: it reads the database the server writes.
 - **Repairing the game:** the launcher's **SETTINGS → Game client…** has **VERIFY & REPAIR**, which re-checks
   every file and re-downloads anything damaged. For the Global client it also restores the in-game patch files
   from Kuro's servers, about 3.7 GB the first time.
+
+## Commands and Perform
+
+The panel talks to the server, not to the game client, and that explains the one confusing result you will
+meet: a Perform that reports success and changes nothing you can see.
+
+- **Reads are always current.** Accounts, the item and construct catalogs, memory sets and the Update tab read
+  the database the server owns, so they work with the game closed.
+- **A Perform reaches the game when the game is open.** The server runs every command either against your live
+  session - the pushes arrive in the client at once - or, when you are not in game, against an offline session
+  built from the same documents. Either way the write lands; only the moment you see it differs.
+- **The log says which happened.** A Perform that ran without a live session ends with "stored in the database -
+  the game client shows it at its next login". That is a success, not a failure.
+- **An account has no player until it logs in once.** Creating it in the app only writes the login; the
+  construct roster, inventory and progress are created by the game at its first sign-in. A Perform against such
+  an account answers "this account has no player yet - log in once from the game".
+
+So the order is: **Start** the stack, **Launch game**, log in once, and from then on the panel works either way.
+If a Perform looks like it did nothing, log out and back in, or close the game and start it again from the
+Console: the account is fine, the client's copy was just older than the database.
 
 ## What works
 
