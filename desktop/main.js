@@ -1827,7 +1827,6 @@ app.whenReady().then(async () => {
   ipcMain.handle('config:set', (_event, next) => persistSettings(next || {}))
   ipcMain.handle('config:browse', (_event, payload) => browsePath(payload.key, payload.current))
   ipcMain.handle('tools:install-mongo', () => installMongo())
-  ipcMain.handle('tools:inspect-patch', () => inspectPatch())
   ipcMain.handle('tools:reapply-patch', () => reapplyPatch())
   ipcMain.handle('tools:rebuild', () => rebuildServer())
   ipcMain.handle('update:check', (_event, repo) => checkUpdate(repo))

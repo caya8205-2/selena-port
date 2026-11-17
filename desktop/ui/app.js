@@ -712,21 +712,7 @@ async function loadConfig() {
   document.querySelector('#btnCloneRepo').textContent = settings.repoCloned ? 'Repository cloned' : 'Clone repository'
   document.querySelector('#btnCloneRepo').disabled = Boolean(settings.repoCloned)
 
-  document.querySelector('#mongoNote').textContent = settings.mongoExists
-    ? `mongod at ${settings.mongoBinary}`
-    : `will be installed into ${settings.mongoDir}`
-
   if (!settings.mongoExists) appendTo('configLog', 'mongod.exe not found at the configured path')
-
-  const patchNote = document.querySelector('#patchNote')
-  if (patchNote) {
-    patchNote.textContent = 'checking the client patch\u2026'
-    window.selena.inspectPatch().then((state) => {
-      patchNote.textContent = state && state.state
-        ? `launcher says: ${state.state}${state.reason ? ' (' + state.reason + ')' : ''}`
-        : 'launcher state unknown'
-    }).catch((err) => { patchNote.textContent = 'launcher state unavailable: ' + err.message })
-  }
 
   refreshSetup()
 }
