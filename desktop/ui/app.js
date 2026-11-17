@@ -653,6 +653,7 @@ const CONFIG_FIELDS = {
   launcherPath: '#cfgLauncher',
   dotnetDir: '#cfgDotnet',
   gitPath: '#cfgGit',
+  patchDir: '#cfgPatchDir',
 }
 
 // The setup block answers "what is missing" before the user hits a failure later.
@@ -708,7 +709,6 @@ async function loadConfig() {
   document.querySelector('#btnInstallMongo').textContent = settings.mongoExists ? 'Reinstall MongoDB' : 'Install MongoDB'
   document.querySelector('#btnInstallDotnet').textContent = settings.dotnetExe ? 'Reinstall .NET' : 'Install .NET'
   document.querySelector('#btnInstallGit').textContent = settings.git ? 'Reinstall Git' : 'Install Git'
-  document.querySelector('#cfgPatchDir').value = settings.patchDir || 'choose the game folder first'
   document.querySelector('#btnCloneRepo').textContent = settings.repoCloned ? 'Repository cloned' : 'Clone repository'
   document.querySelector('#btnCloneRepo').disabled = Boolean(settings.repoCloned)
 

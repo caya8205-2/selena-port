@@ -198,7 +198,7 @@
             <div class="row"><span>Setup</span><b class="dim">checking…</b></div>
           </div>
           <label class="field">
-            <span class="field__label">Repository <em>cloned once, then built locally</em></span>
+            <span class="field__label">Repository URL <em>cloned once, then built locally</em></span>
             <span class="field__row">
               <input class="input" id="cfgRepoUrl" type="text" placeholder="https://github.com/owner/name.git" spellcheck="false">
               <button class="btn" id="btnCloneRepo">Clone repository</button>
@@ -228,7 +228,8 @@
           <label class="field">
             <span class="field__label">Client patch <em>originals are copied aside first</em></span>
             <span class="field__row">
-              <input class="input" id="cfgPatchDir" type="text" readonly>
+              <input class="input" id="cfgPatchDir" type="text" placeholder="pick the launcher folder" spellcheck="false">
+              <button class="btn" data-browse="patchDir">Browse</button>
               <button class="btn" id="btnReapplyPatch">Reapply patch</button>
             </span>
             <span class="field__note" id="patchNote"></span>

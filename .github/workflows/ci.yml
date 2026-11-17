@@ -5,7 +5,7 @@ on:
   pull_request:
     paths: ["AscNet.Launcher/**", ".github/workflows/**"]
   push:
-    branches: [master]
+    branches: [main]
     paths: ["AscNet.Launcher/**", ".github/workflows/**"]
   workflow_call:
 

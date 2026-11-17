@@ -40,7 +40,9 @@ function buildChecks(config, tools = {}) {
   const gameExe = config.gameDir ? path.join(config.gameDir, 'PGR.exe') : ''
   add('game', exists(gameExe), exists(gameExe) ? config.gameDir : 'game folder not selected', 'browse-game', 'Game directory')
 
-  const patchState = config.gameDir ? path.join(config.gameDir, '.ascnet-launcher', 'state.json') : ''
+  // A moved patch folder is still the same patch: the configured path wins over the default location.
+  const patchRoot = config.patchDir || (config.gameDir ? path.join(config.gameDir, '.ascnet-launcher') : '')
+  const patchState = patchRoot ? path.join(patchRoot, 'state.json') : ''
   add('patch', exists(patchState), exists(patchState) ? 'client patched' : 'client not patched yet', 'clone-repo', 'Client patch')
 
   return { ok: checks.every((check) => check.ok), checks }

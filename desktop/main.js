@@ -1133,7 +1133,7 @@ function startUiServer() {
 
 const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json')
 const SETTINGS_KEYS = ['gameDir', 'serverDir', 'mongoBinary', 'mongoDataDir', 'repo', 'repoUrl', 'repoRoot',
-  'launcherPath', 'dotnetDir', 'gitPath']
+  'launcherPath', 'dotnetDir', 'gitPath', 'patchDir']
 
 function settingsSnapshot() {
   return {
@@ -1290,7 +1290,9 @@ function launcherExe() {
   return candidates.find((file) => fs.existsSync(file)) || ''
 }
 
+// The launcher keeps its state beside the game; a user who moved it can point at it instead.
 function patchDir() {
+  if (config.patchDir) return config.patchDir
   return config.gameDir ? path.join(config.gameDir, '.ascnet-launcher') : ''
 }
 

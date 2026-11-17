@@ -6,7 +6,7 @@ name: App release
 
 on:
   push:
-    branches: [master, selena-panel]
+    branches: [main]
     paths:
       - 'desktop/**'
       - 'web-ui/**'
