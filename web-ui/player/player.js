@@ -1197,13 +1197,38 @@
       return stops;
     }
 
-    function openBulk() {
+    // Level cap, skill cap and the promotion ladder are table properties, not per-construct state: before a card
+    // exists, one catalog entry answers for all of them.
+    async function bulkBounds() {
+      if (state.template) {
+        return {
+          promotions: state.template.promotions,
+          levels: (state.template.levels && state.template.levels.max) || 80,
+          skillMax: (state.template.skills && state.template.skills.max) || 0,
+        };
+      }
+
+      const catalogPayload = await ensureCatalog();
+      const first = (catalogPayload.characters || [])[0];
+      const detail = first
+        ? await fetch(`/api/panel/tune-character/${first.id}`).then((response) => (response.ok ? response.json() : null)).catch(() => null)
+        : null;
+
+      return {
+        promotions: (detail && detail.promotions) || [],
+        levels: (detail && detail.maxLevel) || 80,
+        skillMax: (detail && detail.skillMax) || 0,
+      };
+    }
+
+    async function openBulk() {
       const body = $("#bulkBody");
       body.textContent = "";
+      const bounds = await bulkBounds();
       const ranks = bulkRanks();
-      const promotions = (state.template && state.template.promotions) || [];
-      const levels = (state.template && state.template.levels && state.template.levels.max) || 80;
-      const skillMax = (state.template && state.template.skills && state.template.skills.max) || 0;
+      const promotions = bounds.promotions;
+      const levels = bounds.levels;
+      const skillMax = bounds.skillMax;
       const choice = { level: 0, rank: 0, grade: 0, skill: 0, ranks: ranks, promotions: promotions };
       state.bulkChoice = choice;
 
