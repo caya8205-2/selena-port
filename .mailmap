@@ -1,0 +1,11 @@
+# One person, one identity in log, blame and shortlog.
+#
+# The first 43 commits here were authored by the account caya8205, which is suspended: GitHub answers 404 for
+# the profile while still rendering its cached name and avatar in the contributor graph. Everything since is
+# authored by caya8205-2, which is the account that owns this repository now. Mapping the old address onto the
+# current identity keeps the history readable instead of splitting one author into two.
+
+caya8205-2 <yaandere200@gmail.com> Caya8205 <caya8205@users.noreply.github.com>
+
+# Upstream spells the same address two ways.
+reiserFSs <86ctg@protonmail.com> <86CTG@protonmail.com>
