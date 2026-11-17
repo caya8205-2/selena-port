@@ -1398,10 +1398,9 @@
       // The client's awaken condition counts a hypertuned resonance skill and a stat pick never counts, so a tune
       // that fills every upper slot with a stat writes a build that cannot awaken.
       const resonanceNote = document.createElement("p");
-      resonanceNote.className = "tune__note";
-      resonanceNote.textContent = "A stat pick never counts toward an awaken. To awaken from a tune, set the upper "
-        + "resonance to a skill, or leave the upper slot empty and add it in game afterwards; the lower slot can stay "
-        + "as the tune wrote it.";
+      resonanceNote.className = "hint-block";
+      resonanceNote.textContent = "A stat never counts toward an awaken: the upper slot needs a skill. Leave it "
+        + "empty to set that one in game afterwards; the lower slot can stay as written.";
       resonanceSection.appendChild(resonanceNote);
       const resonanceGrid = document.createElement("div");
       resonanceGrid.className = "tune__grid";
