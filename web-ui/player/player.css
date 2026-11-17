@@ -345,7 +345,9 @@
    single row with a real gap, never flush against the card. */
 .field__actions,
 .hint-block { margin: 12px 0 0; }
-.tune .hint-block { margin: 10px 0 12px; max-width: 72ch; }
+/* The note sits right under the section rule and runs the full width: a hint that wraps into four short
+   lines inside a wide dialog reads as a paragraph nobody meant to write. */
+.tune .hint-block { margin: 0 0 10px; max-width: none; }
 
 .field__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
