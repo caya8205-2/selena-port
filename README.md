@@ -82,6 +82,12 @@ The panel keeps no copy of its own: it reads the database the server writes.
   stage clears.
 - **The panel** does the same work with controls: grant items, tune a construct's level, rank, memories and
   resonances, clean out spares, and apply one tab to every entry at once with **Tutti**.
+- **Awaken wants a skill in the upper resonance slot.** A stat resonance (ATK +15, CRIT +15) does not count
+  toward it, and in this build a stat written to the upper slot by the panel does not satisfy the counter
+  either. To keep both: tune the upper slot to a skill such as Red Orb Level, awaken, then overwrite that slot
+  with the stat in game. The awaken cannot be locked again, so the extra skill stays after the swap and after a
+  relog, even though the game then shows the condition as unmet. Official servers count a stat there; this one
+  does not, which is a known bug here.
 - **Client mods:** the launcher's **SETTINGS → CLIENT MODS** switch enables the debug menu and the included
   mods. Restart the game afterwards; the GM menu opens with **Ctrl+Shift+D**.
 - **Repairing the game:** the launcher's **SETTINGS → Game client…** has **VERIFY & REPAIR**, which re-checks
