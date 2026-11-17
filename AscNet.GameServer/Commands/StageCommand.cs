@@ -40,6 +40,8 @@ namespace AscNet.GameServer.Commands
                     });
                 }
 
+                // The write has to persist here: an administrative run has no client that saves on logout.
+                session.stage.Save();
                 session.SendPush(new NotifyStageData() { StageList = session.stage.Stages.Select(x => x.Value).ToList() });
             }
             else
@@ -66,6 +68,7 @@ namespace AscNet.GameServer.Commands
                     };
                     session.stage.Stages.Add(stageData.StageId, stage);
 
+                    session.stage.Save();
                     session.SendPush(new NotifyStageData() { StageList = new() { stage } });
                 }
             }

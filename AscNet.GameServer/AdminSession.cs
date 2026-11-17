@@ -27,7 +27,12 @@ namespace AscNet.GameServer
             Character character = Character.FromUid(uid, player.GatherRewards);
             Inventory inventory = Inventory.FromUid(uid);
 
-            return new Handle(new Session($"admin-{uid}", player, character, inventory), false);
+            Session session = new($"admin-{uid}", player, character, inventory);
+            // The login path assigns the stage module; an offline session needs the same one, or a stage command
+            // dereferences nothing and answers "Object reference not set to an instance of an object".
+            session.stage = Stage.FromUid(player.PlayerData.Id);
+
+            return new Handle(session, false);
         }
     }
 }

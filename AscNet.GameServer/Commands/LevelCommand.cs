@@ -1,4 +1,4 @@
-﻿using AscNet.Common.MsgPack;
+using AscNet.Common.MsgPack;
 using AscNet.Common.Util;
 using AscNet.GameServer.Handlers;
 using AscNet.Table.V2.share.player;
@@ -23,18 +23,27 @@ namespace AscNet.GameServer.Commands
             if (Level == "max")
             {
                 session.player.PlayerData.Level = playerLevels.OrderByDescending(x => x.Level).First().Level;
-                NotifyPlayerLevel notifyPlayerLevel = new()
-                {
-                    Level = (int)session.player.PlayerData.Level
-                };
-                session.SendPush(notifyPlayerLevel);
+                // The command persists on its own: an administrative run has no client that would save on
+                // logout, and a live session only flushes later.
+                session.player.SaveChecked();
+                session.SendPush(new NotifyPlayerLevel { Level = (int)session.player.PlayerData.Level });
                 session.ExpSanityCheck();
+                return;
             }
-            else if (playerLevels.Any(x => x.Level == level))
+
+            if (!playerLevels.Any(x => x.Level == level))
+                throw new ArgumentException("Invalid Level!");
+
+            bool lowered = session.player.PlayerData.Level > level;
+            session.player.PlayerData.Level = level;
+            session.player.SaveChecked();
+
+            if (lowered)
             {
-                if (session.player.PlayerData.Level > level)
+                // The client only accepts a lower level after a re-login. With no socket there is nothing to
+                // reconnect, and the save above is the whole job.
+                if (session.client is not null)
                 {
-                    session.player.PlayerData.Level = level;
                     // Waiting for SendChatResponse, pls fix later
                     Task.Run(() =>
                     {
@@ -42,20 +51,12 @@ namespace AscNet.GameServer.Commands
                         session.SendPush(new ForceLogoutNotify() { Code = 1030 });
                         session.DisconnectProtocol();
                     });
-                    return;
                 }
-                session.player.PlayerData.Level = level;
-                NotifyPlayerLevel notifyPlayerLevel = new()
-                {
-                    Level = (int)session.player.PlayerData.Level
-                };
-                session.SendPush(notifyPlayerLevel);
-                session.ExpSanityCheck();
+                return;
             }
-            else
-            {
-                throw new ArgumentException("Invalid Level!");
-            }
+
+            session.SendPush(new NotifyPlayerLevel { Level = (int)session.player.PlayerData.Level });
+            session.ExpSanityCheck();
         }
     }
 }

@@ -185,6 +185,7 @@
   /* The bulk modal lives inside the Construct renderer, whose own state it reads; this hook lets the
    * once-bound footer button reach it without binding a listener per render. */
   var bulkPerformHandler = null;
+  var bulkOpenHandler = null;
 
   function initRailTips() {
     var items = document.querySelectorAll(".rail__item[data-section]");
@@ -768,12 +769,17 @@
     /* Tutti exists only where a section can speak for every entry at once. The press opens a short
      * modal that says what it does and carries the bulk amount; nothing fires from the button alone. */
     var allBtn = $("#allBtn");
-    var hasAll = typeof section.allArgs === "function" && !isCustom;
+    var bulkSection = section.custom === "build";
+    var hasAll = (typeof section.allArgs === "function" && !isCustom) || bulkSection;
     allBtn.hidden = !hasAll;
     allBtn.disabled = false;
     if (hasAll) {
-      allBtn.setAttribute("data-tip", "Tutti: apply this tab to every entry at once. Opens a short form with its own amount.");
-      allBtn.setAttribute("aria-label", "Tutti: run this command for every entry");
+      allBtn.setAttribute("data-tip", bulkSection
+        ? "Tutti: bulk level. Opens a short form that writes level, rank, promotion and skills for every construct in this account."
+        : "Tutti: apply this tab to every entry at once. Opens a short form with its own amount.");
+      allBtn.setAttribute("aria-label", bulkSection
+        ? "Tutti: bulk level every construct"
+        : "Tutti: run this command for every entry");
     }
 
     if (section.custom === "build") {
@@ -1064,11 +1070,12 @@
         ["Memories", current ? String((current.memories || []).length) : "-"],
       ]));
 
+      // Tune edits the construct on the card, so it belongs here. Tutti works on the whole account and lives in
+      // the footer row beside Silence, like every other section.
       const actions = document.createElement("div");
       actions.className = "actions";
       actions.append(
-        button("Tune", "Open the design surface: level, rank, promotion, the six memories with their resonances, hypertune, weapon and harmony.", openTune, true),
-        button("Tutti", "Bulk level: sets level, rank, promotion and skills for every construct in this account. Memories and weapons are left alone.", openBulk)
+        button("Tune", "Open the design surface: level, rank, promotion, the six memories with their resonances, hypertune, weapon and harmony.", openTune, true)
       );
       card.appendChild(actions);
     }
@@ -1281,6 +1288,9 @@
       }
     }
 
+    // Registered when the surface is built, not when a construct is painted: the footer button exists before
+    // anything is picked.
+    bulkOpenHandler = openBulk;
     bulkPerformHandler = runBulkLevel;
 
     function openTune() {
@@ -1786,7 +1796,14 @@
 
   $("#actionForm").addEventListener("submit", perform);
 
-  $("#allBtn").addEventListener("click", openTutti);
+  // One button, two surfaces: the generic Tutti form for a command tab, the bulk design form for Construct.
+  $("#allBtn").addEventListener("click", function () {
+    if (SECTIONS[current] && SECTIONS[current].custom === "build" && bulkOpenHandler) {
+      bulkOpenHandler();
+      return;
+    }
+    openTutti();
+  });
 
   $("#tuttiPerform").addEventListener("click", function () {
     var section = SECTIONS[current];
