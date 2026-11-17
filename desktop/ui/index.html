@@ -212,6 +212,42 @@
             </span>
           </label>
           <label class="field">
+            <span class="field__label">Repository folder <em>the checkout the build reads</em></span>
+            <span class="field__row">
+              <input class="input" id="cfgRepoRoot" type="text" spellcheck="false">
+              <button class="btn" data-browse="repoRoot">Browse</button>
+            </span>
+          </label>
+          <label class="field">
+            <span class="field__label">Launcher <em>ascnet-launcher.exe applies and restores the patch</em></span>
+            <span class="field__row">
+              <input class="input" id="cfgLauncher" type="text" spellcheck="false">
+              <button class="btn" data-browse="launcherPath">Browse</button>
+            </span>
+          </label>
+          <label class="field">
+            <span class="field__label">Client patch <em>originals are copied aside first</em></span>
+            <span class="field__row">
+              <input class="input" id="cfgPatchDir" type="text" readonly>
+              <button class="btn" id="btnReapplyPatch">Reapply patch</button>
+            </span>
+            <span class="field__note" id="patchNote"></span>
+          </label>
+          <label class="field">
+            <span class="field__label">.NET SDK <em>installs for this Windows user, no admin</em></span>
+            <span class="field__row">
+              <input class="input" id="cfgDotnet" type="text" readonly>
+              <button class="btn" id="btnInstallDotnet">Install .NET</button>
+            </span>
+          </label>
+          <label class="field">
+            <span class="field__label">Git <em>fetches the source, then pulls its updates</em></span>
+            <span class="field__row">
+              <input class="input" id="cfgGit" type="text" readonly>
+              <button class="btn" id="btnInstallGit">Install Git</button>
+            </span>
+          </label>
+          <label class="field">
             <span class="field__label">Server build <em>folder with AscNet.dll</em></span>
             <span class="field__row">
               <input class="input" id="cfgServerDir" type="text" spellcheck="false">

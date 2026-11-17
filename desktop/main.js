@@ -1131,7 +1131,7 @@ function startUiServer() {
 // ---------------------------------------------------------------- settings & tools
 
 const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json')
-const SETTINGS_KEYS = ['gameDir', 'serverDir', 'mongoBinary', 'mongoDataDir', 'repo', 'repoUrl', 'repoRoot']
+const SETTINGS_KEYS = ['gameDir', 'serverDir', 'mongoBinary', 'mongoDataDir', 'repo', 'repoUrl', 'repoRoot', 'launcherPath']
 
 function settingsSnapshot() {
   return {
@@ -1146,6 +1146,12 @@ function settingsSnapshot() {
     serverExists: Boolean(config.serverDir && fs.existsSync(path.join(config.serverDir, 'AscNet.dll'))),
     sdkPort: config.sdkPort,
     packaged: app.isPackaged,
+    dotnetRoot: dotnetRoot(),
+    dotnetExe: dotnetRoot() ? path.join(dotnetRoot(), 'dotnet.exe') : '',
+    git: gitExe(),
+    launcherPath: launcherExe() || config.launcherPath || '',
+    patchDir: patchDir(),
+    patchState: config.gameDir && fs.existsSync(path.join(patchDir(), 'state.json')),
   }
 }
 
@@ -1265,6 +1271,51 @@ function latestAsset(repo, pattern) {
       })
     }).on('error', reject)
   })
+}
+
+// The patcher is its own program (ascnet-launcher), so the app points at it instead of reimplementing it.
+function launcherExe() {
+  const candidates = [
+    config.launcherPath,
+    path.join(toolsRoot, 'launcher', 'ascnet-launcher.exe'),
+    isPackaged ? '' : path.join(__dirname, '..', 'AscNet.Launcher', 'target', 'release', 'ascnet-launcher.exe'),
+  ].filter(Boolean)
+  return candidates.find((file) => fs.existsSync(file)) || ''
+}
+
+function patchDir() {
+  return config.gameDir ? path.join(config.gameDir, '.ascnet-launcher') : ''
+}
+
+// --inspect answers JSON; a missing launcher or a missing game folder is a state, not an exception.
+async function inspectPatch() {
+  const launcher = launcherExe()
+  if (!launcher) return { state: 'unknown', reason: 'launcher not found' }
+  if (!config.gameDir) return { state: 'unknown', reason: 'game folder not selected' }
+
+  const result = await run(launcher, ['--inspect', config.gameDir])
+  if (result.code !== 0) return { state: 'unknown', reason: (result.stderr || result.stdout).trim() }
+  try {
+    return JSON.parse(result.stdout)
+  } catch {
+    return { state: 'unknown', reason: 'unreadable launcher output' }
+  }
+}
+
+async function reapplyPatch() {
+  const launcher = launcherExe()
+  if (!launcher) throw new Error('ascnet-launcher.exe not found - point the app at it in Config')
+  if (!config.gameDir) throw new Error('choose the game folder first')
+
+  log('reapplying the client patch')
+  const result = await run(launcher, ['--install', config.gameDir])
+  const detail = (result.stdout || result.stderr).trim()
+  if (detail) log(detail.split(/\r?\n/).slice(-3).join(' '))
+  if (result.code !== 0) throw new Error(`the launcher exited with ${result.code}`)
+
+  const state = await inspectPatch()
+  log(`client patch state: ${state.state || 'unknown'}`)
+  return state
 }
 
 async function installGit() {
@@ -1767,6 +1818,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('config:set', (_event, next) => persistSettings(next || {}))
   ipcMain.handle('config:browse', (_event, payload) => browsePath(payload.key, payload.current))
   ipcMain.handle('tools:install-mongo', () => installMongo())
+  ipcMain.handle('tools:inspect-patch', () => inspectPatch())
+  ipcMain.handle('tools:reapply-patch', () => reapplyPatch())
   ipcMain.handle('tools:rebuild', () => rebuildServer())
   ipcMain.handle('update:check', (_event, repo) => checkUpdate(repo))
   ipcMain.handle('update:status', (_event, repo) => updateStatus(repo))

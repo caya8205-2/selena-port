@@ -649,6 +649,8 @@ const CONFIG_FIELDS = {
   gameDir: '#cfgGameDir',
   serverDir: '#cfgServerDir',
   mongoBinary: '#cfgMongoBinary',
+  repoRoot: '#cfgRepoRoot',
+  launcherPath: '#cfgLauncher',
 }
 
 // The setup block answers "what is missing" before the user hits a failure later.
@@ -702,6 +704,11 @@ async function loadConfig() {
   // time and "Rebuild" afterwards instead of asking the user to know which applies.
   document.querySelector('#btnRebuild').textContent = settings.serverExists ? 'Rebuild server' : 'Build server'
   document.querySelector('#btnInstallMongo').textContent = settings.mongoExists ? 'Reinstall MongoDB' : 'Install MongoDB'
+  document.querySelector('#cfgDotnet').value = settings.dotnetExe || 'not installed'
+  document.querySelector('#btnInstallDotnet').textContent = settings.dotnetExe ? 'Reinstall .NET' : 'Install .NET'
+  document.querySelector('#cfgGit').value = settings.git || 'not installed'
+  document.querySelector('#btnInstallGit').textContent = settings.git ? 'Reinstall Git' : 'Install Git'
+  document.querySelector('#cfgPatchDir').value = settings.patchDir || 'choose the game folder first'
   document.querySelector('#btnCloneRepo').textContent = settings.repoCloned ? 'Repository cloned' : 'Clone repository'
   document.querySelector('#btnCloneRepo').disabled = Boolean(settings.repoCloned)
 
@@ -710,6 +717,17 @@ async function loadConfig() {
     : `will be installed into ${settings.mongoDir}`
 
   if (!settings.mongoExists) appendTo('configLog', 'mongod.exe not found at the configured path')
+
+  const patchNote = document.querySelector('#patchNote')
+  if (patchNote) {
+    patchNote.textContent = 'checking the client patch\u2026'
+    window.selena.inspectPatch().then((state) => {
+      patchNote.textContent = state && state.state
+        ? `launcher says: ${state.state}${state.reason ? ' (' + state.reason + ')' : ''}`
+        : 'launcher state unknown'
+    }).catch((err) => { patchNote.textContent = 'launcher state unavailable: ' + err.message })
+  }
+
   refreshSetup()
 }
 
@@ -792,6 +810,53 @@ document.querySelector('#btnUpdateSource').addEventListener('click', async (even
     refreshSetup()
   } catch (err) {
     appendTo('configLog', 'update failed: ' + err.message)
+  } finally {
+    button.disabled = false
+  }
+})
+
+document.querySelector('#btnInstallDotnet').addEventListener('click', async (event) => {
+  const button = event.currentTarget
+  button.disabled = true
+  appendTo('configLog', 'installing the .NET SDK for this user\u2026')
+  try {
+    await window.selena.installDotnet()
+    appendTo('configLog', 'the .NET SDK is ready')
+    settings = await window.selena.settings()
+    loadConfig()
+  } catch (err) {
+    appendTo('configLog', 'the .NET install failed: ' + err.message)
+  } finally {
+    button.disabled = false
+  }
+})
+
+document.querySelector('#btnInstallGit').addEventListener('click', async (event) => {
+  const button = event.currentTarget
+  button.disabled = true
+  appendTo('configLog', 'installing git\u2026')
+  try {
+    await window.selena.installGit()
+    appendTo('configLog', 'git is ready')
+    settings = await window.selena.settings()
+    loadConfig()
+  } catch (err) {
+    appendTo('configLog', 'the git install failed: ' + err.message)
+  } finally {
+    button.disabled = false
+  }
+})
+
+document.querySelector('#btnReapplyPatch').addEventListener('click', async (event) => {
+  const button = event.currentTarget
+  button.disabled = true
+  appendTo('configLog', 'reapplying the client patch\u2026')
+  try {
+    const state = await window.selena.reapplyPatch()
+    appendTo('configLog', `client patch state: ${state.state || 'unknown'}`)
+    loadConfig()
+  } catch (err) {
+    appendTo('configLog', 'reapply failed: ' + err.message)
   } finally {
     button.disabled = false
   }
@@ -1077,6 +1142,12 @@ async function refreshWizard(openWhenIncomplete) {
 
 if (wizardEl) {
   document.querySelector('#wizardLater').addEventListener('click', closeWizard)
+  wizardEl.addEventListener('click', (event) => {
+    if (event.target === wizardEl) closeWizard()
+  })
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !wizardEl.hidden) closeWizard()
+  })
   document.querySelector('#wizardRecheck').addEventListener('click', () => refreshWizard(false))
   document.querySelector('#btnSetup').addEventListener('click', () => {
     refreshWizard(false)
