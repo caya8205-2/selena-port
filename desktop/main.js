@@ -29,6 +29,14 @@ const isDev = !isPackaged
 
 // One console at a time. A second launch focuses the window that is already open instead of
 // stacking another one, which used to leave two panels listening on two ports.
+// A run can be pointed at a scratch profile: SELENA_USER_DATA moves everything the app keeps under
+// app.getPath('userData'), which is how the first-run flow gets exercised on a machine that is already set
+// up. The configured install is untouched because it lives in the default profile. It has to be set before
+// the single-instance lock, or the second run contends for the same lock as the configured one and quits.
+if (process.env.SELENA_USER_DATA) {
+  app.setPath('userData', path.resolve(process.env.SELENA_USER_DATA))
+}
+
 const singleInstance = app.requestSingleInstanceLock()
 if (!singleInstance) {
   // A second launch has nothing to do: quit and let the running window take over. The rest
@@ -1564,17 +1572,23 @@ async function stopStackFor(seconds = 25) {
 }
 
 async function rebuildServer() {
-  // Snapshot first: a rebuild that goes wrong should cost time, not data.
-  // The IPC layer awaits this; a failed snapshot must not stop the build.
-  await backupNow('rebuild').catch((err) => log(`backup skipped: ${err.message}`))
+  // A first build has nothing to stop or snapshot - and on a fresh install the ports may belong to some other
+  // stack entirely, which used to make setup refuse to build at all. Only a rebuild guards its own files.
+  const firstBuild = !fs.existsSync(path.join(config.serverDir || '', 'AscNet.dll'))
 
-  if (!(await stopStackFor())) {
-    log('the server is still listening after a stop request; the build would hit its own files')
-    return { ok: false, reason: 'the server is still listening - stop the stack, then build again' }
+  if (!firstBuild) {
+    // Snapshot first: a rebuild that goes wrong should cost time, not data.
+    // The IPC layer awaits this; a failed snapshot must not stop the build.
+    await backupNow('rebuild').catch((err) => log(`backup skipped: ${err.message}`))
+
+    if (!(await stopStackFor())) {
+      log('the server is still listening after a stop request; the build would hit its own files')
+      return { ok: false, reason: 'the server is still listening - stop the stack, then build again' }
+    }
   }
 
   const result = await buildServer()
-  await startAll().catch((err) => log(`restart failed: ${err.message}`))
+  if (!firstBuild) await startAll().catch((err) => log(`restart failed: ${err.message}`))
   return result
 }
 
