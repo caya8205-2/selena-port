@@ -1270,6 +1270,8 @@ function download(url, target, redirects = 0) {
 }
 
 function extractZip(zip, destination) {
+  // tar -C needs the folder to exist, and every caller is unpacking into a folder of its own.
+  fs.mkdirSync(destination, { recursive: true })
   return new Promise((resolve, reject) => {
     // tar.exe ships with Windows and handles long paths; PowerShell's Expand-Archive
     // treats some failures as non-terminating and would hand back a partial tree.
@@ -1405,6 +1407,40 @@ const LAUNCHER_REPO = 'reiserFSs/InfiniteLoop'
 
 // A download that unpacks into the app's own folder is worth checking against the release: the archive comes
 // over the network, and a truncated or swapped zip would otherwise be extracted and trusted.
+function verifyDownload(file, expected, label) {
+  if (!expected) {
+    log(`${label}: the source publishes no checksum, keeping the download as it arrived`)
+    return
+  }
+  const actual = sha256Of(file)
+  if (actual !== expected.toLowerCase()) {
+    fs.rmSync(file, { force: true })
+    throw new Error(`${label} checksum mismatch: expected ${expected.slice(0, 12)}…, got ${actual.slice(0, 12)}…`)
+  }
+  log(`${label} checksum ${actual.slice(0, 12)}… matches`)
+}
+
+// MongoDB publishes a manifest with the digest of every archive, so the pinned zip is checked against it.
+async function mongoChecksum(zipUrl) {
+  const manifest = path.join(toolsRoot, 'mongodb-downloads.json')
+  try {
+    await download('https://downloads.mongodb.org/full.json', manifest)
+    const data = JSON.parse(fs.readFileSync(manifest, 'utf8'))
+    fs.rmSync(manifest, { force: true })
+    for (const release of data.versions || []) {
+      for (const download of release.downloads || []) {
+        const archive = download.archive || {}
+        if (archive.url === zipUrl && archive.sha256) return archive.sha256
+      }
+    }
+    return ''
+  } catch (err) {
+    fs.rmSync(manifest, { force: true })
+    log(`mongodb: could not read the checksum manifest (${err.message})`)
+    return ''
+  }
+}
+
 function sha256Of(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
 }
@@ -1432,16 +1468,7 @@ async function installLauncher() {
   log(`downloading ${asset.name}`)
   await download(asset.url, zip)
 
-  const actual = sha256Of(zip)
-  const expected = await publishedChecksum(asset, LAUNCHER_REPO, 'AscNetLauncher.sha256')
-  if (!expected) {
-    log('this release publishes no checksum, continuing with the archive as downloaded')
-  } else if (actual !== expected) {
-    fs.rmSync(zip, { force: true })
-    throw new Error(`checksum mismatch: the release lists ${expected.slice(0, 12)}…, the download is ${actual.slice(0, 12)}…`)
-  } else {
-    log(`checksum ${actual.slice(0, 12)}… matches the release`)
-  }
+  verifyDownload(zip, await publishedChecksum(asset, LAUNCHER_REPO, 'AscNetLauncher.sha256'), 'launcher')
 
   const target = path.join(toolsRoot, 'launcher')
   fs.rmSync(target, { recursive: true, force: true })
@@ -1481,6 +1508,7 @@ async function installGit() {
   const zip = path.join(toolsRoot, asset.name)
   log(`downloading ${asset.name}`)
   await download(asset.url, zip)
+  verifyDownload(zip, asset.digest ? asset.digest.replace('sha256:', '') : '', 'git')
   log('extracting git')
   await extractZip(zip, path.join(toolsRoot, 'git'))
   fs.rmSync(zip, { force: true })
@@ -1532,6 +1560,7 @@ async function installMongo() {
 
   log(`downloading MongoDB to ${base}`)
   await download(MONGO_ZIP, zip)
+  verifyDownload(zip, await mongoChecksum(MONGO_ZIP), 'mongodb')
   log('extracting MongoDB')
   await extractZip(zip, base)
 
