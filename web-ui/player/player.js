@@ -1134,13 +1134,20 @@
       };
     }
 
-    function rankSteps() {
+    function rankSteps(source) {
       const steps = [];
-      const stars = state.template.stars;
-      for (let quality = state.template.baseQuality; quality <= 6; quality += 1) {
-        const count = quality >= 6 ? 1 : Math.max(1, stars[quality] || 0);
-        for (let star = 0; star < count; star += 1) {
-          steps.push({ quality, star, label: rankText(quality, star, count > 1) });
+      const stars = (source && source.stars) || state.template.stars || {};
+      const from = (source && source.baseQuality) || state.template.baseQuality;
+      for (let quality = from; quality <= 6; quality += 1) {
+        const highest = stars[quality] || 0;
+        if (highest <= 0) {
+          // A rank with no star levels is one stop, labelled without a digit.
+          steps.push({ quality, star: 0, label: rankText(quality, 0, false) });
+          continue;
+        }
+        // S0 is the rank before any node is active, S1..S10 are its nodes, then SS0 starts the next quality.
+        for (let star = 0; star <= highest; star += 1) {
+          steps.push({ quality, star, label: rankText(quality, star, true) });
         }
       }
       return steps;
@@ -1183,18 +1190,14 @@
 
     /* ---------------------------------------------------------- bulk level */
 
-    function bulkRanks() {
+    function bulkRanks(bounds) {
       /* Base rank is the first stop so a level pass can leave rank alone, and the next stop is S0: most
-       * constructs are S rank, so the B and A sub-steps are not worth a stop each. */
-      const stops = [{ quality: 0, star: 0, label: "as is" }];
-      const stars = (state.template && state.template.stars) || {};
-      for (let quality = 3; quality <= 6; quality += 1) {
-        const count = quality >= 6 ? 1 : Math.max(1, stars[quality] || 0);
-        for (let star = 0; star < count; star += 1) {
-          stops.push({ quality, star, label: rankText(quality, star, count > 1) });
-        }
-      }
-      return stops;
+       * constructs are S rank, so the B and A sub-steps are not worth a stop each. From there it walks the same
+       * ladder the tune surface does, star by star. */
+      return [{ quality: 0, star: 0, label: "as is" }].concat(rankSteps({
+        stars: (bounds && bounds.stars) || {},
+        baseQuality: 3,
+      }));
     }
 
     // Level cap, skill cap and the promotion ladder are table properties, not per-construct state: before a card
@@ -1205,6 +1208,7 @@
           promotions: state.template.promotions,
           levels: (state.template.levels && state.template.levels.max) || 80,
           skillMax: (state.template.skills && state.template.skills.max) || 0,
+          stars: state.template.stars || {},
         };
       }
 
@@ -1218,6 +1222,7 @@
         promotions: (detail && detail.promotions) || [],
         levels: (detail && detail.maxLevel) || 80,
         skillMax: (detail && detail.skillMax) || 0,
+        stars: (detail && detail.stars) || {},
       };
     }
 
@@ -1225,7 +1230,7 @@
       const body = $("#bulkBody");
       body.textContent = "";
       const bounds = await bulkBounds();
-      const ranks = bulkRanks();
+      const ranks = bulkRanks(bounds);
       const promotions = bounds.promotions;
       const levels = bounds.levels;
       const skillMax = bounds.skillMax;
