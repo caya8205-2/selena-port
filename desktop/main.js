@@ -1269,7 +1269,8 @@ function latestAsset(repo, pattern) {
 
 async function installGit() {
   const existing = gitExe()
-  if (existing && existing.startsWith(toolsRoot)) return { git: existing, already: true }
+  // Any working git will do: a player who already has one should not download another 40 MB.
+  if (existing) return { git: existing, already: true }
 
   const asset = await latestAsset('git-for-windows/git', /^MinGit-\d+[^/]*-64-bit\.zip$/)
   fs.mkdirSync(toolsRoot, { recursive: true })
