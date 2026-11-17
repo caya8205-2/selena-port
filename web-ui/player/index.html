@@ -204,6 +204,24 @@
     </div>
   </div>
 
+  <div class="modal" id="cleanupModal" hidden>
+    <div class="modal__scrim" data-close="cleanup"></div>
+    <div class="modal__panel modal__panel--narrow" role="dialog" aria-modal="true" aria-labelledby="cleanupTitle">
+      <header class="modal__head">
+        <h2 class="modal__title" id="cleanupTitle">Cleanup</h2>
+        <button class="modal__close" type="button" data-close="cleanup">Close</button>
+      </header>
+      <div class="modal__body" id="cleanupBody"></div>
+      <footer class="modal__foot">
+        <span class="modal__note" id="cleanupNote"></span>
+        <span class="modal__actions">
+          <button class="btn btn--quiet" id="cleanupCancel" type="button">Cancel</button>
+          <button class="btn btn--primary" id="cleanupPerform" type="button">Perform</button>
+        </span>
+      </footer>
+    </div>
+  </div>
+
   <div class="modal" id="tuttiModal" hidden>
     <div class="modal__scrim" data-close="tutti"></div>
     <div class="modal__panel modal__panel--narrow" role="dialog" aria-modal="true" aria-labelledby="tuttiTitle">

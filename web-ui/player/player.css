@@ -329,14 +329,6 @@
 .check { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); }
 .check input { accent-color: var(--accent); }
 
-.cleanup__result {
-  padding: 10px 12px;
-  font-size: 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-xs);
-}
-
 .cleanup__counts { display: flex; gap: 22px; margin-bottom: 8px; }
 
 .cleanup__counts strong {
@@ -349,21 +341,9 @@
 
 .cleanup__counts span { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-faint); }
 .cleanup__sample { margin: 0; padding-left: 16px; font-size: 11.5px; color: var(--text-faint); }
-.cleanup__confirm { display: flex; align-items: center; gap: 8px; }
-.cleanup__confirm .input { flex: 1 1 auto; }
-
 /* Action rows share one recipe everywhere: separated from the fields above, buttons in a
    single row with a real gap, never flush against the card. */
 .field__actions,
-.cleanup__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-}
 .hint-block { margin: 12px 0 0; }
 .tune .hint-block { margin: 10px 0 12px; max-width: 72ch; }
 
