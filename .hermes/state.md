@@ -661,7 +661,10 @@ Weapon, Construct. Never "quality 3" for S, never "awaken" for Hypertune, never
   reference, check the tables against it, and implement it. Never argue it away because a column reads
   differently, never call a game rule "does not make sense", and never present data as more credible than
   their experience. The tables explain fields; they do not outrank the player.
-- Awaken only counts a **skill** resonance in the upper slot (Red Orb/Yellow Orb/Blue Orb/Basic Attack Level).
+- - `EquipResonanceType` (`AscNet.Common/MsgPack/Types.cs`): **1 = Attrib** (a stat), **2 = CharacterSkill**
+  (a construct skill), **3 = WeaponSkill**. A memory's upper slot holds what the panel picked, so a stat there
+  is Type 1 by definition; nothing about the type mapping is wrong when the client refuses to count it.
+Awaken only counts a **skill** resonance in the upper slot (Red Orb/Yellow Orb/Blue Orb/Basic Attack Level).
   A stat resonance there never counts, and in this fork a stat written to the upper slot by the panel also does
   not satisfy the client's counter even when the game shows it equipped; official servers do count it, so this
   is a fork bug. The workaround that works: tune the upper slot to a skill, awaken, then overwrite that slot
