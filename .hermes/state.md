@@ -674,6 +674,11 @@ Awaken only counts a **skill** resonance in the upper slot (Red Orb/Yellow Orb/B
   opens at the target's base rank, so an S-rank target starts at S0 and an A-rank at A0, and each rank walks
   its ten nodes (S0..S10, SS0..SS10, …) before the next one starts. Star counts are the highest node, not
   the number of stops: `star <= highest`, not `star < count`.
+- **A frozen client left no slow request, only a silent disconnect.** The socket read dropped a peer after ten
+  seconds without a packet; a client that stalls while loading a banner or running a long GC sends nothing in
+  that window, gets disconnected mid-action, and then waits for a reconnect - which is the "Not Responding"
+  the player sees. The window is now sixty seconds, and every SDK request logs its duration so the next report
+  can show whether the client or the server was the one waiting.
 - The running `AscNet.exe` executes the code it was started with. A C# fix is not
   live until the process is stopped, rebuilt and started again. Verifying a write
   against a stale process measures the old behaviour.

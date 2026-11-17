@@ -252,7 +252,11 @@ namespace AscNet.GameServer
             {
                 try
                 {
-                    using CancellationTokenSource idleTimeout = new(TimeSpan.FromSeconds(10));
+                    // A client that stalls for a few seconds - loading a banner, a scene, a long GC - sends
+                    // nothing, and the old ten second window dropped it mid-action. The client then sat waiting
+                    // for a reconnect, which is what the player sees as "Not Responding". A minute of silence is
+                    // a real dead peer; ten seconds was only a slow frame.
+                    using CancellationTokenSource idleTimeout = new(TimeSpan.FromSeconds(60));
                     int len = await stream.ReadAsync(
                         msg.AsMemory(prevBuf, msg.Length - prevBuf),
                         idleTimeout.Token);
