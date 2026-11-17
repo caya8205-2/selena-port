@@ -65,8 +65,7 @@ const defaults = {
     'AscNet', 'bin', 'Debug', 'net8.0'),
   // Filled in by detectGameDir at startup: a path here would be one machine's, not the player's.
   gameDir: '',
-  tableDir: path.join(isPackaged ? path.join(app.getPath('userData'), 'repo') : path.join(__dirname, '..'),
-    'Resources', 'table'),
+  tableDir: '',
   // The panels live beside the app in a checkout and in extraResources once packed, because they sit
   // outside desktop/ and cannot ride inside the asar.
   webUi: isPackaged ? path.join(resources, 'web-ui') : path.join(__dirname, '..', 'web-ui'),
@@ -95,6 +94,13 @@ const config = readConfig()
 const devPaths = path.join(__dirname, 'dev-paths.json')
 if (!isPackaged && fs.existsSync(devPaths)) {
   try { Object.assign(config, JSON.parse(fs.readFileSync(devPaths, 'utf8'))) } catch { /* ignore */ }
+}
+
+// Resolved on demand: cloning or pointing the app at another checkout moves the tables with it.
+function tableDirPath() {
+  if (config.tableDir) return config.tableDir
+  const root = config.repoRoot || (isPackaged ? path.join(app.getPath('userData'), 'repo') : path.join(__dirname, '..'))
+  return path.join(root, 'Resources', 'table')
 }
 
 function mongoDataPath() {
@@ -492,7 +498,7 @@ function parseTsv(file, idColumn, nameColumn, extraColumn, ownerColumn, filterOw
 // A raw table read for the resonance picker: header, rows and an accessor for the generated
 // `Name[1]` style columns the game's tables use for arrays.
 function tableRows(relativePath) {
-  const file = path.join(config.tableDir, ...relativePath.split('/'))
+  const file = path.join(tableDirPath(), ...relativePath.split('/'))
   if (!fs.existsSync(file)) return null
 
   const stat = fs.statSync(file)
@@ -884,7 +890,7 @@ function resonanceEntries(templateId, slot, characterId) {
 function catalog(kind) {
   const source = catalogSources[kind]
   if (!source) return null
-  const file = path.join(config.tableDir, ...source.file.split('/'))
+  const file = path.join(tableDirPath(), ...source.file.split('/'))
   if (!fs.existsSync(file)) return null
   return parseTsv(file, source.id, source.name, source.extra, source.owner, source.owner ? 0 : undefined, Boolean(source.invert), source.slot)
 }
@@ -892,7 +898,7 @@ function catalog(kind) {
 // Every memory set is six entries sharing a SuitId, one per slot. Slot layouts differ
 // per construct, so the panel grants the whole set and the player picks which four to equip.
 function memorySets() {
-  const file = path.join(config.tableDir, 'share', 'equip', 'Equip.tsv')
+  const file = path.join(tableDirPath(), 'share', 'equip', 'Equip.tsv')
   if (!fs.existsSync(file)) return null
 
   const stat = fs.statSync(file)
@@ -929,7 +935,7 @@ function memorySets() {
 }
 
 function coatings(characterId) {
-  const file = path.join(config.tableDir, 'share', 'fashion', 'Fashion.tsv')
+  const file = path.join(tableDirPath(), 'share', 'fashion', 'Fashion.tsv')
   if (!fs.existsSync(file)) return null
 
   const stat = fs.statSync(file)
@@ -2027,7 +2033,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('tools:install-dotnet', () => installDotnet())
   ipcMain.handle('tools:update-source', () => updateSource())
   ipcMain.handle('shell:logs', () => shell.openPath(logDir))
-  ipcMain.handle('setup:verify', () => buildChecks(config, {
+  ipcMain.handle('setup:verify', () => buildChecks({ ...config, tableDir: tableDirPath() }, {
     git: gitExe(),
     launcher: launcherExe(),
     dotnet: runtimeRoot() ? path.join(runtimeRoot(), 'dotnet.exe') : '',

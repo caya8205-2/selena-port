@@ -38,7 +38,10 @@ function buildChecks(config, tools = {}) {
   add('mongod', exists(config.mongoBinary), exists(config.mongoBinary) ? config.mongoBinary : 'mongod.exe not installed', 'install-mongo', 'MongoDB')
 
   const itemTable = path.join(config.tableDir || '', 'share', 'item', 'Item.tsv')
-  add('table', exists(itemTable), exists(itemTable) ? config.tableDir : 'table data missing', 'clone-repo', 'Game tables')
+  // The tables ship inside the checkout, so a missing one is fixed by pointing at the right folder, not by
+  // cloning again: the row names the path it looked in.
+  add('table', exists(itemTable), exists(itemTable) ? config.tableDir : 'no table data at ' + (config.tableDir || 'an unset folder'),
+    'browse-repo', 'Game tables')
 
   const gameExe = config.gameDir ? path.join(config.gameDir, 'PGR.exe') : ''
   add('game', exists(gameExe), exists(gameExe) ? config.gameDir : 'game folder not selected', 'browse-game', 'Game directory')

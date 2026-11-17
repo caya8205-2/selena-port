@@ -665,6 +665,7 @@ function renderSetup(result) {
 
   const labelFor = {
     'clone-repo': 'Clone repository below',
+    'browse-repo': 'Point Repository folder at the checkout',
     'build-server': 'Build server below',
     'install-mongo': 'Install MongoDB below',
     'browse-game': 'Browse game directory below',
