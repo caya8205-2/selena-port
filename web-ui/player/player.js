@@ -114,6 +114,11 @@
       command: "equip",
       custom: "build"
     },
+    cub: {
+      title: "CUB",
+      command: "cub",
+      custom: "cub"
+    },
     dorm: {
       title: "Dorm",
       command: "dorm",
@@ -167,6 +172,11 @@
       title: "Cleanup",
       command: "cleanup",
       custom: "cleanup"
+    },
+    endgame: {
+      title: "Endgame",
+      command: "endgame",
+      custom: "endgame"
     }
   };
 
@@ -186,6 +196,8 @@
    * once-bound footer button reach it without binding a listener per render. */
   var bulkPerformHandler = null;
   var bulkOpenHandler = null;
+  var cubChoice = null;
+  var endgameChoice = null;
 
   function initRailTips() {
     var items = document.querySelectorAll(".rail__item[data-section]");
@@ -284,6 +296,8 @@
     acting = chosen ? { uid: chosen.uid, username: chosen.username } : { uid: null, username: "" };
     try { localStorage.setItem("selena.activeAccount", JSON.stringify(acting)); } catch (error) { /* private mode */ }
     updatePreview();
+    // The endgame catalog is per-account, so a switch reloads it instead of leaving the old uid's picks.
+    if (current === "endgame") renderSection(current);
   }
 
   /* The account picker is the panel's own dropdown. The element behind it still holds the value,
@@ -761,8 +775,10 @@
 
     var isCustom = Boolean(section.custom);
     var isCleanup = section.custom === "cleanup";
+    var isApply = section.custom === "cub" || section.custom === "endgame";
     $("#preview").hidden = isCustom;
-    $("#runBtn").hidden = isCustom && !isCleanup;
+    $("#runBtn").hidden = isCustom && !isCleanup && !isApply;
+    $("#runBtn").textContent = isApply ? "Apply" : "Perform";
     var previewLabel = document.querySelector("#previewLabel");
     if (previewLabel) previewLabel.hidden = isCustom;
 
@@ -793,6 +809,22 @@
       // which is where the confirmation lives.
       $("#runBtn").disabled = false;
       $("#runHint").textContent = "";
+      return;
+    }
+
+    if (section.custom === "cub") {
+      $("#runBtn").disabled = true;
+      $("#runHint").textContent = "loading…";
+      $("#catalogMeta").textContent = "catalog: loading…";
+      renderCub(host);
+      return;
+    }
+
+    if (section.custom === "endgame") {
+      $("#runBtn").disabled = true;
+      $("#runHint").textContent = "loading…";
+      $("#catalogMeta").textContent = "catalog: loading…";
+      renderEndgame(host);
       return;
     }
 
@@ -831,6 +863,7 @@
   function buildPlan() {
     var section = SECTIONS[current];
     if (!section) return [];
+    if (!section.fields) return [];
 
     section.fields.forEach(function (field) {
       if (field.type !== "combo" && field.type !== "grid") return;
@@ -856,6 +889,8 @@
   }
 
   function updatePreview() {
+    var active = SECTIONS[current];
+    if (active && active.custom) return;
     var plan = buildPlan();
     var preview = $("#preview");
     var text = $("#previewText");
@@ -884,6 +919,16 @@
 
     if (SECTIONS[current] && SECTIONS[current].custom === "cleanup") {
       openCleanupDialog();
+      return;
+    }
+
+    if (SECTIONS[current] && SECTIONS[current].custom === "cub") {
+      runCubBulk();
+      return;
+    }
+
+    if (SECTIONS[current] && SECTIONS[current].custom === "endgame") {
+      runEndgame();
       return;
     }
 
@@ -1168,24 +1213,6 @@
         select.appendChild(node);
       });
       select.value = String(value || (options[0] ? options[0].value : ""));
-    }
-
-    function slider(labelText, min, max, value, format, onChange, tip) {
-      const row = document.createElement("div");
-      row.className = "tune__slider";
-      const label = document.createElement("span");
-      label.className = "tune__label";
-      label.textContent = labelText;
-      const control = window.SelenaUI.slider({
-        min: min,
-        max: max,
-        value: value,
-        format: format,
-        onChange: onChange,
-        tip: tip || "",
-      });
-      row.append(label, control.node);
-      return row;
     }
 
     /* ---------------------------------------------------------- bulk level */
@@ -1773,6 +1800,312 @@
     }
   }
 
+  function slider(labelText, min, max, value, format, onChange, tip) {
+    const row = document.createElement("div");
+    row.className = "tune__slider";
+    const label = document.createElement("span");
+    label.className = "tune__label";
+    label.textContent = labelText;
+    const control = window.SelenaUI.slider({
+      min: min,
+      max: max,
+      value: value,
+      format: format,
+      onChange: onChange,
+      tip: tip || "",
+    });
+    row.append(label, control.node);
+    return row;
+  }
+
+  /* CUB bulk is account-wide, so it lives outside the Construct renderer and works from any tab. */
+  async function renderCub(host) {
+    host.textContent = "";
+    const catalog = await fetch("/api/panel/tune-cub-catalog").then(function (res) { return res.json(); }).catch(function () { return null; });
+    if (!catalog || catalog.ok === false) {
+      host.textContent = (catalog && catalog.msg) || "partner tables not found";
+      $("#catalogMeta").textContent = "catalog: unavailable";
+      $("#runBtn").disabled = true;
+      return;
+    }
+    const choice = { level: 0, breakthrough: 0, quality: 0, star: 0, skill: 0 };
+    cubChoice = choice;
+
+    const lead = document.createElement("p");
+    lead.className = "hint-block";
+    lead.textContent = "Bulk CUB writes level, breakthrough, quality, star and skills for every CUB in this account. "
+      + "Every slider starts at as is, so only what you move is written; each CUB is clamped to its own table caps.";
+    host.appendChild(lead);
+
+    function paintNote() {
+      const bits = [
+        "Level " + (choice.level > 0 ? String(choice.level) : "as is"),
+        "Break " + (choice.breakthrough > 0 ? String(choice.breakthrough) : "as is"),
+        "Quality " + (choice.quality > 0 ? "Q" + choice.quality : "as is"),
+        "Star " + (choice.star > 0 ? String(choice.star) : "as is"),
+      ];
+      if (catalog.maxSkill > 0) bits.push("Skills " + (choice.skill > 0 ? "Lv " + choice.skill : "as is"));
+      $("#runHint").textContent = bits.join(" \u00b7 ");
+    }
+
+    host.appendChild(slider("Level", 0, catalog.maxLevel, 0, function (v) { return v > 0 ? "Lv " + v : "as is"; },
+      function (v) { choice.level = v; paintNote(); }, "Level for every CUB, clamped to its breakthrough limit."));
+    host.appendChild(slider("Breakthrough", 0, catalog.maxBreak, 0, function (v) { return v > 0 ? String(v) : "as is"; },
+      function (v) { choice.breakthrough = v; paintNote(); }, "Breakthrough times for every CUB."));
+    host.appendChild(slider("Quality", 0, catalog.maxQuality, 0, function (v) { return v > 0 ? "Q" + v : "as is"; },
+      function (v) { choice.quality = v; paintNote(); }, "Evolution quality for every CUB."));
+    host.appendChild(slider("Star", 0, catalog.maxStar, 0, function (v) { return v > 0 ? String(v) : "as is"; },
+      function (v) { choice.star = v; paintNote(); }, "Star steps for every CUB, clamped to its quality."));
+    if (catalog.maxSkill > 0) {
+      host.appendChild(slider("Skills", 0, catalog.maxSkill, 0, function (v) { return v > 0 ? "Lv " + v : "as is"; },
+        function (v) { choice.skill = v; paintNote(); }, "Every skill of every CUB."));
+    }
+
+    paintNote();
+    $("#catalogMeta").textContent = "catalog: every CUB in the account";
+    $("#runBtn").disabled = false;
+  }
+
+  async function runCubBulk() {
+    const choice = cubChoice;
+    if (!choice) return;
+    const uid = actingUid();
+    if (!uid) { $("#runHint").textContent = "pick an acting account"; return; }
+
+    const payload = { Uid: Number(uid) };
+    if (choice.level > 0) payload.Level = choice.level;
+    if (choice.breakthrough > 0) payload.BreakThrough = choice.breakthrough;
+    if (choice.quality > 0) payload.Quality = choice.quality;
+    if (choice.star > 0) payload.Star = choice.star;
+    if (choice.skill > 0) payload.SkillLevel = choice.skill;
+
+    const cmd = {
+      name: "cub all",
+      args: Object.keys(payload).filter(function (key) { return key !== "Uid"; })
+        .map(function (key) { return key + " " + payload[key]; }),
+    };
+
+    try {
+      const response = await fetch("/api/panel/tune-cub-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).then(function (res) { return res.json(); });
+      if (!response || response.ok === false) throw new Error((response && response.msg) || "the bulk CUB was refused");
+      const report = response.data || {};
+      const failed = report.failed || report.Failed || [];
+      performed += 1;
+      let detail = "applied " + (report.applied !== undefined ? report.applied : report.Applied) + " of " + (report.total !== undefined ? report.total : report.Total);
+      if (failed.length > 0) {
+        detail += String.fromCharCode(10) + failed.map(function (entry) { return (entry.partnerId || entry.PartnerId) + ": " + (entry.error || entry.Error); }).join(String.fromCharCode(10));
+      }
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, failed.length === 0, detail);
+      $("#consoleMeta").textContent = opusLabel(performed);
+      window.SelenaAudio.chord();
+    } catch (err) {
+      performed += 1;
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, false, (err && err.message) || String(err));
+      $("#consoleMeta").textContent = opusLabel(performed);
+      window.SelenaAudio.low();
+    }
+  }
+
+  /* Endgame jumps the War Zone / Pain Cage rank and picks this week's zones and bosses. Like CUB bulk
+   * it is account-wide, so it lives outside any tab. Null rank keeps the current one; a pick dictionary
+   * is only sent when its pickers were touched, so an untouched surface keeps its stored rotation. */
+  async function renderEndgame(host) {
+    const uid = actingUid();
+    if (!uid) { $("#runHint").textContent = "pick an acting account"; $("#catalogMeta").textContent = "catalog: pick an account"; $("#runBtn").disabled = true; return; }
+    host.textContent = "";
+    const catalog = await fetch("/api/panel/endgame-catalog?uid=" + encodeURIComponent(uid))
+      .then(function (res) { return res.json(); }).catch(function () { return null; });
+    if (!catalog || catalog.ok === false) {
+      host.textContent = (catalog && catalog.msg) || "endgame tables not found";
+      $("#catalogMeta").textContent = "catalog: unavailable";
+      $("#runBtn").disabled = true;
+      return;
+    }
+    const data = catalog.data || {};
+    const arena = data.Arena || {};
+    const boss = data.Boss || {};
+    const tiers = arena.Tiers || [];
+    const areaNames = arena.AreaNames || {};
+    const zoneGroups = arena.Groups || [];
+
+    const choice = {
+      arenaLevel: 0, bossGrade: 0,
+      zonePicks: {}, zonesTouched: false,
+      bossPicks: {}, bossesTouched: false,
+    };
+    endgameChoice = choice;
+
+    function tierName(id) {
+      const row = tiers.filter(function (t) { return t.Id === id; })[0];
+      return row ? row.Name : ("tier " + id);
+    }
+    function areaName(id) { return areaNames[id] || ("Area " + id); }
+    function modeLabel(grade) {
+      if (grade === boss.Ultimate) return "Ultimate";
+      if (grade === boss.Standard) return "Standard";
+      return grade > 0 ? ("grade " + grade) : "as is";
+    }
+
+    const lead = document.createElement("p");
+    lead.className = "hint-block";
+    lead.textContent = "Set the endgame rank directly instead of climbing it week by week, and choose this week's "
+      + "War Zone zones and Pain Cage bosses. Rank starts at as is; each zone and boss starts at Auto (the weekly "
+      + "rotation) unless a pick is already stored. Nothing is spent.";
+    host.appendChild(lead);
+
+    function pickRow(labelText, control) {
+      const row = document.createElement("div");
+      row.className = "tune__slider";
+      const label = document.createElement("span");
+      label.className = "tune__label";
+      label.textContent = labelText;
+      row.append(label, control.node);
+      return row;
+    }
+    function block(title) {
+      const node = document.createElement("section");
+      node.className = "tune";
+      const head = document.createElement("div");
+      head.className = "tune__head";
+      const label = document.createElement("span");
+      label.className = "tune__label";
+      label.textContent = title;
+      head.appendChild(label);
+      node.appendChild(head);
+      return node;
+    }
+    function paintNote() {
+      const zoneCount = Object.keys(choice.zonePicks).filter(function (k) { return choice.zonePicks[k] > 0; }).length;
+      const bossCount = Object.keys(choice.bossPicks).filter(function (k) { return choice.bossPicks[k] > 0; }).length;
+      $("#runHint").textContent = "WZ " + (choice.arenaLevel > 0 ? tierName(choice.arenaLevel) : "as is")
+        + " · PPC " + modeLabel(choice.bossGrade)
+        + " · " + zoneCount + " zone " + (zoneCount === 1 ? "pick" : "picks")
+        + " · " + bossCount + " boss " + (bossCount === 1 ? "pick" : "picks");
+    }
+
+    /* ---- War Zone: rank + this week's zone groups ---- */
+    const wz = block("War Zone");
+    const ownerTiers = ["Vanguard", "Leader", "Hero", "Legend"]
+      .map(function (name) { return tiers.filter(function (t) { return t.Name === name; })[0]; })
+      .filter(Boolean);
+    const rankPicker = window.SelenaUI.picker(
+      [{ value: 0, label: "As is" }].concat(ownerTiers.map(function (t) { return { value: t.Id, label: t.Name }; })),
+      {
+        value: 0,
+        tip: "War Zone rank. As is keeps the current tier; the others jump straight to it.",
+        onChange: function (value) { choice.arenaLevel = Number(value); paintNote(); },
+      });
+    wz.appendChild(pickRow("Rank", rankPicker));
+
+    zoneGroups.forEach(function (group, index) {
+      choice.zonePicks[group.Key] = group.Override || 0;
+      const options = [{ value: 0, label: "Auto · " + (group.Chosen > 0 ? areaName(group.Chosen) : "rotation") }]
+        .concat((group.Areas || []).map(function (id) { return { value: id, label: areaName(id) }; }));
+      const picker = window.SelenaUI.picker(options, {
+        value: group.Override || 0,
+        tip: "This week's zone for this group. Auto follows the weekly rotation; a named zone pins it.",
+        onChange: function (value) { choice.zonePicks[group.Key] = Number(value); choice.zonesTouched = true; paintNote(); },
+      });
+      wz.appendChild(pickRow("Zone " + (index + 1), picker));
+    });
+    host.appendChild(wz);
+
+    /* ---- Pain Cage: mode + this week's boss groups for the selected mode ---- */
+    const pc = block("Pain Cage");
+    const modePicker = window.SelenaUI.picker(
+      [{ value: 0, label: "As is" }, { value: boss.Standard, label: "Standard" }, { value: boss.Ultimate, label: "Ultimate" }],
+      {
+        value: 0,
+        tip: "Pain Cage mode. As is keeps the current grade; Standard and Ultimate jump straight to it.",
+        onChange: function (value) { choice.bossGrade = Number(value); renderBosses(); paintNote(); },
+      });
+    pc.appendChild(pickRow("Mode", modePicker));
+    const bossContainer = document.createElement("div");
+    bossContainer.className = "tune";
+    pc.appendChild(bossContainer);
+    host.appendChild(pc);
+
+    function renderBosses() {
+      const grade = choice.bossGrade > 0 ? choice.bossGrade : boss.Current;
+      const groups = (grade === boss.Ultimate ? boss.UltimateGroups : boss.StandardGroups) || [];
+      bossContainer.textContent = "";
+      choice.bossPicks = {};
+      choice.bossesTouched = false;
+      groups.forEach(function (group, index) {
+        choice.bossPicks[group.Id] = group.Override || 0;
+        const options = [{ value: 0, label: "Auto · " + (group.Chosen > 0 ? "Section " + group.Chosen : "rotation") }]
+          .concat((group.Sections || []).map(function (id) { return { value: id, label: "Section " + id }; }));
+        const picker = window.SelenaUI.picker(options, {
+          value: group.Override || 0,
+          tip: "This week's boss for this group. Auto follows the weekly rotation; a section pins it.",
+          onChange: function (value) { choice.bossPicks[group.Id] = Number(value); choice.bossesTouched = true; paintNote(); },
+        });
+        bossContainer.appendChild(pickRow("Boss " + (index + 1), picker));
+      });
+    }
+    renderBosses();
+
+    paintNote();
+    $("#catalogMeta").textContent = "catalog: " + zoneGroups.length + " zones · " + ((boss.StandardGroups || []).length) + " bosses";
+    $("#runBtn").disabled = false;
+  }
+
+  async function runEndgame() {
+    const choice = endgameChoice;
+    if (!choice) return;
+    const uid = actingUid();
+    if (!uid) { $("#runHint").textContent = "pick an acting account"; return; }
+
+    const payload = { Uid: Number(uid) };
+    if (choice.arenaLevel > 0) payload.ArenaLevel = choice.arenaLevel;
+    if (choice.bossGrade > 0) payload.BossLevelType = choice.bossGrade;
+    if (choice.zonesTouched) {
+      payload.ArenaAreas = {};
+      Object.keys(choice.zonePicks).forEach(function (key) {
+        if (choice.zonePicks[key] > 0) payload.ArenaAreas[key] = choice.zonePicks[key];
+      });
+    }
+    if (choice.bossesTouched) {
+      payload.BossSections = {};
+      Object.keys(choice.bossPicks).forEach(function (key) {
+        if (choice.bossPicks[key] > 0) payload.BossSections[key] = choice.bossPicks[key];
+      });
+    }
+
+    const cmd = {
+      name: "endgame",
+      args: ["WZ " + (payload.ArenaLevel || "as is"), "PPC " + (payload.BossLevelType || "as is")],
+    };
+    try {
+      const response = await fetch("/api/panel/endgame-apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).then(function (res) { return res.json(); });
+      if (!response || response.ok === false) throw new Error((response && response.msg) || "the endgame change was refused");
+      const report = response.data || {};
+      const zoneOverrides = Object.keys(report.ArenaAreas || {}).length;
+      const bossOverrides = Object.keys(report.BossSections || {}).length;
+      let detail = "War Zone tier " + report.ArenaLevel + " · Pain Cage grade " + report.BossLevelType
+        + " · " + zoneOverrides + " zone " + (zoneOverrides === 1 ? "override" : "overrides")
+        + " · " + bossOverrides + " boss " + (bossOverrides === 1 ? "override" : "overrides");
+      if (response.live === false) detail += String.fromCharCode(10) + "stored in the database - the game client shows it at its next login";
+      performed += 1;
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, true, detail);
+      $("#consoleMeta").textContent = opusLabel(performed);
+      window.SelenaAudio.chord();
+    } catch (err) {
+      performed += 1;
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, false, (err && err.message) || String(err));
+      $("#consoleMeta").textContent = opusLabel(performed);
+      window.SelenaAudio.low();
+    }
+  }
+
   function openTutti() {
     var section = SECTIONS[current];
     if (!section || typeof section.allArgs !== "function") return;
@@ -1859,6 +2192,7 @@
   document.querySelectorAll("[data-close='bulk']").forEach(function (node) {
     node.addEventListener("click", closeModals);
   });
+
   document.querySelectorAll("[data-close='tutti']").forEach(function (node) {
     node.addEventListener("click", closeModals);
   });

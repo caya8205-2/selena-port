@@ -2018,7 +2018,7 @@ internal partial class Program
                 module,
                 "BuildBossListOptions",
                 BindingFlags.Static | BindingFlags.NonPublic,
-                [typeof(AscNet.Common.Database.SimulatedBattlefieldState), typeof(int), typeof(int)]);
+                [typeof(AscNet.Common.Database.SimulatedBattlefieldState), typeof(int), typeof(int), typeof(int?)]);
             SimulatedBattlefieldState state = player.SimulatedBattlefield;
             long originalPlayerLevel = player.PlayerData.Level;
             int originalBossLevelType = state.BossLevelType;
@@ -2040,7 +2040,8 @@ internal partial class Program
                 (Dictionary<int, List<int>>?)buildBossListOptions.Invoke(null, [
                     state,
                     checked((int)player.PlayerData.Level),
-                    currentActivity
+                    currentActivity,
+                    (int?)null
                 ]) ?? throw new InvalidDataException("Current Pain Cage rotation options were not generated.");
             AssertEqual(true, currentRotationOptions.ContainsKey(currentGrade.LevelType),
                 "Pain Cage new grade is selectable after the level-band change");
@@ -2058,7 +2059,8 @@ internal partial class Program
                     (Dictionary<int, List<int>>?)buildBossListOptions.Invoke(null, [
                         state,
                         checked((int)player.PlayerData.Level),
-                        priorEpoch
+                        priorEpoch,
+                        (int?)null
                     ]) ?? throw new InvalidDataException("Previous Pain Cage rotation options were not generated.");
                 AssertEqual(true, previousRotationOptions.ContainsKey(previousGrade.LevelType),
                     "Pain Cage prior grade was selectable before the level-band change");

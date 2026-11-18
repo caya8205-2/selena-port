@@ -27,15 +27,16 @@ internal partial class Program
         MethodInfo reconcileLogin = RequiredMethod(arenaModule, "ReconcileLogin", BindingFlags.Static | BindingFlags.NonPublic, [typeof(Session), typeof(long?)]);
         MethodInfo currentActivity = RequiredMethod(arenaModule, "CurrentActivity", BindingFlags.Static | BindingFlags.NonPublic, [typeof(long?)]);
         MethodInfo selectAreas = RequiredMethod(arenaModule, "SelectedAreas", BindingFlags.Static | BindingFlags.NonPublic,
-            [typeof(int), typeof(long), typeof(ChallengeAreaTable)]);
+            [typeof(int), typeof(long), typeof(ChallengeAreaTable), typeof(AscNet.Common.Database.SimulatedBattlefieldState)]);
         MethodInfo record = RequiredMethod(arenaModule, "RecordFightResult", BindingFlags.Static | BindingFlags.Public, [typeof(Session), typeof(FightSettleResult)]);
 
         int activity = (int)currentActivity.Invoke(null, [(long?)null])!;
         // Find a player whose selection holds two zones with one StageId, at least one of them a two-tab effect zone.
         long playerId = 0; int normalArea = 0, effectArea = 0;
+        AscNet.Common.Database.SimulatedBattlefieldState zoneState = new();
         for (long candidate = 99_500; candidate < 101_500 && effectArea == 0; candidate++)
         {
-            List<int> areas = (List<int>)selectAreas.Invoke(null, [activity, candidate, hero])!;
+            List<int> areas = (List<int>)selectAreas.Invoke(null, [activity, candidate, hero, zoneState])!;
             foreach (int effect in areas.Where(id => areaStages[id].DistributeTypes.Count(type => type > 0) == 2))
                 foreach (int normal in areas.Where(id => id != effect && areaStages[id].StageId[0] == areaStages[effect].StageId[0]))
                     (playerId, normalArea, effectArea) = (candidate, normal, effect);
@@ -110,10 +111,11 @@ internal partial class Program
     {
         ChallengeAreaTable challenge = TableReaderV2.Parse<ChallengeAreaTable>().Single(row => row.ChallengeId == 14);
         Type arenaModule = RequiredAscNetGameServerType("AscNet.GameServer.Handlers.ArenaModule");
-        MethodInfo select = RequiredMethod(arenaModule, "SelectedAreas", BindingFlags.Static | BindingFlags.NonPublic, [typeof(int), typeof(long), typeof(ChallengeAreaTable)]);
+        MethodInfo select = RequiredMethod(arenaModule, "SelectedAreas", BindingFlags.Static | BindingFlags.NonPublic, [typeof(int), typeof(long), typeof(ChallengeAreaTable), typeof(AscNet.Common.Database.SimulatedBattlefieldState)]);
         List<int>[] groups = challenge.AreaIdGroup.Where(group => !string.IsNullOrWhiteSpace(group))
             .Select(group => group.Split('|').Select(int.Parse).ToList()).ToArray();
-        List<int> Pick(int activity, long player) => (List<int>)select.Invoke(null, [activity, player, challenge])!;
+        AscNet.Common.Database.SimulatedBattlefieldState rotationState = new();
+        List<int> Pick(int activity, long player) => (List<int>)select.Invoke(null, [activity, player, challenge, rotationState])!;
 
         foreach (long player in new long[] { 1, 2 })
         {

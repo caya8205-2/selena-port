@@ -73,6 +73,10 @@ namespace AscNet.GameServer
             return report;
         }
 
+        /// <summary>CUB counterpart of <see cref="ApplyBulk"/>; the partner tables and helpers live in PartnerModule.</summary>
+        public static TuneCubBulkReport ApplyCubBulk(Session session, TuneCubBulkRequest request) =>
+            Handlers.PartnerModule.ApplyCubBulk(session, request);
+
         public static TuneReport Apply(Session session, TuneRequest request)
         {
             CharacterTable row = TableReaderV2.Parse<CharacterTable>()
@@ -618,6 +622,34 @@ namespace AscNet.GameServer
     public sealed class TuneBulkFailure
     {
         public int CharacterId { get; set; }
+        public string Error { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// One progression pass over every CUB the account owns. A null field keeps what the CUB already
+    /// carries ("as is"). Like the construct tune this is a design surface: no material is spent.
+    /// CUBs have no resonance; <see cref="Star"/> counts star-schedule steps (30 chips each).
+    /// </summary>
+    public sealed class TuneCubBulkRequest
+    {
+        public long Uid { get; set; }
+        public int? Level { get; set; }
+        public int? BreakThrough { get; set; }
+        public int? Quality { get; set; }
+        public int? Star { get; set; }
+        public int? SkillLevel { get; set; }
+    }
+
+    public sealed class TuneCubBulkReport
+    {
+        public int Total { get; set; }
+        public int Applied { get; set; }
+        public List<TuneCubBulkFailure> Failed { get; set; } = [];
+    }
+
+    public sealed class TuneCubBulkFailure
+    {
+        public int PartnerId { get; set; }
         public string Error { get; set; } = string.Empty;
     }
 

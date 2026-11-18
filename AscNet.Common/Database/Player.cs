@@ -150,6 +150,11 @@ namespace AscNet.Common.Database
         [BsonElement("arena_protected_score")]
         public int ArenaProtectedScore { get; set; }
 
+        /// <summary>Admin-picked weekly zone per element group (group key -> area id). Empty means the hash rotation.</summary>
+        [BsonElement("arena_area_override")]
+        [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
+        public Dictionary<string, int> ArenaAreaOverride { get; set; } = new();
+
         [BsonElement("boss_activity_no")]
         public int BossActivityNo { get; set; }
 
@@ -168,6 +173,11 @@ namespace AscNet.Common.Database
 
         [BsonElement("boss_list")]
         public List<int> BossList { get; set; } = new();
+
+        /// <summary>Admin-picked weekly boss per group (group id -> section id). Empty means the hash rotation.</summary>
+        [BsonElement("boss_section_override")]
+        [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
+        public Dictionary<int, int> BossSectionOverride { get; set; } = new();
 
         [BsonElement("boss_max_score")]
         public int BossMaxScore { get; set; }

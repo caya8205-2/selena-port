@@ -528,6 +528,48 @@ function rankLabel(quality) {
   return RANK_LABELS[quality] || ('Q' + quality)
 }
 
+// CUB bulk caps, read from the partner tables only (no account consulted). The server clamps each
+// CUB to its own rows, so these are the slider ceilings across every template.
+function tuneCubCatalog() {
+  const partners = tableRows('share/partner/Partner.tsv')
+  const breaks = tableRows('share/partner/PartnerBreakThrough.tsv')
+  const qualities = tableRows('share/partner/PartnerQuality.tsv')
+  const effects = tableRows('share/partner/PartnerSkillEffect.tsv')
+  if (!partners || !breaks || !qualities) return null
+
+  const idAt = partners.header.indexOf('Id')
+  const nameAt = partners.header.indexOf('Name')
+  const cubs = []
+  for (const cells of partners.rows) {
+    const id = Number(cells[idAt])
+    if (id > 0) cubs.push({ id, name: cells[nameAt] })
+  }
+
+  const timesAt = breaks.header.indexOf('BreakTimes')
+  const limitAt = breaks.header.indexOf('LevelLimit')
+  let maxBreak = 0, maxLevel = 1
+  for (const cells of breaks.rows) {
+    maxBreak = Math.max(maxBreak, Number(cells[timesAt]) || 0)
+    maxLevel = Math.max(maxLevel, Number(cells[limitAt]) || 1)
+  }
+
+  const qualityAt = qualities.header.indexOf('Quality')
+  const chipAts = qualities.header.map((h, i) => (h.startsWith('StarCostChipCount[') ? i : -1)).filter((i) => i >= 0)
+  let maxQuality = 1, maxSchedule = 0
+  for (const cells of qualities.rows) {
+    maxQuality = Math.max(maxQuality, Number(cells[qualityAt]) || 1)
+    for (const i of chipAts) maxSchedule = Math.max(maxSchedule, Number(cells[i]) || 0)
+  }
+
+  let maxSkill = 1
+  if (effects) {
+    const levelAt = effects.header.indexOf('Level')
+    if (levelAt >= 0) for (const cells of effects.rows) maxSkill = Math.max(maxSkill, Number(cells[levelAt]) || 1)
+  }
+
+  return { cubs, maxBreak, maxLevel, maxQuality, maxStar: Math.floor(maxSchedule / 30), maxSkill }
+}
+
 // Everything the tune modal needs, read from the tables: no account is consulted, so a build can
 // name a memory or a weapon this account never held.
 function tuneCatalog() {
@@ -1091,6 +1133,31 @@ function startUiServer() {
         return
       }
 
+      if (url.pathname === '/api/panel/tune-cub-catalog') {
+        const catalog = tuneCubCatalog()
+        return catalog
+          ? sendJson(res, Object.assign({ ok: true }, catalog))
+          : sendJson(res, { ok: false, msg: 'partner tables not found' }, 404)
+      }
+
+      if (url.pathname === '/api/panel/tune-cub-bulk') {
+        const token = readAdminToken()
+        if (!token) return sendJson(res, { ok: false, msg: 'admin token not found - start the server once' }, 404)
+
+        let body = ''
+        req.on('data', (chunk) => { body += chunk })
+        req.on('end', () => {
+          fetch('http://127.0.0.1:' + config.sdkPort + '/api/admin/tune-cub-bulk', {
+            method: 'POST',
+            headers: { 'X-Admin-Token': token, 'Content-Type': 'application/json' },
+            body: body || '{}',
+          })
+            .then((response) => response.json().then((payload) => sendJson(res, payload, response.status)))
+            .catch((err) => sendJson(res, { ok: false, msg: err.message }, 502))
+        })
+        return
+      }
+
       if (url.pathname === '/api/panel/tune') {
         const token = readAdminToken()
         if (!token) return sendJson(res, { ok: false, msg: 'admin token not found - start the server once' }, 404)
@@ -1099,6 +1166,36 @@ function startUiServer() {
         req.on('data', (chunk) => { body += chunk })
         req.on('end', () => {
           fetch('http://127.0.0.1:' + config.sdkPort + '/api/admin/tune', {
+            method: 'POST',
+            headers: { 'X-Admin-Token': token, 'Content-Type': 'application/json' },
+            body: body || '{}',
+          })
+            .then((response) => response.json().then((payload) => sendJson(res, payload, response.status)))
+            .catch((err) => sendJson(res, { ok: false, msg: err.message }, 502))
+        })
+        return
+      }
+
+      if (url.pathname === '/api/panel/endgame-catalog') {
+        const token = readAdminToken()
+        if (!token) return sendJson(res, { ok: false, msg: 'admin token not found - start the server once' }, 404)
+        const uid = url.searchParams.get('uid') || ''
+        fetch('http://127.0.0.1:' + config.sdkPort + '/api/admin/endgame-catalog?uid=' + encodeURIComponent(uid), {
+          headers: { 'X-Admin-Token': token },
+        })
+          .then((response) => response.json().then((payload) => sendJson(res, payload, response.status)))
+          .catch((err) => sendJson(res, { ok: false, msg: err.message }, 502))
+        return
+      }
+
+      if (url.pathname === '/api/panel/endgame-apply') {
+        const token = readAdminToken()
+        if (!token) return sendJson(res, { ok: false, msg: 'admin token not found - start the server once' }, 404)
+
+        let body = ''
+        req.on('data', (chunk) => { body += chunk })
+        req.on('end', () => {
+          fetch('http://127.0.0.1:' + config.sdkPort + '/api/admin/endgame-apply', {
             method: 'POST',
             headers: { 'X-Admin-Token': token, 'Content-Type': 'application/json' },
             body: body || '{}',
@@ -1245,12 +1342,14 @@ function persistSettings(next) {
 
 async function browsePath(key, current) {
   const { dialog } = require('electron')
-  const wantsFile = key === 'mongoBinary' || key === 'gitPath'
-  const titles = { mongoBinary: 'Select mongod.exe', gitPath: 'Select git.exe' }
+  const wantsFile = key === 'mongoBinary' || key === 'gitPath' || key === 'launcherPath'
+  const titles = { mongoBinary: 'Select mongod.exe', gitPath: 'Select git.exe', launcherPath: 'Select ascnet-launcher.exe' }
   const title = titles[key] || 'Select folder'
+  // Callers without a field value (setup rows) still start at the configured path, not Documents.
+  const start = current || config[key] || ''
   const result = await dialog.showOpenDialog({
     title,
-    defaultPath: current || undefined,
+    defaultPath: start ? path.resolve(start) : undefined,
     properties: wantsFile ? ['openFile'] : ['openDirectory'],
     filters: wantsFile ? [{ name: 'Executable', extensions: ['exe'] }] : undefined,
   })

@@ -1353,6 +1353,16 @@ namespace AscNet.Test
                     ValidateEquipPartnerCompatibility();
                     return;
                 }
+                if (args.Contains("--tune-cub-only"))
+                {
+                    ValidateTuneCubBulk();
+                    return;
+                }
+                if (args.Contains("--endgame-only"))
+                {
+                    ValidateEndgame();
+                    return;
+                }
                 if (args.Contains("--shop-refresh-compat-only"))
                 {
                     ValidateShopRefreshCompatibility();
@@ -1603,6 +1613,8 @@ namespace AscNet.Test
                 Step("ValidateCnFirstPayCompatibility", () => ValidateCnFirstPayCompatibility());
                 Step("ValidateChatSocialCompatibility", () => ValidateChatSocialCompatibility());
                 Step("ValidateEquipPartnerCompatibility", () => ValidateEquipPartnerCompatibility());
+                Step("ValidateTuneCubBulk", () => ValidateTuneCubBulk());
+                Step("ValidateEndgame", () => ValidateEndgame());
                 Step("ValidateCollectionMiscCompatibility", () => ValidateCollectionMiscCompatibility());
                 Step("ValidateWardrobePhotoCompatibility", () => ValidateWardrobePhotoCompatibility());
                 Step("ValidateMiscSystemCompatibility", () => ValidateMiscSystemCompatibility());
@@ -24485,14 +24497,15 @@ namespace AscNet.Test
                 BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
                 [typeof(int), typeof(uint), typeof(int), typeof(string), typeof(PreFightResponse.PreFightResponseFightData)]);
             MethodInfo selectArenaAreas = RequiredMethod(arenaModule, "SelectedAreas", BindingFlags.Static | BindingFlags.NonPublic,
-                [typeof(int), typeof(long), typeof(ChallengeAreaTable)]);
+                [typeof(int), typeof(long), typeof(ChallengeAreaTable), typeof(AscNet.Common.Database.SimulatedBattlefieldState)]);
+            AscNet.Common.Database.SimulatedBattlefieldState rankState = new();
             foreach (ArenaLevelTable rank in arenaLevels)
             {
                 ChallengeAreaTable rankChallenge = challenges
                     .Where(row => row.ArenaLv == rank.Id && player.PlayerData.Level >= row.MinLv && player.PlayerData.Level <= row.MaxLv)
                     .OrderBy(row => row.ChallengeId)
                     .First();
-                List<int> rankAreas = (List<int>?)selectArenaAreas.Invoke(null, [1, playerId, rankChallenge])
+                List<int> rankAreas = (List<int>?)selectArenaAreas.Invoke(null, [1, playerId, rankChallenge, rankState])
                     ?? throw new InvalidDataException($"War Zone {rank.Name} selection returned nil.");
                 int expectedCount = rank.Id >= heroArenaLevel ? rankChallenge.DayUnlockNum + 1 : rankChallenge.DayUnlockNum;
                 AssertEqual(expectedCount, rankAreas.Count, $"War Zone {rank.Name} selected area count");

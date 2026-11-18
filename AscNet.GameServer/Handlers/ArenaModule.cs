@@ -245,7 +245,7 @@ namespace AscNet.GameServer.Handlers
             if (!state.ArenaJoined || state.ArenaJoinActivity != state.ArenaActivityNo)
                 return null;
             int selectedAreaId = session.fight.PreFight.PreFightData.SelectAreaId;
-            List<int> activeAreas = SelectedAreas(state.ArenaActivityNo, session.player.PlayerData.Id, ResolveChallenge(state.ArenaLevel, (int)session.player.PlayerData.Level));
+            List<int> activeAreas = SelectedAreas(state.ArenaActivityNo, session.player.PlayerData.Id, ResolveChallenge(state.ArenaLevel, (int)session.player.PlayerData.Level), state);
             if (!activeAreas.Contains(selectedAreaId)
                 || !AreaStages.Value.TryGetValue(selectedAreaId, out AreaStageTable? areaStage)
                 || ResolveConfiguredStageId(areaStage) != checked((int)result.StageId)
@@ -407,7 +407,7 @@ namespace AscNet.GameServer.Handlers
             }
 
             ChallengeAreaTable challenge = ResolveChallenge(state.ArenaLevel, (int)session.player.PlayerData.Level);
-            List<int> selectedAreas = SelectedAreas(state.ArenaActivityNo, session.player.PlayerData.Id, challenge);
+            List<int> selectedAreas = SelectedAreas(state.ArenaActivityNo, session.player.PlayerData.Id, challenge, state);
             int selectedAreaIndex = selectedAreas.IndexOf(request.SelectAreaId);
             if (selectedAreaIndex < 0)
                 return false;
@@ -458,7 +458,7 @@ namespace AscNet.GameServer.Handlers
             if (!state.ArenaJoined || state.ArenaJoinActivity != state.ArenaActivityNo)
                 return new AreaDataResponse { Code = 20044029, TotalPoint = 0, AreaList = null, AreaDistributeMaxPointDict = null, GroupFightEvents = null };
             ChallengeAreaTable challenge = ResolveChallenge(state.ArenaLevel, (int)session.player.PlayerData.Level);
-            List<int> selected = SelectedAreas(state.ArenaActivityNo, session.player.PlayerData.Id, challenge);
+            List<int> selected = SelectedAreas(state.ArenaActivityNo, session.player.PlayerData.Id, challenge, state);
             List<dynamic> areas = selected.Select(areaId => (dynamic)new Dictionary<string, object?>
             {
                 ["AreaId"] = areaId, ["Lock"] = 0, ["Point"] = state.ArenaAreaMaxPoints.GetValueOrDefault(areaId),
@@ -632,7 +632,7 @@ namespace AscNet.GameServer.Handlers
             return response;
         }
 
-        private static void EnsureCurrent(Player player, long? now = null)
+        internal static void EnsureCurrent(Player player, long? now = null)
         {
             player.SimulatedBattlefield ??= new();
             var s = player.SimulatedBattlefield;
@@ -658,7 +658,7 @@ namespace AscNet.GameServer.Handlers
             .OrderBy(x => x.ChallengeId).FirstOrDefault()
             ?? throw new InvalidDataException($"No Arena challenge for tier {arenaLevel}, player level {playerLevel}.");
 
-        private static List<int> SelectedAreas(int activityNo, long playerId, ChallengeAreaTable challenge)
+        private static List<int> SelectedAreas(int activityNo, long playerId, ChallengeAreaTable challenge, SimulatedBattlefieldState state)
         {
             HashSet<int> groupedAreaIds = challenge.AreaIdGroup
                 .Where(group => !string.IsNullOrWhiteSpace(group))
@@ -666,21 +666,8 @@ namespace AscNet.GameServer.Handlers
                 .Select(value => int.TryParse(value, out int areaId) ? areaId : 0)
                 .Where(areaId => areaId > 0)
                 .ToHashSet();
-            List<(string Key, List<int> Areas)> groups = challenge.AreaIdGroup
-                .Where(group => !string.IsNullOrWhiteSpace(group))
-                .Distinct()
-                .Select(group => (Key: group, Areas: group.Split('|', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(value => int.TryParse(value, out int areaId) ? areaId : 0)
-                    .Where(areaId => areaId > 0 && AreaStages.Value.TryGetValue(areaId, out AreaStageTable? area) && IsSupportedArea(area))
-                    .Distinct()
-                    .ToList()))
-                .Where(group => group.Areas.Count > 0)
-                .OrderBy(group => StableGroupHash(activityNo, playerId, group.Key))
-                .ToList();
-            List<int> selected = (activityNo >= NewRotationFromActivity
-                    ? RotatedGroups(groups, activityNo, playerId, challenge.DayUnlockNum)
-                        .Select(group => group.Areas.OrderBy(areaId => Mix64((ulong)activityNo, (ulong)playerId, (ulong)areaId)).First())
-                    : groups.Select(group => group.Areas.OrderBy(areaId => StableAreaHash(activityNo, playerId, areaId) ^ StableStringHash(group.Key)).First()))
+            List<int> selected = OfferedGroups(activityNo, playerId, challenge)
+                .Select(group => PickArea(group, activityNo, playerId, state, rotated: activityNo >= NewRotationFromActivity))
                 .Distinct()
                 .Take(challenge.DayUnlockNum)
                 .ToList();
@@ -703,6 +690,64 @@ namespace AscNet.GameServer.Handlers
                 selected.Add(specialAreas[0]);
             }
             return selected;
+        }
+
+        // An admin-picked zone wins over the hash rotation while it stays valid for the group; otherwise the
+        // rotation stands, so a stale pick can never empty a week's zones.
+        private static int PickArea((string Key, List<int> Areas) group, int activityNo, long playerId, SimulatedBattlefieldState state, bool rotated)
+        {
+            if (state.ArenaAreaOverride.TryGetValue(group.Key, out int forced) && group.Areas.Contains(forced))
+                return forced;
+            return rotated
+                ? group.Areas.OrderBy(areaId => Mix64((ulong)activityNo, (ulong)playerId, (ulong)areaId)).First()
+                : group.Areas.OrderBy(areaId => StableAreaHash(activityNo, playerId, areaId) ^ StableStringHash(group.Key)).First();
+        }
+
+        /// <summary>Admin tier jump: writes the tier and re-resolves the challenge for the player's level.</summary>
+        public static void ApplyAdminTier(Session session, int arenaLevel)
+        {
+            ArenaLevelTable tier = TableReaderV2.Parse<ArenaLevelTable>().FirstOrDefault(row => row.Id == arenaLevel)
+                ?? throw new InvalidOperationException($"Arena tier {arenaLevel} has no ArenaLevel.tsv row.");
+            EnsureCurrent(session.player);
+            SimulatedBattlefieldState state = session.player.SimulatedBattlefield;
+            ChallengeAreaTable challenge = ResolveChallenge(tier.Id, (int)session.player.PlayerData.Level);
+            state.ArenaLevel = tier.Id;
+            state.ArenaChallengeId = challenge.ChallengeId;
+            session.player.Save();
+        }
+
+        // The groups this week offers, in selection order. Shared by the live pick and the admin catalog so
+        // the two can never disagree about which zones are on the board.
+        private static List<(string Key, List<int> Areas)> OfferedGroups(int activityNo, long playerId, ChallengeAreaTable challenge)
+        {
+            List<(string Key, List<int> Areas)> groups = challenge.AreaIdGroup
+                .Where(group => !string.IsNullOrWhiteSpace(group))
+                .Distinct()
+                .Select(group => (Key: group, Areas: group.Split('|', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(value => int.TryParse(value, out int areaId) ? areaId : 0)
+                    .Where(areaId => areaId > 0 && AreaStages.Value.TryGetValue(areaId, out AreaStageTable? area) && IsSupportedArea(area))
+                    .Distinct()
+                    .ToList()))
+                .Where(group => group.Areas.Count > 0)
+                .OrderBy(group => StableGroupHash(activityNo, playerId, group.Key))
+                .ToList();
+            return (activityNo >= NewRotationFromActivity
+                    ? RotatedGroups(groups, activityNo, playerId, challenge.DayUnlockNum)
+                    : groups.Take(challenge.DayUnlockNum))
+                .ToList();
+        }
+
+        /// <summary>This week's offered zone groups with their candidate areas and the area currently picked.</summary>
+        internal static List<(string Key, List<int> Areas, int Chosen)> AdminOfferedZones(Session session)
+        {
+            SimulatedBattlefieldState state = session.player.SimulatedBattlefield;
+            ChallengeAreaTable challenge = ResolveChallenge(state.ArenaLevel, (int)session.player.PlayerData.Level);
+            int activityNo = state.ArenaActivityNo;
+            long playerId = session.player.PlayerData.Id;
+            bool rotated = activityNo >= NewRotationFromActivity;
+            return OfferedGroups(activityNo, playerId, challenge)
+                .Select(group => (group.Key, group.Areas, Chosen: PickArea(group, activityNo, playerId, state, rotated)))
+                .ToList();
         }
 
         // AscNet policy (no retail table defines the weekly zone rotation). The first deploy had activity 484 live, so

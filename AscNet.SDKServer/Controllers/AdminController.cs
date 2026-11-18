@@ -229,6 +229,66 @@ namespace AscNet.SDKServer.Controllers
 
                 return Json(new { ok = true, msg = "OK", data = report, live });
             });
+
+            app.MapPost("/api/admin/tune-cub-bulk", (HttpContext ctx, [FromBody] AscNet.GameServer.TuneCubBulkRequest request) =>
+            {
+                if (!Authorised(ctx)) return Unauthorised(ctx);
+
+                AscNet.GameServer.TuneCubBulkReport report;
+                bool live;
+                try
+                {
+                    AscNet.GameServer.AdminSession.Handle handle = AscNet.GameServer.AdminSession.Open(request.Uid);
+                    live = handle.Live;
+                    report = AscNet.GameServer.TuneBuilder.ApplyCubBulk(handle.Session, request);
+                }
+                catch (Exception ex)
+                {
+                    return Json(new { ok = false, msg = ex.InnerException?.Message ?? ex.Message }, 400);
+                }
+
+                return Json(new { ok = true, msg = "OK", data = report, live });
+            });
+
+            app.MapPost("/api/admin/endgame-apply", (HttpContext ctx, [FromBody] AscNet.GameServer.EndgameApplyRequest request) =>
+            {
+                if (!Authorised(ctx)) return Unauthorised(ctx);
+
+                AscNet.GameServer.EndgameApplyReport report;
+                bool live;
+                try
+                {
+                    AscNet.GameServer.AdminSession.Handle handle = AscNet.GameServer.AdminSession.Open(request.Uid);
+                    live = handle.Live;
+                    report = AscNet.GameServer.EndgameBuilder.Apply(handle.Session, request);
+                }
+                catch (Exception ex)
+                {
+                    return Json(new { ok = false, msg = ex.InnerException?.Message ?? ex.Message }, 400);
+                }
+
+                return Json(new { ok = true, msg = "OK", data = report, live });
+            });
+
+            app.MapGet("/api/admin/endgame-catalog", (HttpContext ctx, long uid) =>
+            {
+                if (!Authorised(ctx)) return Unauthorised(ctx);
+
+                AscNet.GameServer.EndgameCatalog catalog;
+                bool live;
+                try
+                {
+                    AscNet.GameServer.AdminSession.Handle handle = AscNet.GameServer.AdminSession.Open(uid);
+                    live = handle.Live;
+                    catalog = AscNet.GameServer.EndgameBuilder.Catalog(handle.Session);
+                }
+                catch (Exception ex)
+                {
+                    return Json(new { ok = false, msg = ex.InnerException?.Message ?? ex.Message }, 400);
+                }
+
+                return Json(new { ok = true, msg = "OK", data = catalog, live });
+            });
         }
 
         private static Account? Find(long uid) =>

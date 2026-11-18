@@ -1698,7 +1698,8 @@ namespace AscNet.GameServer.Handlers
         private static Dictionary<int, List<int>> BuildBossListOptions(
             SimulatedBattlefieldState state,
             int playerLevel,
-            int activity)
+            int activity,
+            int? forceLevelType = null)
         {
             Dictionary<int, List<int>> result = new();
             int previousGrade = state.BossOldLevelType > 0
@@ -1706,10 +1707,12 @@ namespace AscNet.GameServer.Handlers
                 : 0;
             foreach (BossSingleGradeTable grade in Grades.Value.Where(row =>
                          row.AfreshId == CurrentAfreshId
-                         && playerLevel >= row.MinPlayerLevel
-                         && playerLevel <= row.MaxPlayerLevel
-                         && (row.PreGradeType == 0
-                             || (previousGrade >= row.PreGradeType && state.BossMaxScore >= row.NeedScore))))
+                         && (forceLevelType is int forced
+                             ? row.LevelType == forced
+                             : playerLevel >= row.MinPlayerLevel
+                               && playerLevel <= row.MaxPlayerLevel
+                               && (row.PreGradeType == 0
+                                   || (previousGrade >= row.PreGradeType && state.BossMaxScore >= row.NeedScore)))))
             {
                 HashSet<int> selected = new();
                 List<int> bossList = new();
@@ -1723,10 +1726,17 @@ namespace AscNet.GameServer.Handlers
                     if (candidates.Count == 0)
                         throw new InvalidDataException($"Pain Cage group {groupId} has no current sections.");
 
-                    int start = checked((int)(StableHash($"{activity}:{grade.LevelType}:{groupId}") % (uint)candidates.Count));
-                    int choice = Enumerable.Range(0, candidates.Count)
-                        .Select(offset => candidates[(start + offset) % candidates.Count])
-                        .FirstOrDefault(sectionId => !selected.Contains(sectionId));
+                    int choice = 0;
+                    if (state.BossSectionOverride.TryGetValue(groupId, out int forcedSection)
+                        && candidates.Contains(forcedSection) && !selected.Contains(forcedSection))
+                        choice = forcedSection;
+                    if (choice == 0)
+                    {
+                        int start = checked((int)(StableHash($"{activity}:{grade.LevelType}:{groupId}") % (uint)candidates.Count));
+                        choice = Enumerable.Range(0, candidates.Count)
+                            .Select(offset => candidates[(start + offset) % candidates.Count])
+                            .FirstOrDefault(sectionId => !selected.Contains(sectionId));
+                    }
                     if (choice == 0)
                         throw new InvalidDataException($"Pain Cage grade {grade.LevelType} cannot choose unique section for group {groupId}.");
                     selected.Add(choice);
@@ -1735,6 +1745,59 @@ namespace AscNet.GameServer.Handlers
                 result[grade.LevelType] = bossList;
             }
             return result;
+        }
+
+        /// <summary>Admin difficulty jump, including Ultimate before its score gate is met.</summary>
+        public static void ApplyAdminLevelType(Session session, int levelType)
+        {
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            ReconcileLive(session, now, includeOwnershipSnapshot: false);
+            SimulatedBattlefieldState state = session.player.SimulatedBattlefield;
+            Dictionary<int, List<int>> options = BuildBossListOptions(
+                state, checked((int)session.player.PlayerData.Level), state.BossActivityNo, forceLevelType: levelType);
+            if (!options.TryGetValue(levelType, out List<int>? bossList))
+                throw new InvalidOperationException($"PPC level type {levelType} has no BossSingleGrade.tsv row.");
+            state.BossLevelType = levelType;
+            state.BossList = bossList.ToList();
+            session.player.Save();
+            HydrateBossStages(session, sendPushes: true);
+        }
+
+        /// <summary>Rebuilds the persisted weekly boss list after the admin rotation override changes.</summary>
+        internal static void RefreshAdminBossList(Session session)
+        {
+            SimulatedBattlefieldState state = session.player.SimulatedBattlefield;
+            if (state.BossLevelType == 0)
+                return;
+            Dictionary<int, List<int>> options = BuildBossListOptions(
+                state, checked((int)session.player.PlayerData.Level), state.BossActivityNo, forceLevelType: state.BossLevelType);
+            if (options.TryGetValue(state.BossLevelType, out List<int>? bossList))
+                state.BossList = bossList.ToList();
+            session.player.Save();
+            HydrateBossStages(session, sendPushes: true);
+        }
+
+        internal static List<(int GroupId, List<int> Sections)> AdminBossGroupsFor(int levelType)
+        {
+            if (levelType == 0)
+                return [];
+            BossSingleGradeTable grade = Grades.Value.FirstOrDefault(row => row.AfreshId == CurrentAfreshId && row.LevelType == levelType)
+                ?? throw new InvalidDataException($"Pain Cage level type {levelType} has no current grade row.");
+            return grade.GroupId.Select(groupId => (GroupId: groupId, Sections: Groups.Value.TryGetValue(groupId, out BossSingleGroupTable? group)
+                ? group.SectionId.Where(sectionId => HasCurrentSection(sectionId)).ToList()
+                : [])).ToList();
+        }
+
+        /// <summary>The standard grade for the player's level and the Ultimate grade, both from the current rerun.</summary>
+        internal static (int Standard, int Ultimate) AdminGradeIds(int playerLevel)
+        {
+            int standard = ResolveInitialLevelType(playerLevel);
+            int ultimate = Grades.Value
+                .Where(row => row.AfreshId == CurrentAfreshId && row.PreGradeType > 0)
+                .Select(row => row.LevelType)
+                .DefaultIfEmpty(0)
+                .Max();
+            return (standard, ultimate);
         }
 
         private static bool TryResolveFightStage(

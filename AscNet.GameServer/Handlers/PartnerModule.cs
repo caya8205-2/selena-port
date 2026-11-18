@@ -1179,6 +1179,77 @@ namespace AscNet.GameServer.Handlers
                 : null;
         }
 
+        /// <summary>
+        /// Bulk progression pass over every owned CUB, the CUB counterpart of TuneBuilder.ApplyBulk.
+        /// A null request field keeps the CUB's current value; every written value is clamped to the
+        /// authoritative partner tables. No material is spent (design surface, like the construct tune).
+        /// </summary>
+        public static TuneCubBulkReport ApplyCubBulk(Session session, TuneCubBulkRequest request)
+        {
+            List<PartnerData> partners = session.character.Partners ?? [];
+            TuneCubBulkReport report = new() { Total = partners.Count };
+            List<PartnerBreakThroughTable> breakthroughs = TableReaderV2.Parse<PartnerBreakThroughTable>();
+            List<PartnerQualityTable> qualities = TableReaderV2.Parse<PartnerQualityTable>();
+            List<PartnerSkillEffectTable> skillEffects = TableReaderV2.Parse<PartnerSkillEffectTable>();
+
+            foreach (PartnerData partner in partners.ToList())
+            {
+                try
+                {
+                    int maxBreak = breakthroughs.Where(row => row.PartnerId == partner.TemplateId)
+                        .Select(row => row.BreakTimes).DefaultIfEmpty(0).Max();
+                    int breakThrough = Math.Clamp(request.BreakThrough ?? partner.BreakThrough, 0, maxBreak);
+                    PartnerBreakThroughTable stage = breakthroughs
+                        .Find(row => row.PartnerId == partner.TemplateId && row.BreakTimes == breakThrough)
+                        ?? throw new InvalidOperationException($"CUB {partner.TemplateId} has no breakthrough {breakThrough} row.");
+
+                    int maxQuality = qualities.Where(row => row.PartnerId == partner.TemplateId)
+                        .Select(row => row.Quality).DefaultIfEmpty(partner.Quality).Max();
+                    int quality = Math.Clamp(request.Quality ?? partner.Quality, 1, maxQuality);
+                    PartnerQualityTable qualityConfig = qualities
+                        .Find(row => row.PartnerId == partner.TemplateId && row.Quality == quality)
+                        ?? throw new InvalidOperationException($"CUB {partner.TemplateId} has no quality {quality} row.");
+                    int maxSchedule = qualityConfig.StarCostChipCount.LastOrDefault(value => value > 0);
+                    int starSteps = Math.Clamp(request.Star ?? partner.StarSchedule / 30, 0, maxSchedule / 30);
+
+                    partner.BreakThrough = breakThrough;
+                    partner.Level = Math.Clamp(request.Level ?? partner.Level, 1, Math.Max(1, stage.LevelLimit));
+                    partner.Exp = 0;
+                    partner.Quality = quality;
+                    partner.StarSchedule = starSteps * 30;
+
+                    if (request.SkillLevel is int skillLevel)
+                    {
+                        foreach (PartnerSkillData skill in partner.SkillList)
+                        {
+                            int ceiling = skillEffects.Where(effect => effect.SkillId == skill.Id)
+                                .Select(effect => effect.Level).DefaultIfEmpty(0).Max();
+                            if (ceiling > 0)
+                                skill.Level = Math.Clamp(skillLevel, 1, ceiling);
+                        }
+                    }
+
+                    report.Applied += 1;
+                }
+                catch (Exception ex)
+                {
+                    report.Failed.Add(new TuneCubBulkFailure
+                    {
+                        PartnerId = partner.Id,
+                        Error = ex.InnerException?.Message ?? ex.Message,
+                    });
+                }
+            }
+
+            if (report.Applied > 0)
+            {
+                session.character.Save();
+                SyncArchive(session);
+            }
+
+            return report;
+        }
+
         internal static PartnerData CreatePartner(int id, int templateId)
         {
             PartnerTable partnerConfig = TableReaderV2.Parse<PartnerTable>()
