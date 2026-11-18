@@ -5,15 +5,26 @@ observed tonight, not inference. Where something is still a guess it says so.
 
 ## Where things stand
 
-- Branch `main`, HEAD `21cea02`. **One commit is local only** (`21cea02`); `origin/main` is at `49844c0`.
-  Push needs the owner's explicit word.
-- Latest release: **`v26.11.1802`** (assets `Selena-port-Setup-26.11.1802.exe`, `-Portable-`, blockmap).
-  Version format is `YY.MM.DD`, plus a two-digit counter for a second same-day release (`26.11.1801`, `1802`).
+- Branch `main`, pushed to `origin/main` with the owner's explicit word (client freeze fix + `26.11.1803`).
+- Latest release: **`v26.11.1803`** (assets `Selena-port-Setup-26.11.1803.exe`, `-Portable-`, blockmap).
+  Version format is `YY.MM.DD`, plus a two-digit counter for a second same-day release (`26.11.1801`, `1802`, `1803`).
   The workflow `.github/workflows/app-release.yml` releases only when `v<version>` does not exist.
+  Release notes are manual: the action publishes with `--generate-notes`, then edit via `gh release edit`.
 - Running right now: mongod `9932` on 27017, AscNet `25108` on 2335/8085, 5 app processes. The stack was
   started by the app, so its Stop button works.
 
 ## Fixed and verified tonight
+
+Client hard-freeze ("Not Responding", force-close only) — root cause was an undrained stdout pipe, not device load:
+- The app spawned PGR.exe with a piped stdout nobody reads. Unity's own log writer blocks in `NtWriteFile` once the
+  pipe fills, holding Unity's logging critical section; the main thread (Lua `Debug.Log`) then deadlocks on it.
+  Two hang dumps proved it (main thread in `NtWriteFile` from a KRSDK `println!`, then main thread waiting the Unity
+  log CS held by a Unity log writer stuck in `NtWriteFile`).
+- Fix: `desktop/main.js` `launchClient` now spawns with `stdio:'ignore'` (no pipe). Patch logging is non-blocking:
+  `AscNet.Patch/diag.rs` queues to a background writer, and krsdk's 145 raw `println!` go through a `kr_log!` macro
+  into that queue, so no game thread ever writes stdout.
+- Verified: 47 min play plus heavy UI (team presets for every element, manual character/memory/CUB leveling,
+  Warzone/PPC prep) with zero freezes; previously froze at ~17-19 min. Needs the rebuilt portable (asar), not just repo.
 
 Server (reachable without a release, via **Config → Update source** which pulls and rebuilds):
 - `LevelCommand` never saved, so an administrative level change was lost. Now saves (`SaveChecked`), and only
@@ -74,8 +85,10 @@ every SDK line currently looks like `200 GET /path` with no timing.
 
 ## Rules this project cares about (learned the hard way)
 
-- **The owner's account of a game mechanic outranks inference from tables.** They have played PGR for years.
-  Implement what they state; never argue it away as "doesn't make sense". Recorded in `.hermes/state.md`,
+- **The owner is Caya, the user you are talking to.** What they say about a game mechanic outranks inference
+  from tables, DB, or server code: they have played retail PGR for years, and this is an unofficial emulator
+  whose data is incomplete and sometimes wrong. Implement what they state; never argue it away as "doesn't
+  make sense" or prefer a table over their firsthand account. Recorded in `.hermes/state.md`,
   `selena-port-domain`, and memory.
 - Resonance types: `EquipResonanceType` is **1 = Attrib (stat), 2 = CharacterSkill, 3 = WeaponSkill**
   (`AscNet.Common/MsgPack/Types.cs`). Awaken counts only a *skill* in the upper slot; a stat there does not
