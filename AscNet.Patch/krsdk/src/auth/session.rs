@@ -60,7 +60,7 @@ pub fn save(origin: &str, session: &UserSession) {
         return;
     };
     let Some(protected_token) = protect(origin, &session.token) else {
-        println!("[KRSDK] saved session could not be protected");
+        kr_log!("[KRSDK] saved session could not be protected");
         return;
     };
     if let Some(parent) = path.parent() {

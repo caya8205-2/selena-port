@@ -1,3 +1,5 @@
+#[macro_use]
+mod log_macro;
 #[path = "../../diag.rs"]
 mod diag;
 mod auth;

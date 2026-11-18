@@ -135,11 +135,11 @@ unsafe extern "system" fn window_proc(
         WM_COMMAND => {
             match wparam.0 as i32 {
                 ID_BTN_LOGIN => {
-                    println!("[KRSDK] Login clicked");
+                    kr_log!("[KRSDK] Login clicked");
                     login_dialog::show(hwnd);
                 }
                 ID_BTN_REGISTER => {
-                    println!("[KRSDK] Register clicked");
+                    kr_log!("[KRSDK] Register clicked");
                     register_dialog::show(hwnd);
                 }
                 _ => {}

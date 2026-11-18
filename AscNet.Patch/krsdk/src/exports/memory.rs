@@ -5,7 +5,7 @@ use std::ffi::CString;
 #[no_mangle]
 pub extern "C" fn kurosdk_freeKRPluginMemory(ptr: *mut c_void) {
 
-    println!("[KRSDK] *** kurosdk_freeKRPluginMemory called with ptr: {:?} ***", ptr);
+    kr_log!("[KRSDK] *** kurosdk_freeKRPluginMemory called with ptr: {:?} ***", ptr);
 
     if ptr.is_null() {
         return;
@@ -16,14 +16,14 @@ pub extern "C" fn kurosdk_freeKRPluginMemory(ptr: *mut c_void) {
         if let Some(pos) = allocated.iter().position(|p| p.0 == ptr as *mut c_char) {
             allocated.remove(pos);
             let _ = CString::from_raw(ptr as *mut c_char);
-            println!("[KRSDK] Freed CString");
+            kr_log!("[KRSDK] Freed CString");
         }
     }
 }
 
 #[no_mangle]
 pub extern "C" fn kurosdk_free(ptr: *mut c_void) -> u8 {
-    println!("[KRSDK] *** kurosdk_free called with ptr: {:?} ***", ptr);
+    kr_log!("[KRSDK] *** kurosdk_free called with ptr: {:?} ***", ptr);
     if ptr.is_null() {
         return 0;
     }

@@ -53,20 +53,20 @@ pub static CURL_LIB: Lazy<Library> = Lazy::new(|| {
     path.push("Plugins");
     path.push("libcurl.dll");
 
-    println!("[KRSDK] Loading curl from {:?}", path);
+    kr_log!("[KRSDK] Loading curl from {:?}", path);
 
     unsafe { Library::new(path).expect("Unable to load curl DLL") }
 });
 
 #[no_mangle]
 pub extern "C" fn kurosdk_setGameHwnd(hwnd: *mut c_void) {
-    println!(
+    kr_log!(
         "[KRSDK] *** kurosdk_setGameHwnd called with HWND: {:?} ***",
         hwnd
     );
 
     if !hwnd.is_null() {
         *GAME_HWND.lock().unwrap() = Some(HWND(hwnd as isize));
-        println!("[KRSDK] Game HWND stored");
+        kr_log!("[KRSDK] Game HWND stored");
     }
 }

@@ -5,27 +5,27 @@ use std::sync::atomic::Ordering;
 
 #[no_mangle]
 pub extern "C" fn kurosdk_login() {
-    println!("[KRSDK] *** kurosdk_login called ***");
+    kr_log!("[KRSDK] *** kurosdk_login called ***");
 
     if !SDK_INIT_FLAG_1.load(Ordering::SeqCst) || !SDK_INIT_FLAG_2.load(Ordering::SeqCst) {
-        println!("[KRSDK] ERROR: fail to open login dialog, has not init success");
+        kr_log!("[KRSDK] ERROR: fail to open login dialog, has not init success");
         return;
     }
 
     let resumed = if let Some(session) = ui::current_session() {
-        println!("[KRSDK] resuming the in-game session");
+        kr_log!("[KRSDK] resuming the in-game session");
         ui::finish_login(session)
     } else if let Some(stored) = crate::auth::session::load(&crate::auth::client::origin()) {
-        println!("[KRSDK] verifying the saved session");
+        kr_log!("[KRSDK] verifying the saved session");
         match crate::auth::client::verify(&stored.token) {
             Ok(session) => ui::finish_login(session),
             Err(crate::auth::client::VerifyFailure::Rejected(error)) => {
-                println!("[KRSDK] saved session was rejected: {error}");
+                kr_log!("[KRSDK] saved session was rejected: {error}");
                 crate::auth::session::clear();
                 false
             }
             Err(crate::auth::client::VerifyFailure::Unavailable(error)) => {
-                println!("[KRSDK] saved session could not be verified: {error}");
+                kr_log!("[KRSDK] saved session could not be verified: {error}");
                 false
             }
         }
@@ -54,7 +54,7 @@ pub extern "C" fn kr_sdk_login() -> i64 {
 
 #[no_mangle]
 pub extern "C" fn kr_sdk_logout() -> u8 {
-    println!("[KRSDK] *** Logout called ***");
+    kr_log!("[KRSDK] *** Logout called ***");
     ui::logout();
     0
 }

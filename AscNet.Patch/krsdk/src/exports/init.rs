@@ -22,14 +22,14 @@ pub extern "system" fn DllMain(
             #[allow(unused_unsafe)]
             unsafe {
                 //let _ = AllocConsole();
-                println!("[KRSDK] DLL Loaded - Console initialized");
+                kr_log!("[KRSDK] DLL Loaded - Console initialized");
             }
         }
         DLL_PROCESS_DETACH => {
             #[cfg(windows)]
             #[allow(unused_unsafe)]
             unsafe {
-                println!("[KRSDK] DLL Unloading");
+                kr_log!("[KRSDK] DLL Unloading");
                 //let _ = FreeConsole();
             }
         }
@@ -46,7 +46,7 @@ fn local_asset(contents: &str) -> String {
 
 #[no_mangle]
 pub extern "C" fn kurosdk_initSdk() {
-    println!("[KRSDK] *** kurosdk_initSdk called ***");
+    kr_log!("[KRSDK] *** kurosdk_initSdk called ***");
 
     std::thread::spawn(|| {
         *AGREEMENT_DATA.lock().unwrap() =
@@ -58,7 +58,7 @@ pub extern "C" fn kurosdk_initSdk() {
         SDK_INIT_FLAG_2.store(true, Ordering::SeqCst);
 
         send_callback("INIT_SDK_FINISHED", "");
-        println!("[KRSDK] Init complete - login should be available");
+        kr_log!("[KRSDK] Init complete - login should be available");
     });
 }
 
@@ -66,7 +66,7 @@ pub extern "C" fn kurosdk_initSdk() {
 pub extern "C" fn kurosdk_registerSdkGlobalCallback(
     callback: extern "C" fn(*const c_char, *const c_char),
 ) {
-    println!(
+    kr_log!(
         "[KRSDK] *** kurosdk_registerSdkGlobalCallback called - callback at: {:?} ***",
         callback as *const ()
     );
@@ -75,13 +75,13 @@ pub extern "C" fn kurosdk_registerSdkGlobalCallback(
 
 #[no_mangle]
 pub extern "C" fn kurosdk_unregisterSdkGlobalCallback() {
-    println!("[KRSDK] *** kurosdk_unregisterSdkGlobalCallback called",);
+    kr_log!("[KRSDK] *** kurosdk_unregisterSdkGlobalCallback called",);
     *CALLBACK.lock().unwrap() = None;
 }
 
 #[no_mangle]
 pub extern "C" fn kurosdk_initEnv() -> u8 {
-    println!("[KRSDK] *** kurosdk_initEnv called ***");
+    kr_log!("[KRSDK] *** kurosdk_initEnv called ***");
     1
 }
 
@@ -93,32 +93,32 @@ pub extern "C" fn kr_sdk_initialize(
     a4: *const c_char,
     a5: *const c_char,
 ) -> u32 {
-    println!("[KRSDK] *** kr_sdk_initialize called ***");
+    kr_log!("[KRSDK] *** kr_sdk_initialize called ***");
 
     unsafe {
         if !a1.is_null() {
             if let Ok(s) = std::ffi::CStr::from_ptr(a1).to_str() {
-                println!("[KRSDK]   param1: {}", s);
+                kr_log!("[KRSDK]   param1: {}", s);
             }
         }
         if !a2.is_null() {
             if let Ok(s) = std::ffi::CStr::from_ptr(a2).to_str() {
-                println!("[KRSDK]   param2: {}", s);
+                kr_log!("[KRSDK]   param2: {}", s);
             }
         }
         if !a3.is_null() {
             if let Ok(s) = std::ffi::CStr::from_ptr(a3).to_str() {
-                println!("[KRSDK]   param3: {}", s);
+                kr_log!("[KRSDK]   param3: {}", s);
             }
         }
         if !a4.is_null() {
             if let Ok(s) = std::ffi::CStr::from_ptr(a4).to_str() {
-                println!("[KRSDK]   param4: {}", s);
+                kr_log!("[KRSDK]   param4: {}", s);
             }
         }
         if !a5.is_null() {
             if let Ok(s) = std::ffi::CStr::from_ptr(a5).to_str() {
-                println!("[KRSDK]   param5: {}", s);
+                kr_log!("[KRSDK]   param5: {}", s);
             }
         }
     }
@@ -128,14 +128,14 @@ pub extern "C" fn kr_sdk_initialize(
 
 #[no_mangle]
 pub extern "C" fn kr_sdk_null_initialize() -> u32 {
-    println!("[KRSDK] *** kr_sdk_null_initialize called ***");
+    kr_log!("[KRSDK] *** kr_sdk_null_initialize called ***");
 
     0
 }
 
 #[no_mangle]
 pub extern "C" fn kurosdk_getAgreementData() -> *const c_char {
-    println!("[KRSDK] *** kurosdk_getAgreementData called ***");
+    kr_log!("[KRSDK] *** kurosdk_getAgreementData called ***");
 
     if let Some(data) = AGREEMENT_DATA.lock().unwrap().as_ref() {
         let cstring = CString::new(data.as_str()).unwrap();
@@ -149,7 +149,7 @@ pub extern "C" fn kurosdk_getAgreementData() -> *const c_char {
 
 #[no_mangle]
 pub extern "C" fn kurosdk_getSdkConfig() -> *const c_char {
-    println!("[KRSDK] *** kurosdk_getSdkConfig called ***");
+    kr_log!("[KRSDK] *** kurosdk_getSdkConfig called ***");
 
     if let Some(data) = SDK_CONFIG.lock().unwrap().as_ref() {
         let cstring = CString::new(data.as_str()).unwrap();

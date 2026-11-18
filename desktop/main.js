@@ -417,6 +417,9 @@ function launchClient() {
     cwd: config.gameDir,
     windowsHide: false,
     detached: true,
+    // No piped stdout: the patch logs to ascnet-patch.log, and an undrained pipe fills up and
+    // blocks the game's logging thread (freezes the client). 'ignore' gives the child no pipe.
+    stdio: 'ignore',
     env: { ...process.env, ASCNET_PATCH_ORIGIN: `http://127.0.0.1:${config.sdkPort}` },
   })
   child.unref()

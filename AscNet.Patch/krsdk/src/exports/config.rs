@@ -61,7 +61,7 @@ fn initialize_routing() -> Result<(), &'static str> {
 
 #[no_mangle]
 pub extern "C" fn kurosdk_getConfigInfo() -> *mut c_char {
-    println!("[KRSDK] *** kurosdk_getConfigInfo called ***");
+    kr_log!("[KRSDK] *** kurosdk_getConfigInfo called ***");
     let packaged = sdk_identity::read_packaged();
     crate::diag::log(&sdk_identity::region_line("KRSDK", &packaged));
     match initialize_routing() {
@@ -77,7 +77,7 @@ pub extern "C" fn kurosdk_getConfigInfo() -> *mut c_char {
     });
 
     let json_str = config.to_string();
-    println!("[KRSDK] Returning config: {}", json_str);
+    kr_log!("[KRSDK] Returning config: {}", json_str);
 
     let c_str = CString::new(json_str).unwrap();
     let ptr = c_str.into_raw();
@@ -88,7 +88,7 @@ pub extern "C" fn kurosdk_getConfigInfo() -> *mut c_char {
 
 #[no_mangle]
 pub extern "C" fn kurosdk_getDeviceInfo() -> *mut c_char {
-    println!("[KRSDK] *** kurosdk_getDeviceInfo called ***");
+    kr_log!("[KRSDK] *** kurosdk_getDeviceInfo called ***");
 
     let device_info = serde_json::json!({
         "did": uuid::Uuid::new_v4().to_string(),
@@ -98,7 +98,7 @@ pub extern "C" fn kurosdk_getDeviceInfo() -> *mut c_char {
     });
 
     let json_str = device_info.to_string();
-    println!("[KRSDK] Returning device info: {}", json_str);
+    kr_log!("[KRSDK] Returning device info: {}", json_str);
 
     let c_str = CString::new(json_str).unwrap();
     let ptr = c_str.into_raw();
@@ -111,12 +111,12 @@ pub extern "C" fn kurosdk_getDeviceInfo() -> *mut c_char {
 
 #[no_mangle]
 pub extern "C" fn kurosdk_getProtocolInfo() -> *mut c_char {
-    println!("[KRSDK] *** Get Protocol Info called ***");
+    kr_log!("[KRSDK] *** Get Protocol Info called ***");
 
     let protocol_info = serde_json::json!({"data": []});
 
     let json_str = protocol_info.to_string();
-    println!("[KRSDK] Returning protocol info: {}", json_str);
+    kr_log!("[KRSDK] Returning protocol info: {}", json_str);
 
     let c_ctr = CString::new(json_str).unwrap();
     let ptr = c_ctr.into_raw();
@@ -127,23 +127,23 @@ pub extern "C" fn kurosdk_getProtocolInfo() -> *mut c_char {
 
 #[no_mangle]
 pub extern "C" fn kurosdk_setLanguage(data: *const c_char) {
-    println!("[KRSDK] *** kurosdk_setLanguage called ***");
+    kr_log!("[KRSDK] *** kurosdk_setLanguage called ***");
 
     if data.is_null() {
-        println!("[KRSDK] setLanguage: null data");
+        kr_log!("[KRSDK] setLanguage: null data");
         return;
     }
 
     unsafe {
         let c_str = std::ffi::CStr::from_ptr(data);
         if let Ok(json_str) = c_str.to_str() {
-            println!("[KRSDK] setLanguage data: {}", json_str);
+            kr_log!("[KRSDK] setLanguage data: {}", json_str);
 
             // Parse JSON to get language
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(json_str) {
                 if let Some(lang) = json.get("language").and_then(|v| v.as_str()) {
                     *LANGUAGE.lock().unwrap() = lang.to_string();
-                    println!("[KRSDK] Language set to: {}", lang);
+                    kr_log!("[KRSDK] Language set to: {}", lang);
                 }
             }
         }
