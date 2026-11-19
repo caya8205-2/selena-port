@@ -820,9 +820,23 @@ tables and the player's persisted state.
 - Tests: `AscNet.Test/Program.Endgame.cs` under `--endgame-only`.
 
 Open work on this surface:
-- **A-rank CUB bug (owner-reported, deferred):** a naturally A-rank CUB shows as S before any
-  tune, and tuning to level 30 / skill 5 / SSS lands as SS in game. Not investigated; do not
-  assume it shares the CUB passive-capacity bug. It is listed in the `26.11.19` release notes as
-  a known issue.
 - IB boss↔affix pairing is AscNet policy, not retail; replacing it needs the retail distribute
   table, which is not in the repo or the client bundles seen so far.
+
+### A-rank CUB bug: root-caused and fixed (20 Nov 2026, UI only)
+
+Both symptoms came from one line: the panel carried `CUB_RANKS = ["S","SS","SSS","SSS+"]` and
+indexed it by ladder position, but the client's vocabulary is B/A/S/SS/SSS/SSS+ = Quality 1..6
+and a CUB's ladder starts at its own table minimum (Lingya at A). So an A CUB displayed "S", and
+picking "SSS" sent the 4th rung of the assumed ladder, which the server correctly mapped to
+Quality 4 = SS. The server was right all along; `TuneCubStateEntry.Qualities` already carried the
+real ladder and the UI ignored it.
+
+The fix reads the ladder from the state: the card and the single Tune modal label each rung by
+its real quality through the shared `CUB_RANK_LABELS` scale (Lingya runs A/S/SS/SSS/SSS+ and SSS
+sends `RankStep` 4 = Quality 5). Bulk Tutti spans CUBs with different ladders, so its Rank slider
+names the quality itself (B..SSS+) and sends `Quality`; the server clamps it into each CUB's own
+range. Verified live on 20 Nov: card shows SSS for Lingya (Quality 5), the Tune slider walks
+A/S/SS/SSS/SSS+ over its five rungs, and a bulk Perform of Level 30 / SSS / skill 5 on uid 2
+sent `{Level: 30, Quality: 5, SkillLevel: 5}` and applied 253 of 253 with every CUB inside its
+own ladder.

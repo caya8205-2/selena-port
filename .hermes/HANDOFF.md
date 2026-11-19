@@ -114,15 +114,33 @@ Defender. Tell the owner first, cap the walk (hit bundle for the client bosssing
   element-weakness stages; the leaderboard counts the highest two stage scores (retail `RankStageNum 2`
   matches); clearing all three is not required.
 
-### Deferred nonfatal bug: A-rank CUB display and tune mapping
+### Deferred nonfatal bug: A-rank CUB display and tune mapping (root-caused, fixed in UI)
 
-Owner report, not yet investigated: a naturally A-rank CUB already appears as S rank in the CUB section before
-any tuning. Selecting level 30, skill level 5 and rank SSS in Tune produces rank SS in game.
-The CUB identity and underlying cause are not established. Reproduce the initial display and submitted/applied
-rank mapping against that CUB's authoritative tables and client contract; do not assume it shares the passive
-capacity bug or silently offset all ranks. Leave this for later as requested.
-The owner explicitly requested this known issue and its planned fix in the `26.11.19` release notes,
-alongside the IB picker planned for the next update.
+Owner report: a naturally A-rank CUB (Lingya, `Partner.Id 16070000`, `InitQuality 2`) already appeared as
+S in the CUB section before any tuning, and Tune to level 30 / skill 5 / SSS produced SS in game.
+
+Root cause, both symptoms from one line: `web-ui/player/player.js` carried `CUB_RANKS = ["S","SS","SSS","SSS+"]`
+and indexed it by ladder position, but the client's own vocabulary (`xpartnerutil.lua:7`) is
+**B/A/S/SS/SSS/SSS+ = Quality 1..6**, and Lingya's `PartnerQuality` ladder starts at 2 (A). So rung 1 (A)
+displayed "S", and picking "SSS" (rung 4) sent `RankStep 4`, which the server correctly mapped to ladder[3]
+= Quality 4 = SS. The server (`ApplyCubBulk` ladder mapping and the `Quality` clamp) was right all along;
+`TuneCubStateEntry.Qualities` already carried each CUB's real ladder and the UI ignored it.
+
+Fix (UI only, uncommitted): the card and the single Tune modal read `entry.qualities` and label each rung
+by its real quality through the shared `CUB_RANK_LABELS` scale, so Lingya runs A/S/SS/SSS/SSS+ and SSS sends
+step 4 = Quality 5. Bulk Tutti has no single ladder to index, so its Rank slider names the quality itself
+(B..SSS+) and sends `Quality`; the server clamps it into each CUB's own range, and the tooltip says a CUB
+whose ladder starts higher keeps its lowest rank. Verified against the live state endpoint: Lingya
+`Qualities [2,3,4,5,6]`, current `Quality 5`.
+
+Panel verification completed 20 Nov against the running app (served the fixed `player.js`): the
+card shows SSS for Lingya (Quality 5), the Tune modal's Rank slider walks A/S/SS/SSS/SSS+ over
+Lingya's five rungs with the note following each step, and the Tutti slider names the qualities
+B..SSS+. A Tutti Perform of Level 30 / SSS / skill 5 on uid 2 posted `{Level: 30, Quality: 5,
+SkillLevel: 5}` and applied 253 of 253 CUBs, every one inside its own ladder (the fetch-stub
+payload capture ran in an isolated JS world and did not intercept, so that Perform was a real
+write to the test account; the values match the owner's own test scenario). In-game read-back of
+the tuned ranks is still the owner's call.
 
 ## Historical handoff: 18 November
 

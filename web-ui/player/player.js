@@ -1954,7 +1954,11 @@
       const entry = state.entry;
       const ladder = (entry && entry.qualities) || [];
       const rankIndex = entry ? ladder.indexOf(entry.quality) : -1;
-      const rankLabel = entry ? (rankIndex >= 0 ? (CUB_RANKS[rankIndex] || "Q" + entry.quality) : "Q" + entry.quality) : "-";
+      const rankLabel = entry
+        ? (rankIndex >= 0
+            ? (CUB_RANK_LABELS[entry.quality] || "Q" + entry.quality)
+            : "Q" + entry.quality)
+        : "-";
       const skillLevels = ((entry && entry.skills) || []).map(function (s) { return s.level; });
       const skillLow = skillLevels.length ? Math.min.apply(null, skillLevels) : 0;
       const skillHigh = skillLevels.length ? Math.max.apply(null, skillLevels) : 0;
@@ -1985,17 +1989,37 @@
     $("#catalogMeta").textContent = "catalog: " + (catalog.cubs || []).length + " CUBs";
   }
 
-  var CUB_RANKS = ["S", "SS", "SSS", "SSS+"];
+  // The CUB rank ladder is the shared quality ladder: 1 B, 2 A, 3 S, 4 SS, 5 SSS, 6 SSS+. A CUB
+  // starts at its own table minimum (Lingya at A), so the ladder is read from the table rather than
+  // assumed to begin at S, and the sent step is the position in that CUB's own ladder.
+  var CUB_RANK_LABELS = ["", "B", "A", "S", "SS", "SSS", "SSS+"];
 
-  function cubRankLabel(v) { return v > 0 ? (CUB_RANKS[v - 1] || CUB_RANKS[CUB_RANKS.length - 1]) : "As is"; }
+  function cubRankLabel(v, ladder) {
+    const steps = ladder && ladder.length ? ladder : [2, 3, 4, 5, 6, 7];
+    if (!(v > 0)) return "As is";
+    const quality = steps[Math.min(v, steps.length) - 1];
+    return CUB_RANK_LABELS[quality] || ("Q" + quality);
+  }
 
   // CUB has no node rank and no separate breakthrough control: Level raises the breakthrough stage
-  // itself, and Rank walks the CUB's own S / SS / SSS / SSS+ ladder. Only what you move is written.
-  function cubSliders(body, caps, choice, noteFn) {
+  // itself, and Rank walks the CUB's own quality ladder. A single tune knows one CUB, so it sends the
+  // step in that CUB's ladder; a bulk tune spans CUBs with different ladders, so it names the rank and
+  // sends the quality, which the server clamps into each CUB's own range.
+  function cubSliders(body, caps, choice, noteFn, bulk) {
+    const ladder = caps.qualities && caps.qualities.length ? caps.qualities : [3, 4, 5, 6];
+    choice.ladder = ladder;
+    choice.bulk = !!bulk;
     body.appendChild(slider("Level", 0, caps.maxLevel, 0, function (v) { return v > 0 ? "Lv " + v : "As is"; },
       function (v) { choice.level = v; noteFn(); }, "Level for this CUB. Raising it unlocks the breakthrough stage needed to reach it."));
-    body.appendChild(slider("Rank", 0, CUB_RANKS.length, 0, cubRankLabel,
-      function (v) { choice.rank = v; noteFn(); }, "Rank for this CUB on its own ladder: S, SS, SSS, SSS+. As is keeps the rank it has."));
+    if (bulk) {
+      body.appendChild(slider("Rank", 0, CUB_RANK_LABELS.length - 1, 0, function (v) { return v > 0 ? CUB_RANK_LABELS[v] : "As is"; },
+        function (v) { choice.rank = v; choice.quality = v; noteFn(); },
+        "Rank name written to every CUB that exists at it. A CUB whose ladder starts higher keeps its lowest rank."));
+    } else {
+      body.appendChild(slider("Rank", 0, ladder.length, 0, function (v) { return cubRankLabel(v, ladder); },
+        function (v) { choice.rank = v; noteFn(); },
+        "Rank for this CUB on its own ladder, starting at the lowest rank it exists in. As is keeps the rank it has."));
+    }
     if (caps.maxSkill > 0) {
       body.appendChild(slider("Skills", 0, caps.maxSkill, 0, function (v) { return v > 0 ? "Lv " + v : "As is"; },
         function (v) { choice.skill = v; noteFn(); }, "Every skill of this CUB. As is keeps the levels it has."));
@@ -2006,7 +2030,7 @@
     const body = $("#cubTuneBody");
     body.textContent = "";
     $("#cubTuneTitle").textContent = "Tune " + identity.name;
-    const caps = { maxLevel: entry.maxLevel, maxSkill: entry.maxSkill };
+    const caps = { maxLevel: entry.maxLevel, maxSkill: entry.maxSkill, qualities: entry.qualities };
     const design = { partnerId: entry.templateId, level: 0, rank: 0, skill: 0 };
     cubTuneDesign = design;
     const lead = document.createElement("p");
@@ -2016,7 +2040,7 @@
     body.appendChild(lead);
     function paintNote() {
       $("#cubTuneNote").textContent = "Level " + (design.level > 0 ? design.level : "As is")
-        + " \u00b7 Rank " + cubRankLabel(design.rank)
+        + " \u00b7 Rank " + cubRankLabel(design.rank, design.ladder)
         + (caps.maxSkill > 0 ? " \u00b7 Skills " + (design.skill > 0 ? "Lv " + design.skill : "As is") : "");
     }
     cubSliders(body, caps, design, paintNote);
@@ -2072,12 +2096,12 @@
     function paintNote() {
       const bits = [
         "Level " + (choice.level > 0 ? String(choice.level) : "As is"),
-        "Rank " + cubRankLabel(choice.rank),
+        "Rank " + (choice.rank > 0 ? (CUB_RANK_LABELS[choice.rank] || ("Q" + choice.rank)) : "As is"),
       ];
       if (catalog.maxSkill > 0) bits.push("Skills " + (choice.skill > 0 ? "Lv " + choice.skill : "As is"));
       $("#bulkNote").textContent = bits.join(" \u00b7 ");
     }
-    cubSliders(body, catalog, choice, paintNote);
+    cubSliders(body, catalog, choice, paintNote, true);
     paintNote();
     $("#bulkModal").hidden = false;
     $("#bulkPerform").focus();
@@ -2091,7 +2115,9 @@
 
     const payload = { Uid: Number(uid) };
     if (choice.level > 0) payload.Level = choice.level;
-    if (choice.rank > 0) payload.RankStep = choice.rank;
+    // Bulk spans CUBs with different ladders, so it names the quality itself; the server clamps it
+    // into each CUB's own range. A single tune sends the step in that CUB's ladder instead.
+    if (choice.rank > 0) payload.Quality = choice.rank;
     if (choice.skill > 0) payload.SkillLevel = choice.skill;
 
     const cmd = {
