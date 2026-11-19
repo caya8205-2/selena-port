@@ -10,11 +10,11 @@ moment they cost time. A stale note is worse than no note, because it is trusted
 session starts without its earlier context, read this file first, then `git log -5`, then the
 files it names. Do not rely on memory for ports, paths or column names.
 
-Last updated: the tune now edits instead of resetting, skill levels are capped at the bought 18, the
-resonance slot/type mapping is settled from the tables, the resonance lists are ordered the way the
-client draws them, and the writer's off-slot change is built, running, tested and proven red then
-green, still uncommitted. Section 8 lists what is still open; section 9 describes the build writer;
-section 10 carries the game vocabulary.
+Last updated: 20 Nov 2026. The endgame board (Rank & weekly) now carries the War Zone
+tier/zone/stage picks, the PPC Standard/Ultimate boss picks with table-derived element
+weakness notes, and the Intensive Battle boss + stage set with its per-stage affix notes.
+The CUB Tune/Tutti controls and the CUB preset capacity repair ship in `26.11.19`. Section 11
+records the endgame facts and the open bugs; section 8 lists the older open work.
 
 ---
 
@@ -24,13 +24,17 @@ Fork of the AscNet private server for Punishing: Gray Raven, running natively on
 plus a redesigned web panel (English, Selena theme) and an Electron control centre that
 supervises MongoDB, the server and the game client in one window.
 
-- Repo: `C:\Users\Caya\Desktop\Project\selena-port`, branch `selena-panel`, local commits only.
-  Pushing needs the owner's explicit permission.
+- Repo: `C:\Users\Caya\Desktop\Project\selena-port`, branch `main`, remote `origin`
+  (`caya8205-2/selena-port`). Local commits only unless the owner asks for a push; the
+  owner reviews features in the game before pushing.
 - Upstream: `reiserFSs/InfiniteLoop` (remote `upstream`). Server code is upstream's;
   our additions are `AscNet.SDKServer/Controllers/AdminController.cs`,
-  `AscNet.GameServer/Commands/AccountCommand.cs`, `AscNet.WebPanel/`, `desktop/`, `web-ui/`.
+  `AscNet.GameServer/Commands/AccountCommand.cs`, `AscNet.GameServer/EndgameBuilder.cs`,
+  `desktop/`, `web-ui/`.
 - Do not touch the pristine client at `E:\Punishing Gray Raven`. The test copy lives at
-  `D:\gemink\Punishing Gray Raven` (90,277 files, 68.7 GB) because the launcher patches files.
+  `D:\gemink\Punishing Gray Raven` because the launcher patches files. **Ask before running a
+  bundle scan**: it reads the whole install off an HDD and starves the game's loading and
+  Defender.
 
 ## 2. How to run it
 
@@ -766,3 +770,59 @@ The harness keeps one endpoint per session as `bu-<name>.port` and `.pid` under
 `%USERPROFILE%\.config\browser-harness\runtime`. If the daemon dies those files are left behind and
 the next call fails with `Access denied` while unlinking them, which looks like a broken page. Kill
 stray `chrome.exe`, delete the stale `bu-<name>.*` files, and open the next session under a new name.
+
+## 11. Endgame board: War Zone, Phantom Pain Cage, Intensive Battle (nov 2026)
+
+The Rank & weekly section is served by `AscNet.GameServer/EndgameBuilder.cs` over
+`GET /api/admin/endgame-catalog?uid=` and `POST /api/admin/endgame-apply`, proxied by the
+shell as `/api/panel/endgame-*`. The capture is behavioural only; every value comes from the
+tables and the player's persisted state.
+
+- War Zone: tier (`ArenaLevel.tsv`), two element-group pins, a stage pick per group, and the
+  Hero+ Entropic affix zone. Replacing a zone drops its outgoing score; a tier change clears
+  all score maps. Scores are keyed by area id, never by stage id, because stages are shared.
+- Phantom Pain Cage: Standard/Ultimate grade, one boss per group (`BossSingleGroup` sections,
+  named from `BossSingleStage.BossName`), and a reset-attempts button that refills the daily
+  attempts and construct stamina without touching score. A grade change clears the cycle;
+  a boss replacement drops that boss's records and syncs the stage datums the client shows.
+- PPC weakness note: each section's stages share one weakness buff, so the picker shows one
+  line, `Frost: The phenomenon of freezing expansion...`. The buff id comes from
+  `BossSingleStage.BuffDetailsId[1]`, resolved through
+  `Resources/table/client/fuben/babel/BabelTowerBuffDetails.tsv` (client table, Id/Name/Desc).
+- Intensive Battle is the challenge mode (凹分区): `BossSingleChallengeGrade` LevelType 9,
+  NeedGradeType 4 (Ultimate), NeedScore 1800000, BossGroupId 12, RankStageNum 2 (only the top
+  two of three stage scores count). One boss per week; its three stages are a fixed set, so the
+  admin picks the boss and the affix set, never an individual stage, and the row is labelled
+  "Stage set".
+- IB state keys are table row ids, not logical section ids: `BossSingleSection` rows 89-108 map
+  to SectionId 2025-2044. `AdminChallengeTableRowId` / `AdminChallengeLogicalSection` convert;
+  `ResolveChallengeSection` wants the row id and the picker/UI speaks the SectionId.
+- The weekly section and affix set otherwise come from two independent hashes of
+  `BossActivityNo`. Retail binds boss to affix through `BossSingleChallengeGroupDistribute`
+  (from `ChallengeGrade.DistributeId` = 3), a table that is absent from the repo and is not
+  loaded by the client at all, so nothing authoritative says which set a boss gets.
+- Because of that, `IsCoherentChallengeFeatureGroup` keeps only sets whose every affix matches
+  the element of the module it is paired with (18 shipped sets, 17 coherent). The incoherent
+  row (Id 4) pairs a Physical affix with the Ignition module (1009) and odds the Raydiance one
+  with Fire (1003), which is the mismatch the owner saw in game. The rotation, catalog, pin
+  validation and buff-group lookup all use the coherent list. This is AscNet policy, not
+  retail parity.
+- A pin written before the 1.8M gate is met is stored, stays visible in the catalog as
+  `PinnedSection`, and lands at the first login that clears the gate.
+- Layout: `renderSection` sets `body.is-wide` for the endgame section; `player.css` then makes
+  `.workspace` one full-width column (log under the board, capped at 320px) and lays the form
+  blocks out as columns (`auto-fit minmax(340px, 1fr)`, block max-width 420px) with the lead
+  paragraph spanning the row. Other sections keep the board + side log split until the owner
+  approves the shape.
+- `sel-select` is an unstyled custom element and is inline by default, so a long option label
+  widened it past its grid column and the popup spilled out of the panel. `theme.css` now makes
+  it a block that fills its column; the account picker opts back out with `width: max-content`.
+- Tests: `AscNet.Test/Program.Endgame.cs` under `--endgame-only`.
+
+Open work on this surface:
+- **A-rank CUB bug (owner-reported, deferred):** a naturally A-rank CUB shows as S before any
+  tune, and tuning to level 30 / skill 5 / SSS lands as SS in game. Not investigated; do not
+  assume it shares the CUB passive-capacity bug. It is listed in the `26.11.19` release notes as
+  a known issue.
+- IB boss↔affix pairing is AscNet policy, not retail; replacing it needs the retail distribute
+  table, which is not in the repo or the client bundles seen so far.
