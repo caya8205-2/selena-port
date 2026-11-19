@@ -1,7 +1,51 @@
-# Handoff — Selena-port, 18 Nov 2026 (~04:50 local)
+# Handoff — Selena-port, 19 Nov 2026
 
-Written because the owner is switching agents mid-investigation. Everything below is what was actually run and
-observed tonight, not inference. Where something is still a guess it says so.
+## Current update: verified endgame and CUB tuning
+
+The owner verified the current changes in game on 19 November: all reported score and ice-team preset fixes work.
+The sections below this update describe the previous 18 November investigation; their process IDs, release and
+working-tree status are historical, not the current runtime state.
+
+- Rank & weekly offers War Zone tier, element-group, Mob/Elite/Boss and affix-zone picks, plus normal PPC
+  Standard/Ultimate grades and named weekly boss picks. Changes push to the connected client immediately.
+- Replacing a WZ zone or PPC boss removes its outgoing score while unchanged encounters retain theirs;
+  rank/grade changes clear incompatible scores. Returning to an old encounter does not revive discarded scores.
+  Reapplying a selection also removes stale inactive score records left by the earlier bug.
+- CUB has a catalog with individual Tune and bulk Tutti controls for level, rank and skills.
+- The ice-team preset failure was Vulpecula carrying four passive skills at a quality allowing only two,
+  not the number of saved presets. Tuning now reconciles worn skills and saved presets against table capacity,
+  including same-rank repair. Relog after repairing existing saved presets to refresh the client cache.
+- Focused endgame, CUB and shared-stage arena score tests pass; the new regressions fail against the old runtime.
+  Broader preset, partner-wear and Simulated Battlefield checks encountered unavailable local MongoDB;
+  do not describe the full harness as green. The owner subsequently confirmed in-game functionality.
+- The owner authorized committing these changes, bumping to `26.11.19`, and pushing to `origin/main`.
+  The existing App release workflow publishes after a version bump; edit its generated notes after publication.
+  Release notes should describe the player-facing features and fixes, not internal development history.
+
+### Next update: PPC Intensive Battle (IB) picker
+
+Deferred, not implemented. Extend the existing Rank & weekly panel; do not create a separate admin surface.
+IB boss and elemental-stage selection are not currently adjustable, and this limitation must appear in the
+`26.11.19` release notes.
+
+Owner-stated mechanics and scope:
+- IB is available only in PPC Ultimate, after clearing Ultimate above 1.8 million score.
+- One boss rotates weekly, with three stages having different elemental weaknesses.
+- The leaderboard uses the highest two stage scores; clearing all three stages is not required.
+- Add control over the IB boss and elemental stages for sandbox team/build/rotation experiments without waiting
+  for the retail weekly rotation. Preserve these mechanics and verify the client contract before implementation.
+
+### Deferred nonfatal bug: A-rank CUB display and tune mapping
+
+Owner report, not yet investigated: a naturally A-rank CUB already appears as S rank in the CUB section before
+any tuning. Selecting level 30, skill level 5 and rank SSS in Tune produces rank SS in game.
+The CUB identity and underlying cause are not established. Reproduce the initial display and submitted/applied
+rank mapping against that CUB's authoritative tables and client contract; do not assume it shares the passive
+capacity bug or silently offset all ranks. Leave this for later as requested.
+
+## Historical handoff: 18 November
+
+Written when the owner switched agents mid-investigation. Observations below belong to that earlier session.
 
 ## Where things stand
 

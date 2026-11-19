@@ -1191,6 +1191,7 @@ namespace AscNet.GameServer.Handlers
                 .ToList();
             TuneCubBulkReport report = new() { Total = partners.Count };
             List<PartnerData> changed = [];
+            bool presetsChanged = false;
             List<PartnerBreakThroughTable> breakthroughs = TableReaderV2.Parse<PartnerBreakThroughTable>();
             List<PartnerQualityTable> qualities = TableReaderV2.Parse<PartnerQualityTable>();
             List<PartnerSkillEffectTable> skillEffects = TableReaderV2.Parse<PartnerSkillEffectTable>();
@@ -1226,6 +1227,8 @@ namespace AscNet.GameServer.Handlers
                     PartnerQualityTable qualityConfig = qualities
                         .Find(row => row.PartnerId == partner.TemplateId && row.Quality == quality)
                         ?? throw new InvalidOperationException($"CUB {partner.TemplateId} has no quality {quality} row.");
+                    if (qualityConfig.SkillColumnCount < 0)
+                        throw new InvalidOperationException($"CUB {partner.TemplateId} quality {quality} has an invalid passive skill limit.");
                     int maxSchedule = qualityConfig.StarCostChipCount.LastOrDefault(value => value > 0);
                     int starSteps = Math.Clamp(request.Star ?? partner.StarSchedule / 30, 0, maxSchedule / 30);
 
@@ -1246,6 +1249,29 @@ namespace AscNet.GameServer.Handlers
                         }
                     }
 
+                    // AscNet tuning policy: keep the first allowed passives, including repair of existing over-cap selections.
+                    foreach (PartnerSkillData skill in partner.SkillList
+                                 .Where(skill => skill.Type == 2 && skill.IsWear)
+                                 .Skip(qualityConfig.SkillColumnCount))
+                        skill.IsWear = false;
+
+                    foreach (TeamPrefabData prefab in session.player.TeamPrefabs ?? [])
+                    {
+                        foreach (TeamPrefabPartnerData? selection in
+                                 prefab?.PartnerData?.Values ?? Enumerable.Empty<TeamPrefabPartnerData?>())
+                        {
+                            if (selection?.PartnerId == partner.Id
+                                && selection.SkillData is not null
+                                && selection.SkillData.TryGetValue(2, out List<int>? passives)
+                                && passives is not null && passives.Count > qualityConfig.SkillColumnCount)
+                            {
+                                // Each saved preset keeps its own selection order, not the worn loadout's.
+                                selection.SkillData[2] = passives.Take(qualityConfig.SkillColumnCount).ToList();
+                                presetsChanged = true;
+                            }
+                        }
+                    }
+
                     report.Applied += 1;
                     changed.Add(partner);
                 }
@@ -1262,6 +1288,9 @@ namespace AscNet.GameServer.Handlers
             if (report.Applied > 0)
             {
                 session.character.Save();
+                if (presetsChanged)
+                    session.player.Save();
+                // No standalone preset refresh exists; NotifyLogin.TeamPrefabData restores saved selections on login.
                 SyncArchive(session);
                 session.SendPush(new NotifyPartnerDataList
                 {

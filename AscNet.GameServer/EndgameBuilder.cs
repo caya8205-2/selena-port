@@ -17,27 +17,11 @@ namespace AscNet.GameServer
     {
         public static EndgameApplyReport Apply(Session session, EndgameApplyRequest request)
         {
-            if (request.ArenaLevel is int arenaLevel)
-                Handlers.ArenaModule.ApplyAdminTier(session, arenaLevel);
+            if (request.ArenaLevel is not null || request.ArenaAreas is not null
+                || request.ArenaGroups is not null || request.ArenaSpecial is not null)
+                Handlers.ArenaModule.ApplyAdminSelection(session, request);
 
             SimulatedBattlefieldState state = session.player.SimulatedBattlefield;
-
-            bool arenaOverrideChanged = false;
-            if (request.ArenaAreas is not null)
-            {
-                state.ArenaAreaOverride = new Dictionary<string, int>(request.ArenaAreas);
-                arenaOverrideChanged = true;
-            }
-            if (request.ArenaGroups is not null)
-            {
-                state.ArenaGroupOverride = new List<string>(request.ArenaGroups);
-                arenaOverrideChanged = true;
-            }
-            if (request.ArenaSpecial is int arenaSpecial)
-            {
-                state.ArenaSpecialOverride = arenaSpecial;
-                arenaOverrideChanged = true;
-            }
 
             bool bossOverrideChanged = false;
             if (request.BossSections is not null)
@@ -51,12 +35,6 @@ namespace AscNet.GameServer
                 Handlers.BossModule.ApplyAdminLevelType(session, bossLevelType);
             else if (bossOverrideChanged)
                 Handlers.BossModule.RefreshAdminBossList(session);
-
-            if (arenaOverrideChanged)
-            {
-                session.player.Save();
-                Handlers.ArenaModule.PushAdminBoard(session);
-            }
 
             if (request.ResetBossAttempts)
                 Handlers.BossModule.ResetAdminAttempts(session);

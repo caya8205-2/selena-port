@@ -1764,11 +1764,42 @@ namespace AscNet.GameServer.Handlers
                 state, checked((int)session.player.PlayerData.Level), state.BossActivityNo, forceLevelType: levelType);
             if (!options.TryGetValue(levelType, out List<int>? bossList))
                 throw new InvalidOperationException($"PPC level type {levelType} has no BossSingleGrade.tsv row.");
-            if (state.BossLevelType != levelType)
+            bool gradeChanged = state.BossLevelType != levelType;
+            bool bossesChanged = !state.BossList.SequenceEqual(bossList);
+            if (gradeChanged)
+            {
                 ClearCycleState(state);
+                state.BossNormalStageTeams.Clear();
+            }
+            else
+            {
+                // AscNet tuning policy: replaced bosses start fresh; unchanged bosses keep their records.
+                HashSet<int> retainedSections = state.BossList.Intersect(bossList).ToHashSet();
+                HashSet<int> retainedStages = retainedSections.SelectMany(id => ResolveSection(id).StageId).ToHashSet();
+                state.BossStageRecords.RemoveAll(record => !retainedStages.Contains(record.StageId));
+                state.BossResetStageIds.RemoveAll(id => !retainedStages.Contains(id));
+                foreach (int section in state.BossNormalStageTeams.Keys.Where(id => !retainedSections.Contains(id)).ToList())
+                    state.BossNormalStageTeams.Remove(section);
+                RecalculateNormalTotals(state);
+                if (state.BossTotalScore == 0)
+                    state.BossLastScoreTime = 0;
+            }
+            if (gradeChanged || bossesChanged)
+            {
+                session.PendingBossSingleScore = null;
+                if (session.fight is { } fight && IsStage(fight.PreFight.PreFightData.StageId))
+                    session.fight = null;
+            }
             state.BossLevelType = levelType;
             state.BossList = bossList.ToList();
+            state.BossListOptions = options;
             session.player.Save();
+            List<StageDatum> changedStages = SyncCycleStageScores(state, session.stage);
+            if (changedStages.Count > 0)
+            {
+                session.stage.Save();
+                session.SendPush(new NotifyStageData { StageList = changedStages });
+            }
             HydrateBossStages(session, sendPushes: true);
             session.SendPush(BuildLoginData(session.player, now));
         }
@@ -1792,13 +1823,7 @@ namespace AscNet.GameServer.Handlers
             SimulatedBattlefieldState state = session.player.SimulatedBattlefield;
             if (state.BossLevelType == 0)
                 return;
-            Dictionary<int, List<int>> options = BuildBossListOptions(
-                state, checked((int)session.player.PlayerData.Level), state.BossActivityNo, forceLevelType: state.BossLevelType);
-            if (options.TryGetValue(state.BossLevelType, out List<int>? bossList))
-                state.BossList = bossList.ToList();
-            session.player.Save();
-            HydrateBossStages(session, sendPushes: true);
-            session.SendPush(BuildLoginData(session.player));
+            ApplyAdminLevelType(session, state.BossLevelType);
         }
 
         internal static List<(int GroupId, List<int> Sections)> AdminBossGroupsFor(int levelType)

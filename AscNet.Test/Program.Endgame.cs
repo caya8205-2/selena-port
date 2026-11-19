@@ -153,7 +153,10 @@ internal partial class Program
         // The reset button refills attempts and stamina but never the score. Pin the daily period first so
         // the same-grade apply below is not rolled over by the live reconcile.
         EndgameBuilder.Apply(harness.Session, new EndgameApplyRequest { Uid = playerId, ResetBossAttempts = true });
-        player.SimulatedBattlefield.BossStageRecords.Add(new BossSingleStageRecordState { StageId = 999002, Score = 777, MaxScore = 777 });
+        int currentBossStage = TableReaderV2.Parse<BossSingleSectionTable>()
+            .Single(row => row.AfreshId == afresh && row.SectionId == player.SimulatedBattlefield.BossList[0])
+            .StageId.First(id => id > 0);
+        player.SimulatedBattlefield.BossStageRecords.Add(new BossSingleStageRecordState { StageId = currentBossStage, Score = 777, MaxScore = 777 });
         player.SimulatedBattlefield.BossTotalScore = 777;
         player.SimulatedBattlefield.BossCurrentTotalScore = 777;
         player.SimulatedBattlefield.BossChallengeCount = 3;
@@ -239,6 +242,120 @@ internal partial class Program
                 foreach (Dictionary<string, object?> npc in npcs.Cast<Dictionary<string, object?>>())
                     AssertEqual(true, Convert.ToInt64(npc["Level"]) >= 1, "hydrated NPC levels stay positive after scaling");
             }
+        }
+
+        EndgameCatalog scoredBoard = EndgameBuilder.Catalog(harness.Session);
+        EndgameArenaTier scoredTier = scoredBoard.Arena.Tiers.Single(tier => tier.Id == scoredBoard.Arena.Current);
+        EndgameZoneGroup changedZone = scoredTier.Groups[0];
+        int retainedArea = scoredTier.Groups[1].Chosen;
+        int replacementArea = changedZone.Areas.First(id => id != changedZone.Chosen);
+        SimulatedBattlefieldState scoredState = player.SimulatedBattlefield;
+        scoredState.ArenaAreaMaxPoints = new() { [changedZone.Chosen] = 1000, [retainedArea] = 2000 };
+        scoredState.ArenaPoint = 3000;
+        EndgameBuilder.Apply(harness.Session, new EndgameApplyRequest
+        {
+            Uid = playerId,
+            ArenaAreas = new() { [changedZone.Key] = replacementArea, [scoredTier.Groups[1].Key] = retainedArea },
+        });
+        AssertEqual(2000, scoredState.ArenaPoint, "replacing an arena zone removes its outgoing score from the total");
+        AssertEqual(false, scoredState.ArenaAreaMaxPoints.ContainsKey(changedZone.Chosen), "outgoing zone score is removed");
+        AssertEqual(0, scoredState.ArenaAreaMaxPoints.GetValueOrDefault(replacementArea), "replacement zone starts at zero");
+        AssertEqual(2000, scoredState.ArenaAreaMaxPoints[retainedArea], "unchanged zone keeps its best");
+        AssertEqual(false, scoredState.ArenaStageMaxPoints.ContainsKey((uint)fightAreas[changedZone.Chosen].StageId[0]),
+            "outgoing stage maximum is removed");
+        scoredState.ArenaAreaMaxPoints[changedZone.Chosen] = 1000;
+        ArenaResult replacementResult = SettleArena(replacementArea);
+        AssertEqual(0, replacementResult.OldArenaMaxPoint, "first replacement clear has no inherited best");
+        int expectedArenaTotal = 2000 + replacementResult.Point;
+        AssertEqual(expectedArenaTotal, scoredState.ArenaPoint, "replacement clear counts active zones only, even with stale stored scores");
+        SettleArena(replacementArea);
+        AssertEqual(expectedArenaTotal, scoredState.ArenaPoint, "repeating the same score does not accumulate");
+        EndgameBuilder.Apply(harness.Session, new EndgameApplyRequest
+        {
+            Uid = playerId, ArenaLevel = scoredTier.Id,
+            ArenaAreas = new() { [changedZone.Key] = replacementArea, [scoredTier.Groups[1].Key] = retainedArea },
+        });
+        AssertEqual(expectedArenaTotal, scoredState.ArenaPoint, "unchanged arena selection preserves the total");
+        EndgameBuilder.Apply(harness.Session, new EndgameApplyRequest
+        {
+            Uid = playerId, ArenaAreas = new() { [changedZone.Key] = changedZone.Chosen, [scoredTier.Groups[1].Key] = retainedArea },
+        });
+        AssertEqual(2000, scoredState.ArenaPoint, "returning to an old arena zone cannot revive its score");
+        EndgameBuilder.Apply(harness.Session, new EndgameApplyRequest { Uid = playerId, ArenaLevel = hero });
+        AssertEqual(0, scoredState.ArenaPoint, "arena tier changes clear incompatible scores");
+        AssertEqual(0, scoredState.ArenaAreaMaxPoints.Count, "arena tier changes clear area scores");
+        AssertEqual(0, scoredState.ArenaStageMaxPoints.Count, "arena tier changes clear stage scores");
+        AssertEqual(0, scoredState.ArenaDistributeMaxPoints.Count, "arena tier changes clear distribution scores");
+
+        EndgameBuilder.Apply(harness.Session, new EndgameApplyRequest { Uid = playerId, BossLevelType = expectedUltimate });
+        EndgameCatalog scoredBossBoard = EndgameBuilder.Catalog(harness.Session);
+        EndgameBossGroup changedBoss = scoredBossBoard.Boss.UltimateGroups[0];
+        int replacementBoss = changedBoss.Sections.First(id => !scoredState.BossList.Contains(id));
+        Dictionary<int, BossSingleSectionTable> bossSections = TableReaderV2.Parse<BossSingleSectionTable>()
+            .Where(row => row.AfreshId == afresh).ToDictionary(row => row.SectionId);
+        int removedBossStage = bossSections[changedBoss.Chosen].StageId.First(id => id > 0);
+        int retainedBossStage = bossSections[scoredState.BossList[1]].StageId.First(id => id > 0);
+        scoredState.BossStageRecords =
+        [
+            new() { StageId = removedBossStage, Score = 1000, MaxScore = 1200 },
+            new() { StageId = retainedBossStage, Score = 2000, MaxScore = 2200 },
+        ];
+        scoredState.BossNormalStageTeams[changedBoss.Chosen] = [102];
+        scoredState.BossResetStageIds.Add(removedBossStage);
+        scoredState.BossTotalScore = 3400;
+        scoredState.BossCurrentTotalScore = 3000;
+        DrainPushes(harness);
+        EndgameBuilder.Apply(harness.Session, new EndgameApplyRequest
+        {
+            Uid = playerId, BossSections = new() { [changedBoss.Id] = replacementBoss },
+        });
+        AssertEqual(2200, scoredState.BossTotalScore, "boss replacement removes outgoing high scores immediately");
+        AssertEqual(2000, scoredState.BossCurrentTotalScore, "boss replacement removes outgoing current scores immediately");
+        AssertEqual(1, scoredState.BossStageRecords.Count, "boss replacement retains only unchanged boss records");
+        AssertEqual(false, scoredState.BossNormalStageTeams.ContainsKey(changedBoss.Chosen), "outgoing boss team is removed");
+        AssertEqual(false, scoredState.BossResetStageIds.Contains(removedBossStage), "outgoing boss reset marker is removed");
+        AssertEqual(0, harness.Session.stage.Stages[(uint)removedBossStage].Score, "outgoing boss stage datum is synchronized immediately");
+        AssertEqual(true, SawPush(harness, nameof(NotifyStageData)), "boss replacement pushes changed stage scores");
+        EndgameBuilder.Apply(harness.Session, new EndgameApplyRequest
+        {
+            Uid = playerId, BossLevelType = expectedUltimate, BossSections = new() { [changedBoss.Id] = replacementBoss },
+        });
+        AssertEqual(2200, scoredState.BossTotalScore, "same boss and grade preserve scores");
+        scoredState.BossStageRecords.Add(new() { StageId = removedBossStage, Score = 1000, MaxScore = 1200 });
+        scoredState.BossTotalScore = 3400;
+        scoredState.BossCurrentTotalScore = 3000;
+        EndgameBuilder.Apply(harness.Session, new EndgameApplyRequest { Uid = playerId, BossLevelType = expectedUltimate });
+        AssertEqual(2200, scoredState.BossTotalScore, "same selection repairs stale inactive boss scores");
+        AssertEqual(2000, scoredState.BossCurrentTotalScore, "same selection repairs stale inactive current scores");
+        AssertEqual(1, scoredState.BossStageRecords.Count, "same selection removes stale inactive records");
+        EndgameBuilder.Apply(harness.Session, new EndgameApplyRequest
+        {
+            Uid = playerId, BossSections = new() { [changedBoss.Id] = changedBoss.Chosen },
+        });
+        AssertEqual(2200, scoredState.BossTotalScore, "returning to an old boss cannot revive its score");
+        EndgameBuilder.Apply(harness.Session, new EndgameApplyRequest { Uid = playerId, BossLevelType = expectedStandard });
+        AssertEqual(0, harness.Session.stage.Stages[(uint)retainedBossStage].Score, "grade change synchronizes prior stage scores without another request");
+        Player scoreReload = BsonSerializer.Deserialize<Player>(player.ToBson());
+        AssertEqual(0, scoreReload.SimulatedBattlefield.BossTotalScore, "cleared boss score persists");
+        AssertEqual(0, scoreReload.SimulatedBattlefield.ArenaPoint, "cleared arena score persists");
+
+        ArenaResult SettleArena(int areaId)
+        {
+            uint stageId = checked((uint)fightAreas[areaId].StageId[0]);
+            harness.Session.fight = new AscNet.GameServer.Game.Fight(new PreFightRequest
+            {
+                PreFightData = new() { StageId = stageId, SelectAreaId = areaId, ArenaSelectIndex = 0, CardIds = [], RobotIds = [] },
+            }, 1);
+            return ArenaModule.RecordFightResult(harness.Session, new FightSettleResult
+            {
+                IsWin = true, StageId = stageId, StartFrame = 1, SettleFrame = 201,
+                DeathTotalEnemy = 10, TotalDamage = 1_000_000,
+                StringToIntRecord = new Dictionary<string, int> { ["NpcGroup"] = 1 },
+                NpcHpInfo = new()
+                {
+                    [1] = new NpcHp { Type = 1, AttrTable = new() { [1] = new Dictionary<object, object> { ["Value"] = 100, ["MaxValue"] = 100 } }, BuffIds = [] },
+                },
+            }) ?? throw new InvalidDataException("replacement arena settle was rejected");
         }
 
         static void DrainPushes(LoopbackSessionHarness harness)

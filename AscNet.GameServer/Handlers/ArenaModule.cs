@@ -270,13 +270,8 @@ namespace AscNet.GameServer.Handlers
             int oldStage = oldArea;
             if (point > oldArea)
             {
-                state.ArenaStageMaxPoints[result.StageId] = Math.Max(point, state.ArenaStageMaxPoints.GetValueOrDefault(result.StageId));
                 state.ArenaAreaMaxPoints[areaId] = point;
-                state.ArenaPoint = state.ArenaAreaMaxPoints.Values.Sum();
-                foreach (int type in activeAreas.SelectMany(activeAreaId => AreaStages.Value[activeAreaId].DistributeTypes).Distinct())
-                    state.ArenaDistributeMaxPoints[type] = activeAreas
-                        .Where(activeAreaId => AreaStages.Value[activeAreaId].DistributeTypes.Contains(type))
-                        .Sum(activeAreaId => state.ArenaAreaMaxPoints.GetValueOrDefault(activeAreaId));
+                RecalculatePoints(state, activeAreas);
                 state.ArenaLastPointTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 session.player.Save();
             }
@@ -714,18 +709,59 @@ namespace AscNet.GameServer.Handlers
                 : group.Areas.OrderBy(areaId => StableAreaHash(activityNo, playerId, areaId) ^ StableStringHash(group.Key)).First();
         }
 
-        /// <summary>Admin tier jump: writes the tier and re-resolves the challenge for the player's level.</summary>
-        public static void ApplyAdminTier(Session session, int arenaLevel)
+        internal static void ApplyAdminSelection(Session session, EndgameApplyRequest request)
         {
-            ArenaLevelTable tier = TableReaderV2.Parse<ArenaLevelTable>().FirstOrDefault(row => row.Id == arenaLevel)
-                ?? throw new InvalidOperationException($"Arena tier {arenaLevel} has no ArenaLevel.tsv row.");
+            if (request.ArenaLevel is int requestedLevel
+                && !TableReaderV2.Parse<ArenaLevelTable>().Any(row => row.Id == requestedLevel))
+                throw new InvalidOperationException($"Arena tier {requestedLevel} has no ArenaLevel.tsv row.");
+            ReconcileLive(session);
             EnsureCurrent(session.player);
             SimulatedBattlefieldState state = session.player.SimulatedBattlefield;
-            ChallengeAreaTable challenge = ResolveChallenge(tier.Id, (int)session.player.PlayerData.Level);
-            state.ArenaLevel = tier.Id;
+            int playerLevel = checked((int)session.player.PlayerData.Level);
+            ChallengeAreaTable previousChallenge = ResolveChallenge(state.ArenaLevel, playerLevel);
+            List<int> previousAreas = SelectedAreas(state.ArenaActivityNo, session.player.PlayerData.Id, previousChallenge, state);
+            int level = request.ArenaLevel ?? state.ArenaLevel;
+            ChallengeAreaTable challenge = ResolveChallenge(level, playerLevel);
+            bool tierChanged = state.ArenaLevel != level;
+            state.ArenaLevel = level;
             state.ArenaChallengeId = challenge.ChallengeId;
+            if (request.ArenaAreas is not null)
+                state.ArenaAreaOverride = new(request.ArenaAreas);
+            if (request.ArenaGroups is not null)
+                state.ArenaGroupOverride = new(request.ArenaGroups);
+            if (request.ArenaSpecial is int special)
+                state.ArenaSpecialOverride = special;
+            List<int> selected = SelectedAreas(state.ArenaActivityNo, session.player.PlayerData.Id, challenge, state);
+            // AscNet tuning policy: only unchanged encounters in the same tier keep their scores.
+            if (tierChanged)
+                ResetPoints(state);
+            else
+            {
+                HashSet<int> retained = previousAreas.Intersect(selected).ToHashSet();
+                foreach (int areaId in state.ArenaAreaMaxPoints.Keys.Where(id => !retained.Contains(id)).ToList())
+                    state.ArenaAreaMaxPoints.Remove(areaId);
+                RecalculatePoints(state, selected);
+            }
+            if ((tierChanged || !previousAreas.SequenceEqual(selected))
+                && session.fight is { } fight && IsArenaStage(fight.PreFight.PreFightData.StageId))
+                session.fight = null;
             session.player.Save();
             PushAdminBoard(session);
+        }
+
+        private static void RecalculatePoints(SimulatedBattlefieldState state, List<int> activeAreas)
+        {
+            state.ArenaPoint = activeAreas.Sum(id => state.ArenaAreaMaxPoints.GetValueOrDefault(id));
+            state.ArenaStageMaxPoints = activeAreas.Where(state.ArenaAreaMaxPoints.ContainsKey)
+                .GroupBy(id => checked((uint)ResolveConfiguredStageId(AreaStages.Value[id])!.Value))
+                .ToDictionary(group => group.Key, group => group.Max(id => state.ArenaAreaMaxPoints[id]));
+            state.ArenaDistributeMaxPoints = activeAreas.Where(state.ArenaAreaMaxPoints.ContainsKey)
+                .SelectMany(id => AreaStages.Value[id].DistributeTypes.Where(type => type > 0).Select(type => (Id: id, Type: type)))
+                .Distinct()
+                .GroupBy(entry => entry.Type)
+                .ToDictionary(group => group.Key, group => group.Sum(entry => state.ArenaAreaMaxPoints[entry.Id]));
+            if (state.ArenaPoint == 0)
+                state.ArenaLastPointTime = 0;
         }
 
         /// <summary>Re-push the arena board after an admin tier or override change so a live client redraws at once.</summary>
