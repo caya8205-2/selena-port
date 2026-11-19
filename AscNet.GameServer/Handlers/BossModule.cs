@@ -5,6 +5,7 @@ using AscNet.Common.MsgPack;
 using AscNet.Common.Util;
 using AscNet.GameServer.Game;
 using AscNet.Table.V2.share.fuben.bosssingle;
+using AscNet.Table.V2.client.fuben.babel;
 using AscNet.Table.V2.share.fuben.bossactivity;
 using AscNet.Table.V2.share.reward;
 using MessagePack;
@@ -236,6 +237,60 @@ namespace AscNet.GameServer.Handlers
         });
         private static readonly Lazy<Dictionary<int, BossSingleStageTable>> Stages = new(() =>
             TableReaderV2.Parse<BossSingleStageTable>().ToDictionary(row => row.StageId));
+
+        // Stage weakness text (element resistance the fight demands) lives in the client Babel table.
+        private static readonly Lazy<Dictionary<int, BabelTowerBuffDetailsTable>> BabelBuffDetails = new(() =>
+            TableReaderV2.Parse<BabelTowerBuffDetailsTable>().ToDictionary(row => row.Id));
+
+        // Each buff group offers one resistance module per index; that module is the stage's element
+        // lever. The 1xx single-module and 2xx pair variants of one element share the same Buff[1], so
+        // the module id itself is the element class and no element names need to live in the server.
+        private static readonly Lazy<Dictionary<int, int>> ChallengeElementClassByBuffGroup = new(() =>
+            TableReaderV2.Parse<BossSingleChallengeBuffGroupTable>()
+                .Where(row => row.Index == 1 && row.Buff.Count > 0 && row.Buff[0] > 0)
+                .GroupBy(row => row.BuffGroupId)
+                .ToDictionary(group => group.Key, group => group.First().Buff[0]));
+
+        // A feature's element is voted across every feature group that pairs it with a resolvable
+        // module, so the majority wins over the stray rows that mis-pair an affix with another element.
+        private static readonly Lazy<Dictionary<int, int>> ChallengeElementClassByFeature = new(() =>
+        {
+            Dictionary<int, int> classes = ChallengeElementClassByBuffGroup.Value;
+            Dictionary<int, Dictionary<int, int>> votes = new();
+            foreach (BossSingleChallengeFeatureGroupTable row in ChallengeFeatureGroups.Value)
+            {
+                for (int index = 0; index < row.FeatureIds.Count && index < row.BuffGroupIds.Count; index++)
+                {
+                    if (!classes.TryGetValue(row.BuffGroupIds[index], out int elementClass))
+                        continue;
+                    if (!votes.TryGetValue(row.FeatureIds[index], out Dictionary<int, int>? tally))
+                        votes[row.FeatureIds[index]] = tally = new();
+                    tally[elementClass] = tally.GetValueOrDefault(elementClass) + 1;
+                }
+            }
+            return votes.ToDictionary(entry => entry.Key,
+                entry => entry.Value.OrderByDescending(pair => pair.Value).ThenBy(pair => pair.Key).First().Key);
+        });
+
+        // A coherent set pairs every affix with the module of the same element. The client zips the
+        // two columns by position, so an incoherent row shows a stage one element and offers its
+        // module for another (the shipped Abyss row pairs Physical with Ignition and Raydiance with Fire).
+        private static bool IsCoherentChallengeFeatureGroup(BossSingleChallengeFeatureGroupTable row)
+        {
+            Dictionary<int, int> byBuffGroup = ChallengeElementClassByBuffGroup.Value;
+            Dictionary<int, int> byFeature = ChallengeElementClassByFeature.Value;
+            for (int index = 0; index < row.FeatureIds.Count && index < row.BuffGroupIds.Count; index++)
+            {
+                if (!byBuffGroup.TryGetValue(row.BuffGroupIds[index], out int moduleClass)
+                    || !byFeature.TryGetValue(row.FeatureIds[index], out int affixClass)
+                    || moduleClass != affixClass)
+                    return false;
+            }
+            return true;
+        }
+
+        private static readonly Lazy<List<BossSingleChallengeFeatureGroupTable>> CoherentChallengeFeatureGroups =
+            new(() => ChallengeFeatureGroups.Value.Where(IsCoherentChallengeFeatureGroup).ToList());
         private static readonly Lazy<Dictionary<int, BossSingleScoreRuleTable>> ScoreRules = new(() =>
             TableReaderV2.Parse<BossSingleScoreRuleTable>().ToDictionary(row => row.Id));
         private static readonly Lazy<List<BossSingleScoreRewardTable>> ScoreRewards = new(() =>
@@ -846,20 +901,21 @@ namespace AscNet.GameServer.Handlers
                 .Where(HasCurrentSection)
                 .Select(logicalId => (logicalId, ResolveSection(logicalId).Id))
                 .ToList();
-            if (sections.Count == 0 || ChallengeFeatureGroups.Value.Count == 0)
+            List<BossSingleChallengeFeatureGroupTable> featureGroups = CoherentChallengeFeatureGroups.Value;
+            if (sections.Count == 0 || featureGroups.Count == 0)
                 return null;
 
             int sectionIndex = checked((int)(StableHash(
                 $"{state.BossActivityNo}:{challengeGrade.LevelType}:{challengeGrade.BossGroupId}") % (uint)sections.Count));
             int featureIndex = checked((int)(StableHash(
-                $"{state.BossActivityNo}:{challengeGrade.LevelType}:feature") % (uint)ChallengeFeatureGroups.Value.Count));
+                $"{state.BossActivityNo}:{challengeGrade.LevelType}:feature") % (uint)featureGroups.Count));
             (int LogicalId, int TableId) selectedSection = sections.FirstOrDefault(candidate =>
                 candidate.TableId == state.BossChallengeSelectedSection
                 || candidate.LogicalId == state.BossChallengeSelectedSection);
             if (selectedSection == default)
                 selectedSection = sections[sectionIndex];
-            int featureGroupId = ChallengeFeatureGroups.Value.Any(row => row.Id == state.BossChallengeSelectedFeatureGroup)
-                ? state.BossChallengeSelectedFeatureGroup : ChallengeFeatureGroups.Value[featureIndex].Id;
+            int featureGroupId = featureGroups.Any(row => row.Id == state.BossChallengeSelectedFeatureGroup)
+                ? state.BossChallengeSelectedFeatureGroup : featureGroups[featureIndex].Id;
             state.BossChallengeSelectedSection = selectedSection.TableId;
             state.BossChallengeSelectedFeatureGroup = featureGroupId;
             return (challengeGrade.LevelType, selectedSection.TableId, featureGroupId);
@@ -873,6 +929,10 @@ namespace AscNet.GameServer.Handlers
                 .Where(record => stageIds.Contains(record.StageId))
                 .Sum(record => record.Score);
         }
+
+        /// <summary>The score the client shows for a challenge section: only that section's stages count.</summary>
+        internal static int AdminChallengeDisplayTotal(SimulatedBattlefieldState state, int section) =>
+            ChallengeDisplayTotal(state, AdminChallengeTableRowId(section));
 
         private static int ChallengeRankTotal(SimulatedBattlefieldState state, int levelType)
         {
@@ -906,7 +966,7 @@ namespace AscNet.GameServer.Handlers
 
             var challenge = ResolveChallengeData(state, state.BossLevelType > 0 ? ResolveGrade(state.BossLevelType) : null);
             if (challenge is null || challenge.Value.FeatureGroupId <= 0) return false;
-            BossSingleChallengeFeatureGroupTable? group = ChallengeFeatureGroups.Value
+            BossSingleChallengeFeatureGroupTable? group = CoherentChallengeFeatureGroups.Value
                 .SingleOrDefault(row => row.Id == challenge.Value.FeatureGroupId);
             int pairingIndex = group?.BuffGroupIds.IndexOf(buffGroup) ?? -1;
             if (group is null || pairingIndex < 0 || pairingIndex >= group.FeatureIds.Count)
@@ -1857,6 +1917,120 @@ namespace AscNet.GameServer.Handlers
                     && !string.IsNullOrWhiteSpace(stage.BossName))
                     return stage.BossName;
             return string.Empty;
+        }
+
+        /// <summary>The Intensive Battle grade: the highest challenge grade row, with its 1.8M score gate.</summary>
+        internal static BossSingleChallengeGradeTable? AdminChallengeGrade() =>
+            ChallengeGrades.Value.OrderByDescending(row => row.LevelType).FirstOrDefault();
+
+        /// <summary>
+        /// The section table row id a logical Intensive Battle section id maps to. The challenge state and
+        /// ResolveChallengeSection speak table row ids; the boss group, the admin pick and the client's
+        /// section ids speak the logical SectionId column.
+        /// </summary>
+        internal static int AdminChallengeTableRowId(int section) =>
+            Sections.Value.Single(row => row.SectionId == section && row.AfreshId == CurrentAfreshId).Id;
+
+        /// <summary>The logical section id a stored challenge table row id maps to; 0 when the row is gone.</summary>
+        internal static int AdminChallengeLogicalSection(int tableRowId) =>
+            Sections.Value.FirstOrDefault(row => row.Id == tableRowId && row.AfreshId == CurrentAfreshId)?.SectionId ?? 0;
+
+        /// <summary>The element-weakness stage ids an Intensive Battle section carries, in stage order.</summary>
+        internal static List<int> AdminChallengeSectionStages(int section) =>
+            ResolveChallengeSection(AdminChallengeTableRowId(section)).StageId.Where(id => id > 0).ToList();
+
+        /// <summary>Every current Intensive Battle section the challenge grade's boss group offers.</summary>
+        internal static List<int> AdminChallengeSections()
+        {
+            BossSingleChallengeGradeTable? grade = AdminChallengeGrade();
+            if (grade is null || !Groups.Value.TryGetValue(grade.BossGroupId, out BossSingleGroupTable? group))
+                return [];
+            return group.SectionId.Where(HasCurrentSection).ToList();
+        }
+
+        /// <summary>
+        /// Per-stage notes for one affix set: the affix the stage carries and its description, which
+        /// is the buff that stage fights under. The module choices stay out — the in-game card already
+        /// lists them.
+        /// </summary>
+        internal static List<(string Affix, string Desc)> AdminChallengeStageNotes(int featureGroup)
+        {
+            BossSingleChallengeFeatureGroupTable? row = CoherentChallengeFeatureGroups.Value
+                .FirstOrDefault(candidate => candidate.Id == featureGroup);
+            if (row is null)
+                return [];
+            List<BossSingleChallengeFeatureTable> features = TableReaderV2.Parse<BossSingleChallengeFeatureTable>();
+            return row.FeatureIds
+                .Select(id => features.FirstOrDefault(feature => feature.Id == id))
+                .Select(feature => (feature?.Name ?? string.Empty, feature?.Desc ?? string.Empty))
+                .ToList();
+        }
+
+        /// <summary>Every challenge feature group with the affix names its three stages carry, in table order.</summary>
+        internal static List<(int Id, string Name, int BuffCount)> AdminChallengeFeatureGroups()
+        {
+            List<BossSingleChallengeFeatureTable> features = TableReaderV2.Parse<BossSingleChallengeFeatureTable>();
+            return CoherentChallengeFeatureGroups.Value
+                .Select(row => (row.Id,
+                    Name: string.Join(" / ", row.FeatureIds
+                        .Select(id => features.FirstOrDefault(f => f.Id == id)?.Name)
+                        .Where(name => !string.IsNullOrWhiteSpace(name))),
+                    BuffCount: row.BuffGroupIds.Count(id => id > 0)))
+                .ToList();
+        }
+
+        /// <summary>
+        /// The element weakness a boss section fights under. Every stage of a section carries the same
+        /// weakness buff, so the section gets one note rather than one per stage.
+        /// </summary>
+        internal static (string Weakness, string Desc) AdminSectionWeakness(int sectionId)
+        {
+            Dictionary<int, BabelTowerBuffDetailsTable> weaknesses = BabelBuffDetails.Value;
+            foreach (int stageId in ResolveSection(sectionId).StageId.Where(id => id > 0 && Stages.Value.ContainsKey(id)))
+            {
+                foreach (int buffId in Stages.Value[stageId].BuffDetailsId)
+                {
+                    if (buffId > 0 && weaknesses.TryGetValue(buffId, out BabelTowerBuffDetailsTable? row))
+                        return (row.Name, row.Desc);
+                }
+            }
+            return (string.Empty, string.Empty);
+        }
+
+        /// <summary>The challenge the player currently resolves, or null while the score gate is unmet.</summary>
+        internal static (int LevelType, int SectionId, int FeatureGroupId)? ResolveChallengeForReport(
+            SimulatedBattlefieldState state) =>
+            ResolveChallengeData(state, state.BossLevelType > 0 ? ResolveGrade(state.BossLevelType) : null);
+
+        /// <summary>
+        /// Admin Intensive Battle pick: pins this week's boss section and affix set. The pin is honored by
+        /// ResolveChallengeData whenever the player meets the challenge gate; writing it before the gate is
+        /// met still lands the pick at the first login that does.
+        /// </summary>
+        internal static void ApplyAdminChallenge(Session session, int section, int featureGroup)
+        {
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            ReconcileLive(session, now, includeOwnershipSnapshot: false);
+            SimulatedBattlefieldState state = session.player.SimulatedBattlefield;
+            if (!AdminChallengeSections().Contains(section))
+                throw new InvalidOperationException($"Intensive Battle section {section} is not in the challenge boss group.");
+            if (!CoherentChallengeFeatureGroups.Value.Any(row => row.Id == featureGroup))
+                throw new InvalidOperationException($"Intensive Battle feature group {featureGroup} is not a coherent affix set.");
+            int tableRowId = AdminChallengeTableRowId(section);
+            bool changed = state.BossChallengeSelectedSection != tableRowId
+                || state.BossChallengeSelectedFeatureGroup != featureGroup;
+            state.BossChallengeSelectedSection = tableRowId;
+            state.BossChallengeSelectedFeatureGroup = featureGroup;
+            if (changed)
+            {
+                var challenge = ResolveChallengeData(state, state.BossLevelType > 0 ? ResolveGrade(state.BossLevelType) : null);
+                if (challenge is not null
+                    && session.fight is { } fight
+                    && ResolveChallengeSection(challenge.Value.SectionId).StageId.Contains(checked((int)fight.PreFight.PreFightData.StageId)))
+                    session.fight = null;
+            }
+            session.player.Save();
+            session.SendPush(BuildLoginData(session.player, now));
         }
 
         private static bool TryResolveFightStage(

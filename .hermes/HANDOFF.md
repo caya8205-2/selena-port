@@ -24,16 +24,95 @@ working-tree status are historical, not the current runtime state.
 
 ### Next update: PPC Intensive Battle (IB) picker
 
-Deferred, not implemented. Extend the existing Rank & weekly panel; do not create a separate admin surface.
-IB boss and elemental-stage selection are not currently adjustable, and this limitation must appear in the
-`26.11.19` release notes.
+Implemented in the working tree after the `26.11.19` release (uncommitted as of 19 November); live app
+verification pending. The `26.11.19` release notes say IB selection "is planned for the next update"; when this
+lands in the next release, the new release notes should say the picker shipped.
 
-Owner-stated mechanics and scope:
-- IB is available only in PPC Ultimate, after clearing Ultimate above 1.8 million score.
-- One boss rotates weekly, with three stages having different elemental weaknesses.
-- The leaderboard uses the highest two stage scores; clearing all three stages is not required.
-- Add control over the IB boss and elemental stages for sandbox team/build/rotation experiments without waiting
-  for the retail weekly rotation. Preserve these mechanics and verify the client contract before implementation.
+- Client contract: IB is the PPC challenge (凹分区) — `BossSingleChallengeGrade` LevelType 9, `NeedGradeType 4`
+  (Ultimate), `NeedScore 1800000`, `BossGroupId 12` (7 sections × 3 element-weakness stages), `RankStageNum 2`.
+  The weekly section and affix set resolve from `BossActivityNo` hashes unless `BossChallengeSelectedSection`
+  (section **table row id**, not the logical SectionId — rows 89-108 map to 2025-2044) or
+  `BossChallengeSelectedFeatureGroup` is pinned. Affix sets = `BossSingleChallengeFeatureGroup` rows 1-12/101-106
+  (18 resolvable; stage i pairs feature i and buff group i positionally, `xbosssinglechallenge.lua:22-26`).
+- `BossSingleChallengeFeature.tsv` gained the client `Name` column (87 rows, decoded from
+  `resource/matrix/73f558bc5dd700c8.uab`, 0 shared-cell diffs; only normalization was empty-vs-0 ScoreRate).
+- Server: `BossModule.ApplyAdminChallenge` pins section + feature group (validated against Group 12 and the
+  feature-group table), invalidates an in-flight IB fight, saves, and pushes `NotifyFubenBossSingleData`.
+  `EndgameBuilder` exposes `Boss.Intensive` (gate, sections with boss names + 3 stages, affix sets with the
+  three affix names, current board, stored pins) and accepts `ChallengeSection`/`ChallengeFeatureGroup` in the
+  apply request (null = keep; 0 = back to rotation). A pin written before the 1.8M gate is met lands at the
+  first login that clears it.
+- UI: an "Intensive Battle" block under Pain Cage in the Rank & weekly panel with Boss + Affix set pickers
+  (Auto/rotation default, same picker pattern), a locked hint below the gate, and IB lines in the Perform note
+  and result log.
+- Tests: `Program.Endgame.cs` covers the catalog shape, the 1.8M gate lock/unlock, pin persistence as table row
+  ids, the login-data push, invalid-section rejection, and replaced-boss score isolation via
+  `AdminChallengeDisplayTotal`. `--endgame-only`, `--tune-cub-only` and `--arena-effect-zone-score-only` pass;
+  DB-backed harness tests remain blocked by local MongoDB being down.
+
+#### Bug 1: `Intensive Battle` showed `undefined` in the panel (fixed)
+
+`pickRow` takes the picker wrapper (`{node, ...}`) and appends `control.node`; the IB block passed
+`ibSectionPicker.node` (a DOM element) so `control.node` was `undefined`. Both IB rows now pass the wrapper.
+
+#### Bug 2: IB modules did not match the stage element (fixed; AscNet policy)
+
+Owner report: stage 1 Physical showed an Ignition module, stage 3 Raydiance showed a single "except Fire"
+module, only the Ice stage was right. Cause is data, not the client: the client zips
+`FeatureGroup.FeatureIds[i]` with `BuffGroupIds[i]` by position, and the shipped feature group it pinned
+(Id 4) pairs Physical with the Ignition module (1009) and Raydiance with the Fire module (1003). Retail binds
+boss↔affix through `BossSingleChallengeGroupDistribute`, reached from `BossSingleChallengeGrade.DistributeId`
+(= 3). That table is not in the repo, not in the share bundle, and the client's
+`XFubenBossSingleConfigModel` does not load it at all, so nothing authoritative here says which affix set a
+boss gets.
+
+AscNet policy fix, derived from tables only (no element names in code):
+- `ChallengeElementClassByBuffGroup`: each buff group's module id is its element class (`Buff[1]` at `Index == 1`;
+  the 1xx single and 2xx pair variants share it).
+- `ChallengeElementClassByFeature`: each affix's element is the majority vote of the modules it is paired with
+  across all coherent rows.
+- `IsCoherentChallengeFeatureGroup` keeps only sets whose every affix matches its module's element;
+  `CoherentChallengeFeatureGroups` = 17 of 18 shipped sets. The rotation hash, the catalog list, the pin
+  validation and the buff-group lookup all use the coherent list, so the incoherent set can never be pinned.
+  `--endgame-only` asserts the catalog offers 17 sets and never Id 4.
+
+Caveat: 17 sets × 7 sections is still an arbitrary pairing (no retail boss→affix data exists here); the
+filter only guarantees each stage's module matches its own element. Do not describe it as retail parity.
+Stage element itself comes from `BossSingleStage.BuffDetailsId` (client-only BabelTower table), which the
+server does not use.
+
+#### IB panel notes (added)
+
+Mirroring the War Zone zone hints: each stage of the chosen stage set lists the affix it carries and the
+buff that affix applies, which is the stage's elemental weakness note. Module lists are deliberately not
+shown — the in-game card already lists them. `BossSingleChallengeFeature.tsv` also gained the client `Desc`
+column (87 rows, merged from the same decoded tab), and IB sections were added to `Boss.SectionNames` so the
+picker shows the boss name instead of "Section N". The picker row is labelled "Stage set" (one boss, three
+fixed element stages, matching retail) rather than "Affix set". All note text is table-derived.
+
+#### PPC weakness notes + Babel table (added)
+
+Each PPC boss picker now lists the stage's element weakness and what it does, e.g.
+`Stage 3 · Frost — The phenomenon of freezing expansion will occur at low temperatures. Ice DMG received is
+increased…`. Source is `BossSingleStage.BuffDetailsId[1..2]` (new TSV columns) resolving through
+`Resources/table/client/fuben/babel/BabelTowerBuffDetails.tsv`, a new client table (538 rows, Id/Name/Desc,
+decoded from the installed client's `babeltowerbuffdetails.tab`). Skill-title columns added and then removed
+again after the owner clarified the note is the weakness, not the move list.
+
+#### Endgame layout (wide board, log underneath)
+
+`renderSection` marks `document.body.is-wide` for the endgame section; `player.css` then collapses
+`.workspace` to a single full-width column so the log panel sits under the board instead of beside it (log
+capped at 320px there). Scoped to Rank & weekly for review; extend to other sections only after the owner
+approves the shape.
+
+Note for future scans: bundle byte-scans read `D:\gemink` off an HDD and starve the game's loading and
+Defender. Tell the owner first, cap the walk (hit bundle for the client bosssingle extras was
+`resource/matrix/0d30ed78f6f24586.uab`, within the first ~6,800 files), and prefer reusing
+`.runtime/*.tab` dumps already on disk.
+- Owner-stated mechanics (ground truth): IB is Ultimate-only above 1.8M; one weekly boss, three
+  element-weakness stages; the leaderboard counts the highest two stage scores (retail `RankStageNum 2`
+  matches); clearing all three is not required.
 
 ### Deferred nonfatal bug: A-rank CUB display and tune mapping
 

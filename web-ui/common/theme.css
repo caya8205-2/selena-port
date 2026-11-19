@@ -779,6 +779,9 @@ a { color: inherit; text-decoration: none; }
  * the OS talking, and it drops the one typing and accent the rest of the console keeps. */
 
 .sel { position: relative; }
+/* sel-select is an unstyled custom element: inline by default, so a long option label would widen it
+ * past its grid column and let the popup spill. A picker always fills the column it is placed in. */
+sel-select, sel-toggle, sel-slider { display: block; width: 100%; min-width: 0; }
 .sel__button {
   display: flex;
   align-items: center;

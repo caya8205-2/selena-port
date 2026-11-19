@@ -207,6 +207,34 @@
 }
 
 
+/* Rank & weekly: the board reads full width and the log sits directly under it, so a Perform
+ * result is visible without scrolling back up. Other sections keep the board + side log split. */
+body.is-wide .workspace {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+body.is-wide .workspace > div:last-child .panel {
+  margin-top: 0;
+}
+body.is-wide #consoleList { max-height: 320px; }
+/* A full-width panel must not stretch one control column across the whole board: the blocks share
+ * the width side by side instead, and a control never runs wider than a readable picker. */
+body.is-wide .form__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  align-items: start;
+  gap: 18px;
+}
+/* The lead paragraph explains the whole board, so it spans the row instead of taking a slot. */
+body.is-wide .form__fields > .endgame__lead {
+  grid-column: 1 / -1;
+  margin: 0;
+  max-width: 900px;
+}
+body.is-wide .form__fields .tune {
+  max-width: 420px;
+}
+
 /* ------------------------------------------------------------ build */
 
 /* The builder reads one construct, then edits one piece: no bulk action lives here, because
@@ -378,6 +406,7 @@
 /* The tune surface is a modal because a build is written in one pass: the card behind it stays
  * as the reference, and nothing is committed until Perform. */
 .tune { display: grid; gap: 10px; }
+.form__fields { display: flex; flex-direction: column; gap: 14px; }
 .tune__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .tune__label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-faint); }
 .tune__value { font-family: var(--mono); font-size: 11.5px; color: var(--silver); }
@@ -413,6 +442,7 @@
 /* The card fits the name it holds; the popover keeps a floor so a long username still reads in the list. */
 .account-picker { width: max-content; min-width: 0; }
 .account-picker .sel { width: max-content; }
+.account-picker sel-select { width: max-content; }
 .account-picker .sel__button { width: auto; padding-right: 12px; }
 .account-picker .sel__pop { min-width: max(100%, 200px); }
 .is-mirrored { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }

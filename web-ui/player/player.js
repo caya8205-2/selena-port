@@ -199,6 +199,15 @@
   var cubChoice = null;
   var endgameChoice = null;
   var endgameHost = null;
+  var endgameLabels = { sectionNames: {}, featureGroups: [] };
+
+  function endgameSectionLabel(id) {
+    return (endgameLabels.sectionNames || {})[id] || ("Section " + id);
+  }
+  function endgameFeatureLabel(id) {
+    const row = (endgameLabels.featureGroups || []).filter(function (f) { return f.Id === id; })[0];
+    return (row && row.Name) || (id > 0 ? ("Set " + id) : "rotation");
+  }
 
   function initRailTips() {
     var items = document.querySelectorAll(".rail__item[data-section]");
@@ -767,6 +776,9 @@
     });
 
     $("#sectionTitle").textContent = section.title;
+    // The endgame board is wide and its log belongs under it: mark the shell so the workspace
+    // stacks instead of splitting into board + side log.
+    document.body.classList.toggle("is-wide", section.custom === "endgame");
     // No section-specific buttons exist here; clear any leftover from an older render.
     var actionRow = document.getElementById("sectionActions");
     if (actionRow) [...actionRow.querySelectorAll("[data-section-action]")].forEach(function (b) { b.remove(); });
@@ -2143,8 +2155,12 @@
       groupPicks: [(arena.GroupOverride || [])[0] || "", (arena.GroupOverride || [])[1] || ""],
       groupsTouched: false,
       specialPick: arena.SpecialOverride || 0, specialTouched: false,
+      ibSection: 0, ibSectionTouched: false,
+      ibFeatureGroup: 0, ibFeatureGroupTouched: false,
     };
     endgameChoice = choice;
+    endgameLabels.sectionNames = boss.SectionNames || {};
+    endgameLabels.featureGroups = ((boss.Intensive || {}).FeatureGroups) || [];
 
     function tierName(id) {
       const row = tiers.filter(function (t) { return t.Id === id; })[0];
@@ -2166,29 +2182,32 @@
       if (/^(Crowd Battle|Number Advantage|Joint Operation|Turbulent Water)/.test(desc)) return "Mob";
       return "";
     }
-    function zoneHints(info, word) {
+    function zoneHints(info) {
       if (!info) return;
-      if (info.Desc) {
-        const desc = document.createElement("p");
-        desc.className = "hint-block";
-        desc.textContent = info.Name + " — " + info.Desc;
-        zoneContainer.appendChild(desc);
-      }
+      // A zone is named by the buff it imposes, so each buff line leads with its own name; the
+      // encounter line follows with the archetype and wave shape it fights.
       (info.Buffs || []).forEach(function (buff) {
         const hint = document.createElement("p");
         hint.className = "hint-block";
-        hint.textContent = word + " " + buff.Index + " · " + buff.Name + (buff.Desc ? " — " + buff.Desc : "");
+        hint.textContent = buff.Name + (buff.Desc ? ": " + buff.Desc : "");
         zoneContainer.appendChild(hint);
       });
+      if (info.Desc) {
+        const desc = document.createElement("p");
+        desc.className = "hint-block";
+        desc.textContent = info.Desc;
+        zoneContainer.appendChild(desc);
+      }
     }
     function modeLabel(grade) {
       if (grade === boss.Ultimate) return "Ultimate";
       if (grade === boss.Standard) return "Standard";
       return grade > 0 ? ("grade " + grade) : "as is";
     }
+    let ibSectionPicker = null;
 
     const lead = document.createElement("p");
-    lead.className = "hint-block";
+    lead.className = "hint-block endgame__lead";
     lead.textContent = "Set the endgame rank directly instead of climbing it week by week. Zone 1 and Zone 2 pick the "
       + "element group that fills each slot; the stage it fights and the buff it carries are explained under the "
       + "picker. Affix zone picks the Hero+ closing zone; its two buffs are listed under it, and you choose one per "
@@ -2219,10 +2238,16 @@
     function paintNote() {
       const zoneCount = Object.keys(choice.zonePicks).filter(function (k) { return choice.zonePicks[k] > 0; }).length;
       const bossCount = Object.keys(choice.bossPicks).filter(function (k) { return choice.bossPicks[k] > 0; }).length;
-      $("#runHint").textContent = "WZ " + (choice.arenaLevel > 0 ? tierName(choice.arenaLevel) : "as is")
+      let note = "WZ " + (choice.arenaLevel > 0 ? tierName(choice.arenaLevel) : "as is")
         + " · PPC " + modeLabel(choice.bossGrade)
         + " · " + zoneCount + " zone " + (zoneCount === 1 ? "pick" : "picks")
         + " · " + bossCount + " boss " + (bossCount === 1 ? "pick" : "picks");
+      if (ibSectionPicker) {
+        note += " · IB " + (choice.ibSectionTouched
+          ? (choice.ibSection > 0 ? (endgameSectionLabel(choice.ibSection) + " · " + endgameFeatureLabel(choice.ibFeatureGroup)) : "rotation")
+          : "as is");
+      }
+      $("#runHint").textContent = note;
     }
 
     /* ---- War Zone: rank + the selected tier's zones (element groups + Hero+ affix zone) ---- */
@@ -2301,7 +2326,7 @@
           zoneContainer.appendChild(pickRow("Stage " + (slot + 1), zonePicker));
         }
         const zoneId = areas.length > 1 ? (choice.zonePicks[group.Key] || areas[0]) : areas[0];
-        zoneHints(areaDetails[zoneId], "Buff");
+        zoneHints(areaDetails[zoneId]);
       }
       const specialOptions = arena.SpecialOptions || [];
       const pinnedSpecial = choice.specialPick > 0
@@ -2359,7 +2384,7 @@
           });
         zoneContainer.appendChild(pickRow("Stage", stagePicker));
       }
-      if (special) zoneHints(special, "Affix");
+      if (special) zoneHints(special);
       if (!effective.some(Boolean) && !special) {
         const hint = document.createElement("p");
         hint.className = "hint-block";
@@ -2397,20 +2422,98 @@
       bossContainer.textContent = "";
       choice.bossPicks = {};
       choice.bossesTouched = false;
+      const bossLabel = function (id) { return (boss.SectionNames || {})[id] || ("Section " + id); };
+      const sectionNotes = boss.SectionNotes || {};
+      function paintBossNotes(container, sectionId) {
+        const note = sectionNotes[sectionId];
+        if (!note || !note.Weakness) return;
+        const hint = document.createElement("p");
+        hint.className = "hint-block";
+        hint.textContent = note.Weakness + (note.Desc ? ": " + note.Desc : "");
+        container.appendChild(hint);
+      }
       groups.forEach(function (group, index) {
         choice.bossPicks[group.Id] = group.Override || 0;
-        const bossLabel = function (id) { return (boss.SectionNames || {})[id] || ("Section " + id); };
         const options = [{ value: 0, label: "Auto · " + (group.Chosen > 0 ? bossLabel(group.Chosen) : "rotation") }]
           .concat((group.Sections || []).map(function (id) { return { value: id, label: bossLabel(id) }; }));
         const picker = window.SelenaUI.picker(options, {
           value: group.Override || 0,
           tip: "This week's boss for this group. Auto follows the weekly rotation; a section pins it.",
-          onChange: function (value) { choice.bossPicks[group.Id] = Number(value); choice.bossesTouched = true; paintNote(); },
+          onChange: function (value) {
+            choice.bossPicks[group.Id] = Number(value);
+            choice.bossesTouched = true;
+            paintBossNotes(notes, choice.bossPicks[group.Id] > 0 ? choice.bossPicks[group.Id] : group.Chosen);
+            paintNote();
+          },
         });
         bossContainer.appendChild(pickRow("Boss " + (index + 1), picker));
+        const notes = document.createElement("div");
+        notes.className = "tune";
+        bossContainer.appendChild(notes);
+        paintBossNotes(notes, group.Chosen);
       });
     }
     renderBosses();
+
+    /* ---- Intensive Battle: this week's boss + the affix set its three stages carry ---- */
+    const ib = (boss.Intensive || {});
+    const ibSections = ib.Sections || [];
+    const ibFeatureGroups = ib.FeatureGroups || [];
+    if (ibSections.length > 0) {
+      const ibBlock = block("Intensive Battle");
+      const ibBoardSection = ib.Section > 0 ? ib.Section : (ib.PinnedSection || 0);
+      const ibBoardFeatureGroup = ib.FeatureGroup > 0 ? ib.FeatureGroup : (ib.PinnedFeatureGroup || 0);
+      const sectionOptions = [{ value: 0, label: "Auto · " + (ibBoardSection > 0 ? endgameSectionLabel(ibBoardSection) : "rotation") }]
+        .concat(ibSections.map(function (s) { return { value: s.Id, label: endgameSectionLabel(s.Id) }; }));
+      choice.ibSection = ibBoardSection;
+      ibSectionPicker = window.SelenaUI.picker(sectionOptions, {
+        value: choice.ibSection,
+        tip: "This week's Intensive Battle boss. Auto follows the weekly rotation; a pick pins it. Unlocked at Ultimate with 1.8M score; the pin lands at the first login that clears the gate.",
+        onChange: function (value) { choice.ibSection = Number(value); choice.ibSectionTouched = true; paintNote(); },
+      });
+      ibBlock.appendChild(pickRow("Boss", ibSectionPicker));
+      const featureOptions = [{ value: 0, label: "Auto · " + endgameFeatureLabel(ibBoardFeatureGroup) }]
+        .concat(ibFeatureGroups.map(function (f) { return { value: f.Id, label: f.Name || ("Set " + f.Id) }; }));
+      choice.ibFeatureGroup = ibBoardFeatureGroup;
+      const ibFeaturePicker = window.SelenaUI.picker(featureOptions, {
+        value: choice.ibFeatureGroup,
+        tip: "The three stages this boss fights this week, one element each. Auto follows the weekly rotation; a set pins it.",
+        onChange: function (value) {
+          choice.ibFeatureGroup = Number(value);
+          choice.ibFeatureGroupTouched = true;
+          paintIbNotes(choice.ibFeatureGroup);
+          paintNote();
+        },
+      });
+      ibBlock.appendChild(pickRow("Stage set", ibFeaturePicker));
+      const ibNotes = document.createElement("div");
+      ibNotes.className = "tune";
+      ibBlock.appendChild(ibNotes);
+      function paintIbNotes(featureGroupId) {
+        ibNotes.textContent = "";
+        const set = ibFeatureGroups.filter(function (f) { return f.Id === featureGroupId; })[0];
+        (set && set.Stages || []).forEach(function (stage, index) {
+          const head = document.createElement("p");
+          head.className = "hint-block";
+          head.textContent = "Stage " + (index + 1) + " · " + stage.Affix;
+          ibNotes.appendChild(head);
+          if (stage.Desc) {
+            const desc = document.createElement("p");
+            desc.className = "hint-block";
+            desc.textContent = stage.Desc;
+            ibNotes.appendChild(desc);
+          }
+        });
+      }
+      paintIbNotes(ibBoardFeatureGroup);
+      if (!ib.Unlocked) {
+        const locked = document.createElement("p");
+        locked.className = "hint-block";
+        locked.textContent = "Locked: the account's Ultimate score has not cleared " + (ib.GateScore || 0) + " yet. The pick is stored and lands at the first login that clears the gate.";
+        ibBlock.appendChild(locked);
+      }
+      host.appendChild(ibBlock);
+    }
 
     paintNote();
     const shownTier = effectiveTier();
@@ -2442,6 +2545,8 @@
         if (choice.bossPicks[key] > 0) payload.BossSections[key] = choice.bossPicks[key];
       });
     }
+    if (choice.ibSectionTouched) payload.ChallengeSection = choice.ibSection;
+    if (choice.ibFeatureGroupTouched) payload.ChallengeFeatureGroup = choice.ibFeatureGroup;
 
     const cmd = {
       name: "endgame",
@@ -2460,6 +2565,8 @@
       let detail = "War Zone tier " + report.ArenaLevel + " · Pain Cage grade " + report.BossLevelType
         + " · " + zoneOverrides + " zone " + (zoneOverrides === 1 ? "override" : "overrides")
         + " · " + bossOverrides + " boss " + (bossOverrides === 1 ? "override" : "overrides");
+      if (report.ChallengeLevelType > 0) detail += " · IB " + endgameSectionLabel(report.ChallengeSection) + " · " + endgameFeatureLabel(report.ChallengeFeatureGroup);
+      else if (report.ChallengeSection > 0 || report.ChallengeFeatureGroup > 0) detail += " · IB pick stored, gate not cleared yet";
       if (response.live === false) detail += String.fromCharCode(10) + "stored in the database - the game client shows it at its next login";
       performed += 1;
       window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, true, detail);

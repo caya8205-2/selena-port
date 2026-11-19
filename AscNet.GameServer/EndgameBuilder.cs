@@ -36,16 +36,28 @@ namespace AscNet.GameServer
             else if (bossOverrideChanged)
                 Handlers.BossModule.RefreshAdminBossList(session);
 
+            if (request.ChallengeSection is not null || request.ChallengeFeatureGroup is not null)
+            {
+                state = session.player.SimulatedBattlefield;
+                Handlers.BossModule.ApplyAdminChallenge(session,
+                    request.ChallengeSection ?? state.BossChallengeSelectedSection,
+                    request.ChallengeFeatureGroup ?? state.BossChallengeSelectedFeatureGroup);
+            }
+
             if (request.ResetBossAttempts)
                 Handlers.BossModule.ResetAdminAttempts(session);
 
             state = session.player.SimulatedBattlefield;
+            var challenge = Handlers.BossModule.ResolveChallengeForReport(state);
             return new EndgameApplyReport
             {
                 ArenaLevel = state.ArenaLevel,
                 BossLevelType = state.BossLevelType,
                 ArenaAreas = new Dictionary<string, int>(state.ArenaAreaOverride),
                 BossSections = new Dictionary<int, int>(state.BossSectionOverride),
+                ChallengeLevelType = challenge?.LevelType ?? 0,
+                ChallengeSection = challenge is not null ? Handlers.BossModule.AdminChallengeLogicalSection(challenge.Value.SectionId) : 0,
+                ChallengeFeatureGroup = challenge?.FeatureGroupId ?? 0,
             };
         }
 
@@ -115,6 +127,13 @@ namespace AscNet.GameServer
             (int standard, int ultimate) = Handlers.BossModule.AdminGradeIds(playerLevel);
             List<EndgameBossGroup> standardGroups = BossGroups(session, standard);
             List<EndgameBossGroup> ultimateGroups = BossGroups(session, ultimate);
+            var challenge = Handlers.BossModule.ResolveChallengeForReport(state);
+            List<int> challengeSections = Handlers.BossModule.AdminChallengeSections();
+            List<int> allBossSections = standardGroups.Concat(ultimateGroups)
+                .SelectMany(group => group.Sections)
+                .Concat(challengeSections)
+                .Distinct()
+                .ToList();
             EndgameBossCatalog boss = new()
             {
                 Standard = standard,
@@ -122,12 +141,55 @@ namespace AscNet.GameServer
                 Current = state.BossLevelType,
                 StandardGroups = standardGroups,
                 UltimateGroups = ultimateGroups,
-                SectionNames = standardGroups.Concat(ultimateGroups)
-                    .SelectMany(group => group.Sections)
-                    .Distinct()
+                SectionNames = allBossSections
                     .Select(sectionId => (Id: sectionId, Name: Handlers.BossModule.AdminSectionBossName(sectionId)))
                     .Where(entry => entry.Name.Length > 0)
                     .ToDictionary(entry => entry.Id, entry => entry.Name),
+                SectionNotes = allBossSections
+                    .Select(sectionId => (Id: sectionId,
+                        Note: Handlers.BossModule.AdminSectionWeakness(sectionId)))
+                    .Where(entry => entry.Note.Weakness.Length > 0)
+                    .ToDictionary(entry => entry.Id, entry => new EndgameBossSectionNote
+                    {
+                        SectionId = entry.Id,
+                        Weakness = entry.Note.Weakness,
+                        Desc = entry.Note.Desc,
+                    }),
+                Intensive = new EndgameIntensiveCatalog
+                {
+                    GateScore = Handlers.BossModule.AdminChallengeGrade()?.NeedScore ?? 0,
+                    Unlocked = challenge is not null,
+                    LevelType = challenge?.LevelType ?? 0,
+                    Sections = Handlers.BossModule.AdminChallengeSections()
+                        .Select(sectionId => new EndgameIntensiveSection
+                        {
+                            Id = sectionId,
+                            Name = Handlers.BossModule.AdminSectionBossName(sectionId),
+                            Stages = Handlers.BossModule.AdminChallengeSectionStages(sectionId),
+                        })
+                        .ToList(),
+                    FeatureGroups = Handlers.BossModule.AdminChallengeFeatureGroups()
+                        .Select(entry => new EndgameIntensiveFeatureGroup
+                        {
+                            Id = entry.Id,
+                            Name = entry.Name,
+                            BuffCount = entry.BuffCount,
+                            Stages = Handlers.BossModule.AdminChallengeStageNotes(entry.Id)
+                                .Select(stage => new EndgameIntensiveStageNote
+                                {
+                                    Affix = stage.Affix,
+                                    Desc = stage.Desc,
+                                })
+                                .ToList(),
+                        })
+                        .ToList(),
+                    Section = challenge is not null ? Handlers.BossModule.AdminChallengeLogicalSection(challenge.Value.SectionId) : 0,
+                    FeatureGroup = challenge?.FeatureGroupId ?? 0,
+                    PinnedSection = state.BossChallengeSelectedSection > 0
+                        ? Handlers.BossModule.AdminChallengeLogicalSection(state.BossChallengeSelectedSection)
+                        : 0,
+                    PinnedFeatureGroup = state.BossChallengeSelectedFeatureGroup,
+                },
             };
 
             return new EndgameCatalog { Arena = arena, Boss = boss };
@@ -191,6 +253,10 @@ namespace AscNet.GameServer
         public int? ArenaSpecial { get; set; }
         /// <summary>Boss pick per group (group id -> section id). Null keeps, empty clears to rotation.</summary>
         public Dictionary<int, int>? BossSections { get; set; }
+        /// <summary>Intensive Battle boss section to pin this week. Null keeps the current pin.</summary>
+        public int? ChallengeSection { get; set; }
+        /// <summary>Intensive Battle affix set (feature group) to pin this week. Null keeps the current pin.</summary>
+        public int? ChallengeFeatureGroup { get; set; }
         /// <summary>Refills today's Pain Cage attempts and construct stamina without touching score or picks.</summary>
         public bool ResetBossAttempts { get; set; }
     }
@@ -201,6 +267,12 @@ namespace AscNet.GameServer
         public int BossLevelType { get; set; }
         public Dictionary<string, int> ArenaAreas { get; set; } = new();
         public Dictionary<int, int> BossSections { get; set; } = new();
+        /// <summary>0 while the Intensive Battle score gate is unmet.</summary>
+        public int ChallengeLevelType { get; set; }
+        /// <summary>The Intensive Battle section actually on the board, 0 while the gate is unmet.</summary>
+        public int ChallengeSection { get; set; }
+        /// <summary>The Intensive Battle affix set actually on the board, 0 while the gate is unmet.</summary>
+        public int ChallengeFeatureGroup { get; set; }
     }
 
     public sealed class EndgameCatalog
@@ -273,6 +345,55 @@ namespace AscNet.GameServer
         public List<EndgameBossGroup> UltimateGroups { get; set; } = [];
         /// <summary>Section id -> the boss name the client shows, for every section the two grades offer.</summary>
         public Dictionary<int, string> SectionNames { get; set; } = new();
+        /// <summary>Section id -> the element weakness its boss fights under, for the picker notes.</summary>
+        public Dictionary<int, EndgameBossSectionNote> SectionNotes { get; set; } = new();
+        public EndgameIntensiveCatalog Intensive { get; set; } = new();
+    }
+
+    public sealed class EndgameIntensiveCatalog
+    {
+        /// <summary>The Intensive Battle score gate (BossSingleChallengeGrade.NeedScore).</summary>
+        public int GateScore { get; set; }
+        /// <summary>True once the player's ultimate score clears the gate and a challenge is live.</summary>
+        public bool Unlocked { get; set; }
+        public int LevelType { get; set; }
+        public List<EndgameIntensiveSection> Sections { get; set; } = [];
+        public List<EndgameIntensiveFeatureGroup> FeatureGroups { get; set; } = [];
+        /// <summary>The section on the board this week (pin if set, otherwise the rotation), 0 while locked.</summary>
+        public int Section { get; set; }
+        /// <summary>The affix set on the board this week (pin if set, otherwise the rotation), 0 while locked.</summary>
+        public int FeatureGroup { get; set; }
+        /// <summary>The stored admin section pin, kept visible while the gate is still unmet. 0 = no pin.</summary>
+        public int PinnedSection { get; set; }
+        /// <summary>The stored admin affix-set pin, kept visible while the gate is still unmet. 0 = no pin.</summary>
+        public int PinnedFeatureGroup { get; set; }
+    }
+
+    public sealed class EndgameIntensiveSection
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        /// <summary>The section's three element-weakness stage ids, in stage order.</summary>
+        public List<int> Stages { get; set; } = [];
+    }
+
+    public sealed class EndgameIntensiveFeatureGroup
+    {
+        public int Id { get; set; }
+        /// <summary>The three affix names the set carries, in stage order.</summary>
+        public string Name { get; set; } = string.Empty;
+        /// <summary>How many of its three stages pair a client buff group (3 for a full affix set).</summary>
+        public int BuffCount { get; set; }
+        /// <summary>Per-stage affix and the buff that stage fights under.</summary>
+        public List<EndgameIntensiveStageNote> Stages { get; set; } = [];
+    }
+
+    public sealed class EndgameIntensiveStageNote
+    {
+        /// <summary>The affix this stage carries, e.g. "Brutal Crash III".</summary>
+        public string Affix { get; set; } = string.Empty;
+        /// <summary>What that affix does; this is the stage's buff, not a label for the affix.</summary>
+        public string Desc { get; set; } = string.Empty;
     }
 
     public sealed class EndgameBossGroup
@@ -283,5 +404,15 @@ namespace AscNet.GameServer
         public int Chosen { get; set; }
         /// <summary>The stored admin pick, 0 when the group is left to the rotation.</summary>
         public int Override { get; set; }
+    }
+
+    /// <summary>The element weakness a boss section fights under; every stage shares it.</summary>
+    public sealed class EndgameBossSectionNote
+    {
+        public int SectionId { get; set; }
+        /// <summary>The weakness buff the boss applies, e.g. Frost, Combustible, Frail.</summary>
+        public string Weakness { get; set; } = string.Empty;
+        /// <summary>What that weakness does to damage taken.</summary>
+        public string Desc { get; set; } = string.Empty;
     }
 }

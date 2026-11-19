@@ -339,6 +339,80 @@ internal partial class Program
         AssertEqual(0, scoreReload.SimulatedBattlefield.BossTotalScore, "cleared boss score persists");
         AssertEqual(0, scoreReload.SimulatedBattlefield.ArenaPoint, "cleared arena score persists");
 
+        // Intensive Battle: the catalog names the challenge gate, the boss group's sections and every
+        // affix set; the apply pins the weekly boss and affix set and pushes the live client.
+        EndgameCatalog ibCatalog = EndgameBuilder.Catalog(harness.Session);
+        AssertEqual(1800000, ibCatalog.Boss.Intensive.GateScore, "the IB gate reads the challenge grade's score requirement");
+        AssertEqual(7, ibCatalog.Boss.Intensive.Sections.Count, "the IB catalog lists the challenge group's current sections");
+        AssertEqual(17, ibCatalog.Boss.Intensive.FeatureGroups.Count, "the IB catalog lists only coherent affix sets");
+        AssertEqual(false, ibCatalog.Boss.Intensive.FeatureGroups.Any(group => group.Id == 4),
+            "the shipped set that pairs Physical with an Ignition module is not offered");
+        EndgameIntensiveFeatureGroup notedSet = ibCatalog.Boss.Intensive.FeatureGroups
+            .First(group => group.Stages.Count > 0);
+        AssertEqual(3, notedSet.Stages.Count, "an affix set describes all three stages");
+        AssertEqual(true, notedSet.Stages.All(stage => stage.Affix.Length > 0), "every stage note names its affix");
+        AssertEqual(true, notedSet.Stages.All(stage => stage.Desc.Length > 0), "every stage note explains its buff");
+        AssertEqual(true, ibCatalog.Boss.SectionNotes.Values
+            .Any(note => note.Weakness.Length > 0), "PPC boss notes name the section's element weakness");
+        AssertEqual(true, ibCatalog.Boss.SectionNotes.Values
+            .Any(note => note.Desc.Length > 0), "PPC boss notes explain what the weakness does");
+        AssertEqual(true, ibCatalog.Boss.SectionNames.ContainsKey(ibCatalog.Boss.Intensive.Sections[0].Id),
+            "Intensive Battle sections carry their boss names in the shared section labels");
+        AssertEqual(true, ibCatalog.Boss.Intensive.Sections.All(section => section.Stages.Count == 3), "every IB section carries its three stages");
+        AssertEqual(true, ibCatalog.Boss.Intensive.FeatureGroups.All(group => group.Name.Split(" / ").Length == 3), "every IB affix set names its three affixes");
+        AssertEqual(false, ibCatalog.Boss.Intensive.Unlocked, "the IB stays locked below the score gate");
+
+        // The challenge gate reads the reconciled normal total, so clear it with real stage records
+        // instead of writing BossTotalScore directly (reconcile recomputes it from the records).
+        int ibGateStage = BossModule.AdminChallengeSectionStages(ibCatalog.Boss.Intensive.Sections[0].Id).First();
+        scoredState.BossStageRecords =
+        [
+            new() { StageId = ibGateStage, Score = 1800001, MaxScore = 1800001 },
+        ];
+        scoredState.BossLevelType = expectedUltimate;
+        scoredState.BossTotalScore = 1800001;
+        ibCatalog = EndgameBuilder.Catalog(harness.Session);
+        AssertEqual(true, ibCatalog.Boss.Intensive.Unlocked, "clearing the gate unlocks the IB in the catalog");
+        AssertEqual(9, ibCatalog.Boss.Intensive.LevelType, "the IB reports the challenge grade");
+        AssertEqual(true, ibCatalog.Boss.Intensive.Sections.Any(section => section.Id == ibCatalog.Boss.Intensive.Section),
+            "the rotation IB section is one of the offered sections");
+
+        AssertThrows<InvalidOperationException>(() => EndgameBuilder.Apply(harness.Session, new EndgameApplyRequest
+        {
+            Uid = playerId, ChallengeSection = 9999,
+        }), "an IB pick outside the challenge group is refused");
+        int ibSection = ibCatalog.Boss.Intensive.Sections[0].Id;
+        int ibOtherSection = ibCatalog.Boss.Intensive.Sections.First(section => section.Id != ibSection).Id;
+        int ibFeatureGroup = ibCatalog.Boss.Intensive.FeatureGroups.First(group => group.BuffCount == 3).Id;
+        EndgameApplyReport ibReport = EndgameBuilder.Apply(harness.Session, new EndgameApplyRequest
+        {
+            Uid = playerId, ChallengeSection = ibSection, ChallengeFeatureGroup = ibFeatureGroup,
+        });
+        AssertEqual(9, ibReport.ChallengeLevelType, "the IB apply resolves the challenge grade");
+        AssertEqual(ibSection, ibReport.ChallengeSection, "the IB apply pins the picked boss");
+        AssertEqual(ibFeatureGroup, ibReport.ChallengeFeatureGroup, "the IB apply pins the picked affix set");
+        AssertEqual(BossModule.AdminChallengeTableRowId(ibSection), scoredState.BossChallengeSelectedSection, "the IB boss pin persists as the section table row id");
+        AssertEqual(ibFeatureGroup, scoredState.BossChallengeSelectedFeatureGroup, "the IB affix pin persists");
+        DrainPushes(harness);
+        EndgameBuilder.Apply(harness.Session, new EndgameApplyRequest { Uid = playerId, ChallengeSection = ibSection });
+        AssertEqual(true, SawPush(harness, nameof(NotifyFubenBossSingleData)), "the IB apply pushes the Pain Cage login data");
+
+        scoredState.BossChallengeHistory.Add(new BossSingleChallengeHistoryRecordState
+        {
+            StageId = BossModule.AdminChallengeSectionStages(ibSection).First(),
+            Score = 400000,
+        });
+        AssertEqual(400000, BossModule.AdminChallengeDisplayTotal(scoredState, ibSection),
+            "the IB board shows the picked boss's score");
+        EndgameBuilder.Apply(harness.Session, new EndgameApplyRequest { Uid = playerId, ChallengeSection = ibOtherSection });
+        AssertEqual(BossModule.AdminChallengeTableRowId(ibOtherSection), scoredState.BossChallengeSelectedSection, "the IB boss pin follows the new pick");
+        AssertEqual(0, BossModule.AdminChallengeDisplayTotal(scoredState, ibOtherSection),
+            "the replaced IB boss's old score does not ride onto the new board");
+        scoredState.BossTotalScore = 1799999;
+        ibCatalog = EndgameBuilder.Catalog(harness.Session);
+        AssertEqual(false, ibCatalog.Boss.Intensive.Unlocked, "dropping below the gate re-locks the IB");
+        AssertEqual(ibOtherSection, ibCatalog.Boss.Intensive.PinnedSection, "the stored IB pin stays visible while locked");
+
         ArenaResult SettleArena(int areaId)
         {
             uint stageId = checked((uint)fightAreas[areaId].StageId[0]);
@@ -387,5 +461,12 @@ internal partial class Program
 
         static List<EndgameZoneGroup> CurrentGroups(EndgameCatalog catalog) =>
             catalog.Arena.Tiers.Single(tier => tier.Id == catalog.Arena.Current).Groups;
+
+        static void AssertThrows<TException>(Action action, string name) where TException : Exception
+        {
+            try { action(); }
+            catch (TException) { return; }
+            throw new InvalidDataException($"{name}: expected {typeof(TException).Name}.");
+        }
     }
 }
