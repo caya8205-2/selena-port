@@ -24680,6 +24680,15 @@ namespace AscNet.Test
             AssertEqual(true, player.SimulatedBattlefield.ArenaJoined, "War Zone joined persistence");
             AssertEqual(player.SimulatedBattlefield.ArenaActivityNo, player.SimulatedBattlefield.ArenaJoinActivity, "War Zone joined activity persistence");
 
+            // The captured refresh oracle below is the duo profile; pin each group's duo area so the widened
+            // archetype pool (mob/boss zones) cannot route this flow away from the capture.
+            AreaStageTable duoArea = areaStages[14];
+            player.SimulatedBattlefield.ArenaAreaOverride = capturedTaskChallenge.AreaIdGroup
+                .Where(group => !string.IsNullOrWhiteSpace(group))
+                .ToDictionary(group => group, group => group.Split('|', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(int.Parse)
+                    .First(areaId => areaStages[areaId].MarkId == duoArea.MarkId && areaStages[areaId].Desc == duoArea.Desc));
+
             const int areaPacketId = 81_002;
             InvokeRegisteredRequestHandler("AreaDataRequest", harness.Session, areaPacketId, new Dictionary<string, object>());
             AreaDataResponse areaResponse = ReadResponsePayload<AreaDataResponse>(

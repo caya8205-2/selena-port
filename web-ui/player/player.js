@@ -198,6 +198,7 @@
   var bulkOpenHandler = null;
   var cubChoice = null;
   var endgameChoice = null;
+  var endgameHost = null;
 
   function initRailTips() {
     var items = document.querySelectorAll(".rail__item[data-section]");
@@ -775,27 +776,33 @@
 
     var isCustom = Boolean(section.custom);
     var isCleanup = section.custom === "cleanup";
-    var isApply = section.custom === "cub" || section.custom === "endgame";
+    // Construct and CUB carry their own Tune/Tutti surfaces, so like Construct they hide the shared
+    // Perform; Cleanup and Endgame act from the shared button, which always reads Perform.
+    var hasRun = isCleanup || section.custom === "endgame";
     $("#preview").hidden = isCustom;
-    $("#runBtn").hidden = isCustom && !isCleanup && !isApply;
-    $("#runBtn").textContent = isApply ? "Apply" : "Perform";
+    $("#runBtn").hidden = isCustom && !hasRun;
+    $("#runBtn").textContent = "Perform";
     var previewLabel = document.querySelector("#previewLabel");
     if (previewLabel) previewLabel.hidden = isCustom;
 
     /* Tutti exists only where a section can speak for every entry at once. The press opens a short
      * modal that says what it does and carries the bulk amount; nothing fires from the button alone. */
     var allBtn = $("#allBtn");
-    var bulkSection = section.custom === "build";
+    var bulkSection = section.custom === "build" || section.custom === "cub";
     var hasAll = (typeof section.allArgs === "function" && !isCustom) || bulkSection;
     allBtn.hidden = !hasAll;
     allBtn.disabled = false;
     if (hasAll) {
-      allBtn.setAttribute("data-tip", bulkSection
+      allBtn.setAttribute("data-tip", section.custom === "build"
         ? "Tutti: bulk level. Opens a short form that writes level, rank, promotion and skills for every construct in this account."
-        : "Tutti: apply this tab to every entry at once. Opens a short form with its own amount.");
-      allBtn.setAttribute("aria-label", bulkSection
+        : section.custom === "cub"
+          ? "Tutti: bulk CUB. Opens a short form that writes level, rank and skills for every CUB in this account, including every duplicate copy."
+          : "Tutti: apply this tab to every entry at once. Opens a short form with its own amount.");
+      allBtn.setAttribute("aria-label", section.custom === "build"
         ? "Tutti: bulk level every construct"
-        : "Tutti: run this command for every entry");
+        : section.custom === "cub"
+          ? "Tutti: bulk tune every CUB"
+          : "Tutti: run this command for every entry");
     }
 
     if (section.custom === "build") {
@@ -813,8 +820,7 @@
     }
 
     if (section.custom === "cub") {
-      $("#runBtn").disabled = true;
-      $("#runHint").textContent = "loading…";
+      $("#runHint").textContent = "";
       $("#catalogMeta").textContent = "catalog: loading…";
       renderCub(host);
       return;
@@ -1063,7 +1069,10 @@
     async function select(characterId) {
       state.characterId = characterId;
       card.textContent = "";
-      card.appendChild(rows([["Construct", "reading…"]]));
+      const reading = document.createElement("p");
+      reading.className = "build__note";
+      reading.textContent = "reading…";
+      card.appendChild(reading);
 
       let catalogPayload = null;
       try {
@@ -1112,7 +1121,6 @@
         ["Promotion", current && state.detail
           ? (state.detail.promotions.find((promotion) => promotion.grade === current.character.grade) || {}).name || String(current.character.grade)
           : "-"],
-        ["Memories", current ? String((current.memories || []).length) : "-"],
       ]));
 
       // Tune edits the construct on the card, so it belongs here. Tutti works on the whole account and lives in
@@ -1747,7 +1755,10 @@
     });
 
     // the section renders the empty state until a construct is picked
-    card.appendChild(rows([["Construct", "pick one to see its build"]]));
+    const emptyNote = document.createElement("p");
+    emptyNote.className = "build__note";
+    emptyNote.textContent = "Pick one to see its build";
+    card.appendChild(emptyNote);
   }
 
   /* ---------------------------------------------------------------- tutti */
@@ -1819,51 +1830,245 @@
   }
 
   /* CUB bulk is account-wide, so it lives outside the Construct renderer and works from any tab. */
+  /* CUB mirrors Construct: a catalog picker names the target, the card shows what the account holds,
+   * Tune opens a per-CUB design modal, and Tutti (footer) opens the account-wide bulk modal. */
+  var cubCatalogCache = null;
+  var cubTuneDesign = null;
+
+  async function fetchCubCatalog() {
+    if (cubCatalogCache) return cubCatalogCache;
+    const payload = await fetch("/api/panel/tune-cub-catalog").then(function (res) { return res.json(); });
+    if (!payload || payload.ok === false) throw new Error((payload && payload.msg) || "partner tables not found");
+    cubCatalogCache = payload;
+    return payload;
+  }
+
+  async function fetchCubState() {
+    const uid = actingUid();
+    if (!uid) return { cubs: [] };
+    const payload = await fetch("/api/panel/tune-cub-state?uid=" + encodeURIComponent(uid))
+      .then(function (res) { return res.json(); }).catch(function () { return null; });
+    if (!payload || payload.ok === false) return { cubs: [] };
+    const raw = (payload.data && (payload.data.Cubs || payload.data.cubs)) || [];
+    return {
+      cubs: raw.map(function (c) {
+        return {
+          id: c.Id !== undefined ? c.Id : c.id,
+          templateId: c.TemplateId !== undefined ? c.TemplateId : c.templateId,
+          name: c.Name !== undefined ? c.Name : c.name,
+          level: c.Level !== undefined ? c.Level : c.level,
+          quality: c.Quality !== undefined ? c.Quality : c.quality,
+          breakThrough: c.BreakThrough !== undefined ? c.BreakThrough : c.breakThrough,
+          star: c.Star !== undefined ? c.Star : c.star,
+          skills: (c.Skills || c.skills || []).map(function (s) { return { id: s.Id !== undefined ? s.Id : s.id, level: s.Level !== undefined ? s.Level : s.level }; }),
+          qualities: c.Qualities || c.qualities || [],
+          maxLevel: c.MaxLevel !== undefined ? c.MaxLevel : c.maxLevel,
+          maxBreak: c.MaxBreak !== undefined ? c.MaxBreak : c.maxBreak,
+          maxQuality: c.MaxQuality !== undefined ? c.MaxQuality : c.maxQuality,
+          maxStar: c.MaxStar !== undefined ? c.MaxStar : c.maxStar,
+          maxSkill: c.MaxSkill !== undefined ? c.MaxSkill : c.maxSkill,
+        };
+      }),
+    };
+  }
+
   async function renderCub(host) {
     host.textContent = "";
-    const catalog = await fetch("/api/panel/tune-cub-catalog").then(function (res) { return res.json(); }).catch(function () { return null; });
-    if (!catalog || catalog.ok === false) {
-      host.textContent = (catalog && catalog.msg) || "partner tables not found";
+    let catalog;
+    try {
+      catalog = await fetchCubCatalog();
+    } catch (err) {
+      host.textContent = (err && err.message) || "partner tables not found";
       $("#catalogMeta").textContent = "catalog: unavailable";
-      $("#runBtn").disabled = true;
       return;
     }
-    const choice = { level: 0, breakthrough: 0, quality: 0, star: 0, skill: 0 };
-    cubChoice = choice;
+    const state = { entry: null, templateId: null };
 
+    const pickerLabel = document.createElement("span");
+    pickerLabel.className = "field__label";
+    pickerLabel.textContent = "CUB";
+    host.appendChild(pickerLabel);
+
+    const picker = window.SelenaUI.combo(
+      { key: "cub", catalog: "cubs", placeholder: "Search CUB or ID" },
+      function () { return fetchCubCatalog().then(function (c) { return c.cubs || []; }); },
+      function () {
+        const pick = picker.value();
+        if (pick) select(pick.id);
+      }
+    );
+    host.appendChild(picker.node);
+
+    const card = document.createElement("div");
+    card.className = "build";
+    host.appendChild(card);
+    const emptyNote = document.createElement("p");
+    emptyNote.className = "build__note";
+    emptyNote.textContent = "Pick one to see its build";
+    card.appendChild(emptyNote);
+
+    function rows(entries) {
+      const box = document.createElement("div");
+      box.className = "build__rows";
+      entries.forEach(function (entry) {
+        const line = document.createElement("div");
+        line.className = "field__row";
+        const key = document.createElement("span");
+        key.textContent = entry[0];
+        const value = document.createElement("b");
+        value.textContent = entry[1];
+        line.append(key, value);
+        box.appendChild(line);
+      });
+      return box;
+    }
+
+    async function select(templateId) {
+      state.templateId = templateId;
+      card.textContent = "";
+      const reading = document.createElement("p");
+      reading.className = "build__note";
+      reading.textContent = "reading\u2026";
+      card.appendChild(reading);
+      const identity = (catalog.cubs || []).filter(function (c) { return c.id === templateId; })[0] || null;
+      const owned = (await fetchCubState()).cubs || [];
+      state.entry = owned.filter(function (c) { return c.templateId === templateId; })[0] || null;
+      paintCard(identity);
+    }
+
+    function paintCard(identity) {
+      card.textContent = "";
+      if (!identity) return;
+      const entry = state.entry;
+      const ladder = (entry && entry.qualities) || [];
+      const rankIndex = entry ? ladder.indexOf(entry.quality) : -1;
+      const rankLabel = entry ? (rankIndex >= 0 ? (CUB_RANKS[rankIndex] || "Q" + entry.quality) : "Q" + entry.quality) : "-";
+      const skillLevels = ((entry && entry.skills) || []).map(function (s) { return s.level; });
+      const skillLow = skillLevels.length ? Math.min.apply(null, skillLevels) : 0;
+      const skillHigh = skillLevels.length ? Math.max.apply(null, skillLevels) : 0;
+      const skillLabel = !entry ? "-" : !skillLevels.length ? "-" : skillLow === skillHigh ? "Lv " + skillLow : "Lv " + skillLow + "–" + skillHigh;
+      card.appendChild(rows([
+        ["CUB", identity.name],
+        ["Level", entry ? String(entry.level) : "not in this account"],
+        ["Rank", rankLabel],
+        ["Skills", skillLabel],
+      ]));
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const tune = document.createElement("button");
+      tune.type = "button";
+      tune.className = "btn";
+      tune.textContent = "Tune";
+      tune.setAttribute("data-tip", "Open the design surface: level, rank and skills for every copy of this CUB.");
+      tune.disabled = !entry;
+      tune.addEventListener("click", function () { if (state.entry) openCubTune(state.entry, identity); });
+      actions.appendChild(tune);
+      card.appendChild(actions);
+    }
+
+    // Tutti works on the whole account and lives in the footer row beside Silence, like Construct.
+    bulkOpenHandler = openCubBulk;
+    bulkPerformHandler = runCubBulk;
+
+    $("#catalogMeta").textContent = "catalog: " + (catalog.cubs || []).length + " CUBs";
+  }
+
+  var CUB_RANKS = ["S", "SS", "SSS", "SSS+"];
+
+  function cubRankLabel(v) { return v > 0 ? (CUB_RANKS[v - 1] || CUB_RANKS[CUB_RANKS.length - 1]) : "As is"; }
+
+  // CUB has no node rank and no separate breakthrough control: Level raises the breakthrough stage
+  // itself, and Rank walks the CUB's own S / SS / SSS / SSS+ ladder. Only what you move is written.
+  function cubSliders(body, caps, choice, noteFn) {
+    body.appendChild(slider("Level", 0, caps.maxLevel, 0, function (v) { return v > 0 ? "Lv " + v : "As is"; },
+      function (v) { choice.level = v; noteFn(); }, "Level for this CUB. Raising it unlocks the breakthrough stage needed to reach it."));
+    body.appendChild(slider("Rank", 0, CUB_RANKS.length, 0, cubRankLabel,
+      function (v) { choice.rank = v; noteFn(); }, "Rank for this CUB on its own ladder: S, SS, SSS, SSS+. As is keeps the rank it has."));
+    if (caps.maxSkill > 0) {
+      body.appendChild(slider("Skills", 0, caps.maxSkill, 0, function (v) { return v > 0 ? "Lv " + v : "As is"; },
+        function (v) { choice.skill = v; noteFn(); }, "Every skill of this CUB. As is keeps the levels it has."));
+    }
+  }
+
+  function openCubTune(entry, identity) {
+    const body = $("#cubTuneBody");
+    body.textContent = "";
+    $("#cubTuneTitle").textContent = "Tune " + identity.name;
+    const caps = { maxLevel: entry.maxLevel, maxSkill: entry.maxSkill };
+    const design = { partnerId: entry.templateId, level: 0, rank: 0, skill: 0 };
+    cubTuneDesign = design;
     const lead = document.createElement("p");
-    lead.className = "hint-block";
-    lead.textContent = "Bulk CUB writes level, breakthrough, quality, star and skills for every CUB in this account. "
-      + "Every slider starts at as is, so only what you move is written; each CUB is clamped to its own table caps.";
-    host.appendChild(lead);
+    lead.className = "tutti__lead";
+    lead.textContent = "Every slider starts at As is, so only what you move is written, clamped to this CUB's own table caps. "
+      + "A CUB can exist as several copies; the tune writes every copy of " + identity.name + " in this account. Nothing is spent.";
+    body.appendChild(lead);
+    function paintNote() {
+      $("#cubTuneNote").textContent = "Level " + (design.level > 0 ? design.level : "As is")
+        + " \u00b7 Rank " + cubRankLabel(design.rank)
+        + (caps.maxSkill > 0 ? " \u00b7 Skills " + (design.skill > 0 ? "Lv " + design.skill : "As is") : "");
+    }
+    cubSliders(body, caps, design, paintNote);
+    paintNote();
+    $("#cubTuneModal").hidden = false;
+    $("#cubTunePerform").focus();
+  }
 
+  async function runCubSingle() {
+    const design = cubTuneDesign;
+    if (!design) return;
+    const uid = actingUid();
+    if (!uid) { $("#runHint").textContent = "pick an acting account"; return; }
+    const payload = { Uid: Number(uid), PartnerId: design.partnerId };
+    if (design.level > 0) payload.Level = design.level;
+    if (design.rank > 0) payload.RankStep = design.rank;
+    if (design.skill > 0) payload.SkillLevel = design.skill;
+    const cmd = { name: "cub tune", args: [String(design.partnerId)] };
+    try {
+      const response = await fetch("/api/panel/tune-cub-bulk", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      }).then(function (res) { return res.json(); });
+      if (!response || response.ok === false) throw new Error((response && response.msg) || "the CUB tune was refused");
+      const report = response.data || {};
+      const failed = report.failed || report.Failed || [];
+      performed += 1;
+      let detail = "applied " + (report.applied !== undefined ? report.applied : report.Applied) + " of " + (report.total !== undefined ? report.total : report.Total);
+      if (failed.length > 0) detail += String.fromCharCode(10) + failed.map(function (e) { return (e.partnerId || e.PartnerId) + ": " + (e.error || e.Error); }).join(String.fromCharCode(10));
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, failed.length === 0, detail);
+      $("#consoleMeta").textContent = opusLabel(performed);
+      window.SelenaAudio.chord();
+    } catch (err) {
+      performed += 1;
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, false, (err && err.message) || String(err));
+      $("#consoleMeta").textContent = opusLabel(performed);
+      window.SelenaAudio.low();
+    }
+  }
+
+  async function openCubBulk() {
+    let catalog;
+    try { catalog = await fetchCubCatalog(); } catch (err) { $("#runHint").textContent = (err && err.message) || "partner tables not found"; return; }
+    const body = $("#bulkBody");
+    body.textContent = "";
+    $("#bulkTitle").textContent = "Bulk CUB";
+    const choice = { level: 0, rank: 0, skill: 0 };
+    cubChoice = choice;
+    const lead = document.createElement("p");
+    lead.className = "tutti__lead";
+    lead.textContent = "Bulk CUB writes level, rank and skills for every CUB in this account, including every duplicate copy. "
+      + "Every slider starts at As is, so only what you move is written; each CUB is clamped to its own table caps.";
+    body.appendChild(lead);
     function paintNote() {
       const bits = [
-        "Level " + (choice.level > 0 ? String(choice.level) : "as is"),
-        "Break " + (choice.breakthrough > 0 ? String(choice.breakthrough) : "as is"),
-        "Quality " + (choice.quality > 0 ? "Q" + choice.quality : "as is"),
-        "Star " + (choice.star > 0 ? String(choice.star) : "as is"),
+        "Level " + (choice.level > 0 ? String(choice.level) : "As is"),
+        "Rank " + cubRankLabel(choice.rank),
       ];
-      if (catalog.maxSkill > 0) bits.push("Skills " + (choice.skill > 0 ? "Lv " + choice.skill : "as is"));
-      $("#runHint").textContent = bits.join(" \u00b7 ");
+      if (catalog.maxSkill > 0) bits.push("Skills " + (choice.skill > 0 ? "Lv " + choice.skill : "As is"));
+      $("#bulkNote").textContent = bits.join(" \u00b7 ");
     }
-
-    host.appendChild(slider("Level", 0, catalog.maxLevel, 0, function (v) { return v > 0 ? "Lv " + v : "as is"; },
-      function (v) { choice.level = v; paintNote(); }, "Level for every CUB, clamped to its breakthrough limit."));
-    host.appendChild(slider("Breakthrough", 0, catalog.maxBreak, 0, function (v) { return v > 0 ? String(v) : "as is"; },
-      function (v) { choice.breakthrough = v; paintNote(); }, "Breakthrough times for every CUB."));
-    host.appendChild(slider("Quality", 0, catalog.maxQuality, 0, function (v) { return v > 0 ? "Q" + v : "as is"; },
-      function (v) { choice.quality = v; paintNote(); }, "Evolution quality for every CUB."));
-    host.appendChild(slider("Star", 0, catalog.maxStar, 0, function (v) { return v > 0 ? String(v) : "as is"; },
-      function (v) { choice.star = v; paintNote(); }, "Star steps for every CUB, clamped to its quality."));
-    if (catalog.maxSkill > 0) {
-      host.appendChild(slider("Skills", 0, catalog.maxSkill, 0, function (v) { return v > 0 ? "Lv " + v : "as is"; },
-        function (v) { choice.skill = v; paintNote(); }, "Every skill of every CUB."));
-    }
-
+    cubSliders(body, catalog, choice, paintNote);
     paintNote();
-    $("#catalogMeta").textContent = "catalog: every CUB in the account";
-    $("#runBtn").disabled = false;
+    $("#bulkModal").hidden = false;
+    $("#bulkPerform").focus();
   }
 
   async function runCubBulk() {
@@ -1874,9 +2079,7 @@
 
     const payload = { Uid: Number(uid) };
     if (choice.level > 0) payload.Level = choice.level;
-    if (choice.breakthrough > 0) payload.BreakThrough = choice.breakthrough;
-    if (choice.quality > 0) payload.Quality = choice.quality;
-    if (choice.star > 0) payload.Star = choice.star;
+    if (choice.rank > 0) payload.RankStep = choice.rank;
     if (choice.skill > 0) payload.SkillLevel = choice.skill;
 
     const cmd = {
@@ -1917,6 +2120,7 @@
     const uid = actingUid();
     if (!uid) { $("#runHint").textContent = "pick an acting account"; $("#catalogMeta").textContent = "catalog: pick an account"; $("#runBtn").disabled = true; return; }
     host.textContent = "";
+    endgameHost = host;
     const catalog = await fetch("/api/panel/endgame-catalog?uid=" + encodeURIComponent(uid))
       .then(function (res) { return res.json(); }).catch(function () { return null; });
     if (!catalog || catalog.ok === false) {
@@ -1930,12 +2134,15 @@
     const boss = data.Boss || {};
     const tiers = arena.Tiers || [];
     const areaNames = arena.AreaNames || {};
-    const zoneGroups = arena.Groups || [];
+    const areaDetails = arena.AreaDetails || {};
 
     const choice = {
       arenaLevel: 0, bossGrade: 0,
       zonePicks: {}, zonesTouched: false,
       bossPicks: {}, bossesTouched: false,
+      groupPicks: [(arena.GroupOverride || [])[0] || "", (arena.GroupOverride || [])[1] || ""],
+      groupsTouched: false,
+      specialPick: arena.SpecialOverride || 0, specialTouched: false,
     };
     endgameChoice = choice;
 
@@ -1944,6 +2151,36 @@
       return row ? row.Name : ("tier " + id);
     }
     function areaName(id) { return areaNames[id] || ("Area " + id); }
+    const elementOf = {
+      "Machine Factory": "Physical", "Crimson Frostland": "Ice", "Cycle of Fire": "Fire",
+      "Laser Alloy": "Lightning", "Shadow Forest": "Dark", "Nihil Floating Platform": "Nihil",
+    };
+    function groupLabel(group) {
+      const name = areaName((group.Areas || [])[0]);
+      return (elementOf[name] || name) + " · " + name;
+    }
+    function zoneType(info) {
+      const desc = (info && info.Desc) || "";
+      if (/^Desperate Fight/.test(desc)) return "Boss";
+      if (/^Duo Challenge/.test(desc)) return "Elite";
+      if (/^(Crowd Battle|Number Advantage|Joint Operation|Turbulent Water)/.test(desc)) return "Mob";
+      return "";
+    }
+    function zoneHints(info, word) {
+      if (!info) return;
+      if (info.Desc) {
+        const desc = document.createElement("p");
+        desc.className = "hint-block";
+        desc.textContent = info.Name + " — " + info.Desc;
+        zoneContainer.appendChild(desc);
+      }
+      (info.Buffs || []).forEach(function (buff) {
+        const hint = document.createElement("p");
+        hint.className = "hint-block";
+        hint.textContent = word + " " + buff.Index + " · " + buff.Name + (buff.Desc ? " — " + buff.Desc : "");
+        zoneContainer.appendChild(hint);
+      });
+    }
     function modeLabel(grade) {
       if (grade === boss.Ultimate) return "Ultimate";
       if (grade === boss.Standard) return "Standard";
@@ -1952,9 +2189,10 @@
 
     const lead = document.createElement("p");
     lead.className = "hint-block";
-    lead.textContent = "Set the endgame rank directly instead of climbing it week by week, and choose this week's "
-      + "War Zone zones and Pain Cage bosses. Rank starts at as is; each zone and boss starts at Auto (the weekly "
-      + "rotation) unless a pick is already stored. Nothing is spent.";
+    lead.textContent = "Set the endgame rank directly instead of climbing it week by week. Zone 1 and Zone 2 pick the "
+      + "element group that fills each slot; the stage it fights and the buff it carries are explained under the "
+      + "picker. Affix zone picks the Hero+ closing zone; its two buffs are listed under it, and you choose one per "
+      + "fight in game. Auto follows the weekly rotation. Nothing is spent.";
     host.appendChild(lead);
 
     function pickRow(labelText, control) {
@@ -1987,7 +2225,7 @@
         + " · " + bossCount + " boss " + (bossCount === 1 ? "pick" : "picks");
     }
 
-    /* ---- War Zone: rank + this week's zone groups ---- */
+    /* ---- War Zone: rank + the selected tier's zones (element groups + Hero+ affix zone) ---- */
     const wz = block("War Zone");
     const ownerTiers = ["Vanguard", "Leader", "Hero", "Legend"]
       .map(function (name) { return tiers.filter(function (t) { return t.Name === name; })[0]; })
@@ -1996,23 +2234,140 @@
       [{ value: 0, label: "As is" }].concat(ownerTiers.map(function (t) { return { value: t.Id, label: t.Name }; })),
       {
         value: 0,
-        tip: "War Zone rank. As is keeps the current tier; the others jump straight to it.",
-        onChange: function (value) { choice.arenaLevel = Number(value); paintNote(); },
+        tip: "War Zone rank. As is keeps the current tier; the others jump straight to it. The zone list follows the rank you pick.",
+        onChange: function (value) { choice.arenaLevel = Number(value); renderZones(); paintNote(); },
       });
     wz.appendChild(pickRow("Rank", rankPicker));
-
-    zoneGroups.forEach(function (group, index) {
-      choice.zonePicks[group.Key] = group.Override || 0;
-      const options = [{ value: 0, label: "Auto · " + (group.Chosen > 0 ? areaName(group.Chosen) : "rotation") }]
-        .concat((group.Areas || []).map(function (id) { return { value: id, label: areaName(id) }; }));
-      const picker = window.SelenaUI.picker(options, {
-        value: group.Override || 0,
-        tip: "This week's zone for this group. Auto follows the weekly rotation; a named zone pins it.",
-        onChange: function (value) { choice.zonePicks[group.Key] = Number(value); choice.zonesTouched = true; paintNote(); },
-      });
-      wz.appendChild(pickRow("Zone " + (index + 1), picker));
-    });
+    const zoneContainer = document.createElement("div");
+    zoneContainer.className = "tune";
+    wz.appendChild(zoneContainer);
     host.appendChild(wz);
+
+    function effectiveTier() {
+      const id = choice.arenaLevel > 0 ? choice.arenaLevel : arena.Current;
+      return tiers.filter(function (t) { return t.Id === id; })[0] || null;
+    }
+    function renderZones() {
+      const tier = effectiveTier();
+      zoneContainer.textContent = "";
+      const groupOptions = (tier && tier.GroupOptions) || [];
+      const groupKeys = groupOptions.map(function (g) { return g.Key; });
+      const currentGroups = (tier && tier.Groups) || [];
+      // The zone rows follow the pending group pick, not the stored rotation: what they show is the
+      // board the apply will produce.
+      const effective = [];
+      for (let slot = 0; slot < 2; slot++) {
+        const key = choice.groupPicks[slot] || (currentGroups[slot] && currentGroups[slot].Key) || "";
+        effective.push(groupOptions.filter(function (g) { return g.Key === key; })[0]
+          || currentGroups.filter(function (g) { return g.Key === key; })[0] || null);
+      }
+      Object.keys(choice.zonePicks).forEach(function (key) {
+        if (!effective.some(function (g) { return g && g.Key === key; })) delete choice.zonePicks[key];
+      });
+      for (let slot = 0; slot < 2; slot++) {
+        const stored = choice.groupPicks[slot] || "";
+        const storedIndex = groupKeys.indexOf(stored);
+        const options = [{ value: 0, label: "Auto · rotation" }]
+          .concat(groupOptions.map(function (g, i) { return { value: i + 1, label: groupLabel(g) }; }));
+        const picker = window.SelenaUI.picker(options, {
+          value: storedIndex >= 0 ? storedIndex + 1 : 0,
+          tip: "Which element group fills zone slot " + (slot + 1) + " this week. Auto follows the weekly rotation; a pick pins the group instead.",
+          onChange: function (value) {
+            const index = Number(value) - 1;
+            choice.groupPicks[slot] = index >= 0 ? groupKeys[index] : "";
+            choice.groupsTouched = true;
+            renderZones(); paintNote();
+          },
+        });
+        zoneContainer.appendChild(pickRow("Zone " + (slot + 1), picker));
+        const group = effective[slot];
+        if (!group) continue;
+        const areas = group.Areas || [];
+        if (areas.length > 1) {
+          if (!(group.Key in choice.zonePicks)) {
+            const board = currentGroups.filter(function (g) { return g.Key === group.Key; })[0];
+            choice.zonePicks[group.Key] = (board && board.Override) || 0;
+          }
+          const zoneOptions = [{ value: 0, label: "Auto · rotation" }]
+            .concat(areas.map(function (id) {
+              const type = zoneType(areaDetails[id]);
+              return { value: id, label: (type ? type + " · " : "") + areaName(id) };
+            }));
+          const zonePicker = window.SelenaUI.picker(zoneOptions, {
+            value: choice.zonePicks[group.Key] || 0,
+            tip: "This week's stage for this group. Auto follows the weekly rotation; a named stage pins it.",
+            onChange: function (value) { choice.zonePicks[group.Key] = Number(value); choice.zonesTouched = true; renderZones(); paintNote(); },
+          });
+          zoneContainer.appendChild(pickRow("Stage " + (slot + 1), zonePicker));
+        }
+        const zoneId = areas.length > 1 ? (choice.zonePicks[group.Key] || areas[0]) : areas[0];
+        zoneHints(areaDetails[zoneId], "Buff");
+      }
+      const specialOptions = arena.SpecialOptions || [];
+      const pinnedSpecial = choice.specialPick > 0
+        ? specialOptions.filter(function (z) { return z.AreaId === choice.specialPick; })[0]
+        : null;
+      // The affix surface only exists on tiers that offer a closing zone; a pin from another tier
+      // must not keep its pickers or hints alive on a tier without one.
+      const special = tier && tier.SpecialZone ? (pinnedSpecial || tier.SpecialZone) : null;
+      choice.specialAvailable = !!special;
+      if (tier && tier.SpecialZone && special) {
+        // Mirror the zone rows: the zone picker carries the affix pair, the stage picker carries the
+        // zone type, exactly like Zone (element) / Stage (type · area) above.
+        const currentType = zoneType(special);
+        const types = [];
+        specialOptions.forEach(function (z) {
+          const t = zoneType(z);
+          if (t && types.indexOf(t) < 0) types.push(t);
+        });
+        types.sort();
+        const pairName = function (z) { return (z.Buffs || []).map(function (b) { return b.Name; }).join(" / "); };
+        const pairs = specialOptions.filter(function (z) { return zoneType(z) === currentType; })
+          .slice().sort(function (x, y) { return x.AreaId - y.AreaId; });
+        const zonePicker = window.SelenaUI.picker(
+          pairs.map(function (z) { return { value: z.AreaId, label: pairName(z) }; }),
+          {
+            value: special.AreaId,
+            tip: "Which affix pair closes the week at Hero+. Its two buffs are listed below; you choose one per fight in game.",
+            onChange: function (value) { choice.specialPick = Number(value); choice.specialTouched = true; renderZones(); paintNote(); },
+          });
+        zoneContainer.appendChild(pickRow("Affix zone", zonePicker));
+        // Each stage type names the zone it resolves to, exactly like the Stage rows above name
+        // their own area; the pinned type keeps the zone the affix picker currently shows. Every
+        // special zone shares the mode name, so the buff pair is what tells the zones apart.
+        const zoneForType = function (t) {
+          if (t === currentType) return special;
+          return specialOptions.filter(function (z) { return zoneType(z) === t; })
+            .slice().sort(function (x, y) { return x.AreaId - y.AreaId; })[0] || null;
+        };
+        const stagePicker = window.SelenaUI.picker(
+          [{ value: "", label: "Auto · rotation" }].concat(types.map(function (t) {
+            const z = zoneForType(t) || special;
+            return { value: t, label: t + " · " + pairName(z) };
+          })),
+          {
+            value: choice.specialPick > 0 ? currentType : "",
+            tip: "This week's affix stage type. Auto follows the weekly rotation; a type pins the closing zone to that fight kind.",
+            onChange: function (value) {
+              if (!value) choice.specialPick = 0;
+              else if (currentType !== value) {
+                const z = zoneForType(value);
+                choice.specialPick = z ? z.AreaId : 0;
+              }
+              choice.specialTouched = true; renderZones(); paintNote();
+            },
+          });
+        zoneContainer.appendChild(pickRow("Stage", stagePicker));
+      }
+      if (special) zoneHints(special, "Affix");
+      if (!effective.some(Boolean) && !special) {
+        const hint = document.createElement("p");
+        hint.className = "hint-block";
+        hint.textContent = "No zones for this rank at the account's level.";
+        zoneContainer.appendChild(hint);
+      }
+    }
+    renderZones();
 
     /* ---- Pain Cage: mode + this week's boss groups for the selected mode ---- */
     const pc = block("Pain Cage");
@@ -2024,6 +2379,13 @@
         onChange: function (value) { choice.bossGrade = Number(value); renderBosses(); paintNote(); },
       });
     pc.appendChild(pickRow("Mode", modePicker));
+    const resetAttemptsBtn = document.createElement("button");
+    resetAttemptsBtn.type = "button";
+    resetAttemptsBtn.className = "btn btn--quiet";
+    resetAttemptsBtn.textContent = "Reset attempts";
+    resetAttemptsBtn.setAttribute("data-tip", "Refills today's Pain Cage attempts and every construct's stamina so this week's bosses can be fought again. Score, records and picks stay.");
+    resetAttemptsBtn.addEventListener("click", function () { resetBossAttempts(); });
+    pc.appendChild(pickRow("Attempts", { node: resetAttemptsBtn }));
     const bossContainer = document.createElement("div");
     bossContainer.className = "tune";
     pc.appendChild(bossContainer);
@@ -2037,8 +2399,9 @@
       choice.bossesTouched = false;
       groups.forEach(function (group, index) {
         choice.bossPicks[group.Id] = group.Override || 0;
-        const options = [{ value: 0, label: "Auto · " + (group.Chosen > 0 ? "Section " + group.Chosen : "rotation") }]
-          .concat((group.Sections || []).map(function (id) { return { value: id, label: "Section " + id }; }));
+        const bossLabel = function (id) { return (boss.SectionNames || {})[id] || ("Section " + id); };
+        const options = [{ value: 0, label: "Auto · " + (group.Chosen > 0 ? bossLabel(group.Chosen) : "rotation") }]
+          .concat((group.Sections || []).map(function (id) { return { value: id, label: bossLabel(id) }; }));
         const picker = window.SelenaUI.picker(options, {
           value: group.Override || 0,
           tip: "This week's boss for this group. Auto follows the weekly rotation; a section pins it.",
@@ -2050,7 +2413,9 @@
     renderBosses();
 
     paintNote();
-    $("#catalogMeta").textContent = "catalog: " + zoneGroups.length + " zones · " + ((boss.StandardGroups || []).length) + " bosses";
+    const shownTier = effectiveTier();
+    const shownZones = ((shownTier && shownTier.Groups) || []).length + (shownTier && shownTier.SpecialZone ? 1 : 0);
+    $("#catalogMeta").textContent = "catalog: " + shownZones + " zones · " + ((boss.StandardGroups || []).length) + " bosses";
     $("#runBtn").disabled = false;
   }
 
@@ -2069,6 +2434,8 @@
         if (choice.zonePicks[key] > 0) payload.ArenaAreas[key] = choice.zonePicks[key];
       });
     }
+    if (choice.groupsTouched) payload.ArenaGroups = choice.groupPicks.filter(function (key) { return key; });
+    if (choice.specialTouched && choice.specialAvailable) payload.ArenaSpecial = choice.specialPick || 0;
     if (choice.bossesTouched) {
       payload.BossSections = {};
       Object.keys(choice.bossPicks).forEach(function (key) {
@@ -2093,6 +2460,32 @@
       let detail = "War Zone tier " + report.ArenaLevel + " · Pain Cage grade " + report.BossLevelType
         + " · " + zoneOverrides + " zone " + (zoneOverrides === 1 ? "override" : "overrides")
         + " · " + bossOverrides + " boss " + (bossOverrides === 1 ? "override" : "overrides");
+      if (response.live === false) detail += String.fromCharCode(10) + "stored in the database - the game client shows it at its next login";
+      performed += 1;
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, true, detail);
+      $("#consoleMeta").textContent = opusLabel(performed);
+      window.SelenaAudio.chord();
+      if (endgameHost) renderEndgame(endgameHost);
+    } catch (err) {
+      performed += 1;
+      window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, false, (err && err.message) || String(err));
+      $("#consoleMeta").textContent = opusLabel(performed);
+      window.SelenaAudio.low();
+    }
+  }
+
+  async function resetBossAttempts() {
+    const uid = actingUid();
+    if (!uid) { $("#runHint").textContent = "pick an acting account"; return; }
+    const cmd = { name: "endgame", args: ["PPC attempts reset"] };
+    try {
+      const response = await fetch("/api/panel/endgame-apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ Uid: Number(uid), ResetBossAttempts: true }),
+      }).then(function (res) { return res.json(); });
+      if (!response || response.ok === false) throw new Error((response && response.msg) || "the attempt reset was refused");
+      let detail = "Pain Cage attempts and construct stamina refilled";
       if (response.live === false) detail += String.fromCharCode(10) + "stored in the database - the game client shows it at its next login";
       performed += 1;
       window.SelenaUI.entry($("#consoleList"), $("#consoleMeta"), performed, cmd, true, detail);
@@ -2160,9 +2553,10 @@
 
   $("#actionForm").addEventListener("submit", perform);
 
-  // One button, two surfaces: the generic Tutti form for a command tab, the bulk design form for Construct.
+  // One button, two surfaces: the generic Tutti form for a command tab, the bulk design form for Construct and CUB.
   $("#allBtn").addEventListener("click", function () {
-    if (SECTIONS[current] && SECTIONS[current].custom === "build" && bulkOpenHandler) {
+    var custom = SECTIONS[current] && SECTIONS[current].custom;
+    if ((custom === "build" || custom === "cub") && bulkOpenHandler) {
       bulkOpenHandler();
       return;
     }
@@ -2190,6 +2584,14 @@
   });
   $("#bulkCancel").addEventListener("click", closeModals);
   document.querySelectorAll("[data-close='bulk']").forEach(function (node) {
+    node.addEventListener("click", closeModals);
+  });
+
+  $("#cubTunePerform").addEventListener("click", function () {
+    closeModals();
+    runCubSingle();
+  });
+  document.querySelectorAll("[data-close='cubTune']").forEach(function (node) {
     node.addEventListener("click", closeModals);
   });
 

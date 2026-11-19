@@ -155,6 +155,14 @@ namespace AscNet.Common.Database
         [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
         public Dictionary<string, int> ArenaAreaOverride { get; set; } = new();
 
+        /// <summary>Admin-pinned element group keys for this week, in offer order. Empty means the hash rotation.</summary>
+        [BsonElement("arena_group_override")]
+        public List<string> ArenaGroupOverride { get; set; } = new();
+
+        /// <summary>Admin-pinned Entropic Distortion area for Hero+ tiers. 0 means the tier's ungrouped area.</summary>
+        [BsonElement("arena_special_override")]
+        public int ArenaSpecialOverride { get; set; }
+
         [BsonElement("boss_activity_no")]
         public int BossActivityNo { get; set; }
 

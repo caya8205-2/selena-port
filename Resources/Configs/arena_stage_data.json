@@ -75,6 +75,406 @@
       "Level": 509,
       "MagicInfos": [],
       "AttrTable": {}
+    },
+    {
+      "NpcId": 90430,
+      "BufferIds": [
+        760261
+      ],
+      "Level": 788,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 92030,
+      "BufferIds": [],
+      "Level": 799,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90430,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 788,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90210,
+      "BufferIds": [
+        760261
+      ],
+      "Level": 691,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91030,
+      "BufferIds": [],
+      "Level": 751,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 92090,
+      "BufferIds": [],
+      "Level": 705,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90210,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 691,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90030,
+      "BufferIds": [],
+      "Level": 731,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90030,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 731,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 92160,
+      "BufferIds": [],
+      "Level": 695,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91090,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 745,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 92150,
+      "BufferIds": [],
+      "Level": 809,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91180,
+      "BufferIds": [],
+      "Level": 734,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91150,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 685,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91180,
+      "BufferIds": [
+        760261
+      ],
+      "Level": 734,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91090,
+      "BufferIds": [],
+      "Level": 745,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91150,
+      "BufferIds": [],
+      "Level": 685,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90150,
+      "BufferIds": [
+        760261
+      ],
+      "Level": 821,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90150,
+      "BufferIds": [],
+      "Level": 821,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91090,
+      "BufferIds": [
+        760261
+      ],
+      "Level": 745,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90090,
+      "BufferIds": [
+        760261
+      ],
+      "Level": 720,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90090,
+      "BufferIds": [],
+      "Level": 720,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90090,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 720,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91160,
+      "BufferIds": [],
+      "Level": 687,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90160,
+      "BufferIds": [],
+      "Level": 761,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90180,
+      "BufferIds": [],
+      "Level": 688,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90160,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 761,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90180,
+      "BufferIds": [
+        760261
+      ],
+      "Level": 688,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90030,
+      "BufferIds": [
+        760261
+      ],
+      "Level": 731,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90150,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 821,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91170,
+      "BufferIds": [],
+      "Level": 692,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91180,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 734,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91170,
+      "BufferIds": [
+        760261
+      ],
+      "Level": 692,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91030,
+      "BufferIds": [
+        760261
+      ],
+      "Level": 751,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91150,
+      "BufferIds": [
+        760261
+      ],
+      "Level": 685,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90180,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 688,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91160,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 687,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 91210,
+      "BufferIds": [],
+      "Level": 695,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90950,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 686,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90913,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 801,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 81901,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 810,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90990,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 769,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 818001,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 823,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 90780,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 802,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 81301,
+      "BufferIds": [
+        760261
+      ],
+      "Level": 773,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 81901,
+      "BufferIds": [
+        760261
+      ],
+      "Level": 810,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 818001,
+      "BufferIds": [
+        760261
+      ],
+      "Level": 823,
+      "MagicInfos": [],
+      "AttrTable": {}
+    },
+    {
+      "NpcId": 81301,
+      "BufferIds": [
+        760351
+      ],
+      "Level": 773,
+      "MagicInfos": [],
+      "AttrTable": {}
     }
   ],
   "GroupDefinitions": [
@@ -148,6 +548,790 @@
       "NpcRefs": [
         7,
         8
+      ]
+    },
+    {
+      "NpcRefs": [
+        9,
+        10,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        11,
+        10,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        12,
+        13,
+        13,
+        13,
+        14,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        15,
+        16,
+        16
+      ]
+    },
+    {
+      "NpcRefs": [
+        17,
+        16,
+        16,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        19,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        12,
+        21,
+        21,
+        21,
+        18,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        22,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        23,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        11,
+        24,
+        24,
+        24,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        15,
+        13,
+        13,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        15,
+        18,
+        18,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        11,
+        25,
+        25,
+        25,
+        25
+      ]
+    },
+    {
+      "NpcRefs": [
+        26,
+        27,
+        27,
+        20,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        11,
+        20,
+        20,
+        20,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        15,
+        25,
+        25,
+        25,
+        18,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        17,
+        16,
+        16,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        28,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        29,
+        30,
+        30,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        9,
+        25,
+        25,
+        25,
+        25,
+        25
+      ]
+    },
+    {
+      "NpcRefs": [
+        17,
+        16,
+        16,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        31,
+        30,
+        30,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        15,
+        32,
+        32,
+        32,
+        32,
+        32
+      ]
+    },
+    {
+      "NpcRefs": [
+        9,
+        33,
+        33
+      ]
+    },
+    {
+      "NpcRefs": [
+        29,
+        30,
+        30,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        9,
+        25,
+        25,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        9,
+        20,
+        20,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        15,
+        18,
+        18,
+        18,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        12,
+        34,
+        34
+      ]
+    },
+    {
+      "NpcRefs": [
+        35,
+        33,
+        33,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        12,
+        18,
+        18,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        15,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        11,
+        32,
+        32,
+        32,
+        20,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        36,
+        34,
+        34,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        26,
+        27,
+        27,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        12,
+        18,
+        18,
+        18,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        37,
+        16,
+        16,
+        20,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        29,
+        30,
+        30,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        38,
+        27,
+        27,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        37,
+        16,
+        16,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        15,
+        39,
+        39,
+        39,
+        39,
+        39
+      ]
+    },
+    {
+      "NpcRefs": [
+        29,
+        30,
+        30,
+        20,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        40,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        15,
+        24,
+        24,
+        14,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        15,
+        14,
+        14,
+        14,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        15,
+        39,
+        39,
+        39,
+        39
+      ]
+    },
+    {
+      "NpcRefs": [
+        9,
+        13,
+        13,
+        20,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        35,
+        33,
+        33,
+        20,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        31,
+        30,
+        30,
+        20,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        9,
+        21,
+        21,
+        20,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        9,
+        25,
+        25,
+        20,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        41,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        38,
+        27,
+        27,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        42,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        15,
+        18,
+        18,
+        18,
+        18,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        12,
+        24,
+        24,
+        24,
+        24,
+        24
+      ]
+    },
+    {
+      "NpcRefs": [
+        43,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        42,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        12,
+        14,
+        14,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        11,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        44,
+        34,
+        34,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        43,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        19,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        12,
+        39,
+        39,
+        14,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        11,
+        32,
+        32,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        28,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        31,
+        30,
+        30,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        45,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        36,
+        34,
+        34,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        9,
+        32,
+        32,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        40,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        45,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        45,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        11,
+        46,
+        46,
+        20,
+        20,
+        20
+      ]
+    },
+    {
+      "NpcRefs": [
+        12,
+        21,
+        21,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        26,
+        27,
+        27,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        42,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        15,
+        32,
+        32,
+        18,
+        18,
+        18
+      ]
+    },
+    {
+      "NpcRefs": [
+        9,
+        10,
+        10,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "NpcRefs": [
+        15,
+        14,
+        14,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        15,
+        32,
+        32,
+        14,
+        14,
+        14
+      ]
+    },
+    {
+      "NpcRefs": [
+        47
+      ]
+    },
+    {
+      "NpcRefs": [
+        48
+      ]
+    },
+    {
+      "NpcRefs": [
+        49
+      ]
+    },
+    {
+      "NpcRefs": [
+        50
+      ]
+    },
+    {
+      "NpcRefs": [
+        51
+      ]
+    },
+    {
+      "NpcRefs": [
+        52
+      ]
+    },
+    {
+      "NpcRefs": [
+        53
+      ]
+    },
+    {
+      "NpcRefs": [
+        54
+      ]
+    },
+    {
+      "NpcRefs": [
+        55
+      ]
+    },
+    {
+      "NpcRefs": [
+        56
       ]
     }
   ],
@@ -290,6 +1474,288 @@
       },
       "StageParams": {
         "WaveCostTimes": "[]",
+        "TimePointScore": "[]"
+      }
+    },
+    {
+      "StageId": 30080123,
+      "AreaId": 1,
+      "MarkId": 3,
+      "Archetype": "Joint Operation: Refresh multiple Normal and Elite enemies",
+      "ReusableArchetype": true,
+      "LevelReferenceChallengeId": 15,
+      "NpcGroupRefs": [
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        12,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        26,
+        40,
+        41,
+        38,
+        42,
+        43,
+        23,
+        24,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        26,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        29,
+        23,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        40,
+        70,
+        39,
+        71,
+        72,
+        73,
+        60,
+        25,
+        74,
+        75,
+        75,
+        76,
+        77,
+        78,
+        23,
+        79,
+        80,
+        58,
+        81,
+        82,
+        83,
+        35,
+        84,
+        85,
+        66,
+        86,
+        87,
+        88,
+        89,
+        26,
+        90,
+        91,
+        92
+      ],
+      "PassTimeLimit": 300,
+      "ReviseId": 209,
+      "Restartable": true,
+      "FightCheckType": 1,
+      "SegmentFightCheckSecond": 60,
+      "Records": {
+        "69": -7000,
+        "70": -7000,
+        "71": -7000,
+        "72": -7000,
+        "73": -7000,
+        "33": 0,
+        "34": 0,
+        "35": 0,
+        "36": 0,
+        "37": 0,
+        "38": 0,
+        "98": -7000,
+        "110": -7000,
+        "111": -7000,
+        "116": -7000,
+        "121": -7000,
+        "109": 0,
+        "115": 0,
+        "120": 0,
+        "128": 0,
+        "129": -7000
+      },
+      "StageParams": {
+        "WaveCostTimes": "[2,4,5,5,6,6,7,9,11,12,15,17,20,26,26,26,31,34,34,34,37,39,45,47,52,56,58,58,66,66,68,71,78,83,89,90,97,97,100,105,112,115]",
+        "TimePointScore": "[]"
+      }
+    },
+    {
+      "StageId": 30080324,
+      "AreaId": 182,
+      "MarkId": 5,
+      "Archetype": "Desperate Fight: Refresh only 1 enemy per wave",
+      "ReusableArchetype": true,
+      "LevelReferenceChallengeId": 15,
+      "NpcGroupRefs": [
+        93,
+        93,
+        94,
+        95,
+        96,
+        93,
+        94,
+        97,
+        94,
+        98,
+        93,
+        95,
+        96,
+        93,
+        98,
+        99,
+        96,
+        96,
+        94,
+        97,
+        94,
+        96,
+        93,
+        100,
+        98,
+        94,
+        94,
+        99,
+        98,
+        96,
+        98,
+        99,
+        93,
+        98,
+        93,
+        101,
+        93,
+        93,
+        96,
+        95,
+        93,
+        93,
+        98,
+        101,
+        93,
+        98,
+        98,
+        95,
+        93,
+        93,
+        96,
+        99,
+        93,
+        93,
+        98,
+        93,
+        96,
+        102,
+        93,
+        96,
+        96,
+        95,
+        98,
+        98,
+        93,
+        95,
+        98,
+        98,
+        96,
+        95,
+        93,
+        94,
+        94,
+        101,
+        96,
+        96,
+        98,
+        101,
+        93,
+        94,
+        98,
+        95,
+        96,
+        93,
+        93,
+        99,
+        93,
+        94,
+        93,
+        99,
+        93,
+        96,
+        94,
+        99,
+        98,
+        93,
+        94,
+        99,
+        98
+      ],
+      "PassTimeLimit": 300,
+      "ReviseId": 209,
+      "Restartable": true,
+      "FightCheckType": 1,
+      "SegmentFightCheckSecond": 60,
+      "Records": {
+        "69": -7000,
+        "70": -7000,
+        "71": -7000,
+        "72": -7000,
+        "73": -7000,
+        "33": 0,
+        "34": 0,
+        "35": 0,
+        "36": 0,
+        "37": 0,
+        "38": 0,
+        "98": -7000,
+        "110": -7000,
+        "111": -7000,
+        "116": -7000,
+        "121": -7000,
+        "109": 0,
+        "115": 0,
+        "120": 0,
+        "128": 0,
+        "129": -7000
+      },
+      "StageParams": {
+        "WaveCostTimes": "[1,3,3,3,5,6,6,10,11,13,23,26,26,26,28,30,30,30,33,37,41,44,47,54,56,58,59,65,71,80,84,87,88,96,98,117]",
         "TimePointScore": "[]"
       }
     }

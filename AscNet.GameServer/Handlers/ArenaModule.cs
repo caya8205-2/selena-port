@@ -660,13 +660,7 @@ namespace AscNet.GameServer.Handlers
 
         private static List<int> SelectedAreas(int activityNo, long playerId, ChallengeAreaTable challenge, SimulatedBattlefieldState state)
         {
-            HashSet<int> groupedAreaIds = challenge.AreaIdGroup
-                .Where(group => !string.IsNullOrWhiteSpace(group))
-                .SelectMany(group => group.Split('|', StringSplitOptions.RemoveEmptyEntries))
-                .Select(value => int.TryParse(value, out int areaId) ? areaId : 0)
-                .Where(areaId => areaId > 0)
-                .ToHashSet();
-            List<int> selected = OfferedGroups(activityNo, playerId, challenge)
+            List<int> selected = OfferedGroups(activityNo, playerId, challenge, state)
                 .Select(group => PickArea(group, activityNo, playerId, state, rotated: activityNo >= NewRotationFromActivity))
                 .Distinct()
                 .Take(challenge.DayUnlockNum)
@@ -678,18 +672,35 @@ namespace AscNet.GameServer.Handlers
 
             if (IsHeroOrHigher(challenge.ArenaLv))
             {
-                List<int> specialAreas = challenge.AreaId
-                    .Where(areaId => areaId > 0 && !groupedAreaIds.Contains(areaId))
-                    .Distinct()
-                    .Where(areaId => AreaStages.Value.TryGetValue(areaId, out AreaStageTable? area)
-                        && IsSupportedArea(area))
-                    .ToList();
-                if (specialAreas.Count != 1)
-                    throw new InvalidDataException(
-                        $"Arena challenge {challenge.ChallengeId} requires exactly one supported ungrouped Entropic Distortion area, found {specialAreas.Count}.");
-                selected.Add(specialAreas[0]);
+                int special = state.ArenaSpecialOverride;
+                if (special <= 0 || !SupportedSpecialAreas().Contains(special))
+                {
+                    List<int> specialAreas = UngroupedSupportedAreas(challenge);
+                    if (specialAreas.Count != 1)
+                        throw new InvalidDataException(
+                            $"Arena challenge {challenge.ChallengeId} requires exactly one supported ungrouped Entropic Distortion area, found {specialAreas.Count}.");
+                    special = specialAreas[0];
+                }
+                selected.Add(special);
             }
             return selected;
+        }
+
+        // The Entropic Distortion zone is the one supported area that sits outside every element group. Hero+
+        // tiers carry it as the final zone; the client picks which of its two affix buffs to fight locally.
+        private static List<int> UngroupedSupportedAreas(ChallengeAreaTable challenge)
+        {
+            HashSet<int> groupedAreaIds = challenge.AreaIdGroup
+                .Where(group => !string.IsNullOrWhiteSpace(group))
+                .SelectMany(group => group.Split('|', StringSplitOptions.RemoveEmptyEntries))
+                .Select(value => int.TryParse(value, out int areaId) ? areaId : 0)
+                .Where(areaId => areaId > 0)
+                .ToHashSet();
+            return challenge.AreaId
+                .Where(areaId => areaId > 0 && !groupedAreaIds.Contains(areaId))
+                .Distinct()
+                .Where(areaId => AreaStages.Value.TryGetValue(areaId, out AreaStageTable? area) && IsSupportedArea(area))
+                .ToList();
         }
 
         // An admin-picked zone wins over the hash rotation while it stays valid for the group; otherwise the
@@ -714,40 +725,97 @@ namespace AscNet.GameServer.Handlers
             state.ArenaLevel = tier.Id;
             state.ArenaChallengeId = challenge.ChallengeId;
             session.player.Save();
+            PushAdminBoard(session);
+        }
+
+        /// <summary>Re-push the arena board after an admin tier or override change so a live client redraws at once.</summary>
+        internal static void PushAdminBoard(Session session)
+        {
+            (ActivityResultNotify? result, NotifyArenaActivity activity) = ReconcileLogin(session);
+            if (result is not null)
+                session.SendPush(result);
+            session.SendPush(activity);
         }
 
         // The groups this week offers, in selection order. Shared by the live pick and the admin catalog so
         // the two can never disagree about which zones are on the board.
-        private static List<(string Key, List<int> Areas)> OfferedGroups(int activityNo, long playerId, ChallengeAreaTable challenge)
+        private static List<(string Key, List<int> Areas)> OfferedGroups(int activityNo, long playerId, ChallengeAreaTable challenge, SimulatedBattlefieldState state)
         {
-            List<(string Key, List<int> Areas)> groups = challenge.AreaIdGroup
-                .Where(group => !string.IsNullOrWhiteSpace(group))
-                .Distinct()
-                .Select(group => (Key: group, Areas: group.Split('|', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(value => int.TryParse(value, out int areaId) ? areaId : 0)
-                    .Where(areaId => areaId > 0 && AreaStages.Value.TryGetValue(areaId, out AreaStageTable? area) && IsSupportedArea(area))
-                    .Distinct()
-                    .ToList()))
-                .Where(group => group.Areas.Count > 0)
+            List<(string Key, List<int> Areas)> groups = GroupCandidates(challenge)
                 .OrderBy(group => StableGroupHash(activityNo, playerId, group.Key))
                 .ToList();
+            if (state.ArenaGroupOverride.Count > 0)
+            {
+                List<(string Key, List<int> Areas)> pinned = state.ArenaGroupOverride
+                    .Select(key => groups.FirstOrDefault(group => group.Key == key))
+                    .Where(group => group.Key is not null && group.Areas.Count > 0)
+                    .DistinctBy(group => group.Key)
+                    .ToList();
+                return pinned
+                    .Concat(groups.Where(group => !pinned.Any(pin => pin.Key == group.Key)))
+                    .Take(challenge.DayUnlockNum)
+                    .ToList();
+            }
             return (activityNo >= NewRotationFromActivity
                     ? RotatedGroups(groups, activityNo, playerId, challenge.DayUnlockNum)
                     : groups.Take(challenge.DayUnlockNum))
                 .ToList();
         }
 
-        /// <summary>This week's offered zone groups with their candidate areas and the area currently picked.</summary>
-        internal static List<(string Key, List<int> Areas, int Chosen)> AdminOfferedZones(Session session)
+        private static List<(string Key, List<int> Areas)> GroupCandidates(ChallengeAreaTable challenge) => challenge.AreaIdGroup
+            .Where(group => !string.IsNullOrWhiteSpace(group))
+            .Distinct()
+            .Select(group => (Key: group, Areas: group.Split('|', StringSplitOptions.RemoveEmptyEntries)
+                .Select(value => int.TryParse(value, out int areaId) ? areaId : 0)
+                .Where(areaId => areaId > 0 && AreaStages.Value.TryGetValue(areaId, out AreaStageTable? area) && IsSupportedArea(area))
+                .Distinct()
+                .ToList()))
+            .Where(group => group.Areas.Count > 0)
+            .ToList();
+
+        /// <summary>Every element group a tier could offer, for the admin group pin pickers.</summary>
+        internal static List<(string Key, List<int> Areas)> AdminGroupOptions(int arenaLevel, int playerLevel) =>
+            TryResolveChallenge(arenaLevel, playerLevel, out ChallengeAreaTable? challenge) ? GroupCandidates(challenge) : [];
+
+        /// <summary>Every curated-supported Entropic Distortion row: the pool an admin affix-zone pin may choose from.</summary>
+        internal static List<int> SupportedSpecialAreas() => AreaStages.Value.Values
+            .Where(area => area.Name == "Entropic Distortion" && IsSupportedArea(area))
+            .OrderBy(area => area.Id)
+            .Select(area => area.Id)
+            .ToList();
+
+        /// <summary>This week's offered zone groups for a target tier, with candidate areas and the area currently picked.</summary>
+        internal static List<(string Key, List<int> Areas, int Chosen)> AdminOfferedZones(Session session, int arenaLevel)
         {
             SimulatedBattlefieldState state = session.player.SimulatedBattlefield;
-            ChallengeAreaTable challenge = ResolveChallenge(state.ArenaLevel, (int)session.player.PlayerData.Level);
+            if (!TryResolveChallenge(arenaLevel, (int)session.player.PlayerData.Level, out ChallengeAreaTable? challenge))
+                return [];
             int activityNo = state.ArenaActivityNo;
             long playerId = session.player.PlayerData.Id;
             bool rotated = activityNo >= NewRotationFromActivity;
-            return OfferedGroups(activityNo, playerId, challenge)
+            return OfferedGroups(activityNo, playerId, challenge, state)
                 .Select(group => (group.Key, group.Areas, Chosen: PickArea(group, activityNo, playerId, state, rotated)))
                 .ToList();
+        }
+
+        /// <summary>The Hero+ Entropic Distortion zone for a target tier, or 0 when the tier carries none or it is not curated.</summary>
+        internal static int AdminSpecialZone(Session session, int arenaLevel)
+        {
+            if (!IsHeroOrHigher(arenaLevel)
+                || !TryResolveChallenge(arenaLevel, (int)session.player.PlayerData.Level, out ChallengeAreaTable? challenge))
+                return 0;
+            int pinned = session.player.SimulatedBattlefield.ArenaSpecialOverride;
+            if (pinned > 0 && SupportedSpecialAreas().Contains(pinned))
+                return pinned;
+            return UngroupedSupportedAreas(challenge).FirstOrDefault();
+        }
+
+        private static bool TryResolveChallenge(int arenaLevel, int playerLevel, out ChallengeAreaTable? challenge)
+        {
+            challenge = Challenges.Value
+                .Where(x => x.ArenaLv == arenaLevel && playerLevel >= x.MinLv && playerLevel <= x.MaxLv)
+                .OrderBy(x => x.ChallengeId).FirstOrDefault();
+            return challenge is not null;
         }
 
         // AscNet policy (no retail table defines the weekly zone rotation). The first deploy had activity 484 live, so

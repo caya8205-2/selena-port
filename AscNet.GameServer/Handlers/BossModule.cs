@@ -1592,6 +1592,13 @@ namespace AscNet.GameServer.Handlers
             state.BossList = [];
             state.BossListOptions = BuildBossListOptions(state, playerLevel, activity);
             TrySelectOnlyOption(state);
+            ClearCycleState(state);
+        }
+
+        // Score, attempts and stamina belong to one grade's cycle. An admin grade jump lands on unrelated
+        // bosses, so the old grade's totals must not ride along as a stale total over empty records.
+        private static void ClearCycleState(SimulatedBattlefieldState state)
+        {
             state.BossTotalScore = 0;
             state.BossCurrentTotalScore = 0;
             state.BossChallengeCount = 0;
@@ -1757,10 +1764,26 @@ namespace AscNet.GameServer.Handlers
                 state, checked((int)session.player.PlayerData.Level), state.BossActivityNo, forceLevelType: levelType);
             if (!options.TryGetValue(levelType, out List<int>? bossList))
                 throw new InvalidOperationException($"PPC level type {levelType} has no BossSingleGrade.tsv row.");
+            if (state.BossLevelType != levelType)
+                ClearCycleState(state);
             state.BossLevelType = levelType;
             state.BossList = bossList.ToList();
             session.player.Save();
             HydrateBossStages(session, sendPushes: true);
+            session.SendPush(BuildLoginData(session.player, now));
+        }
+
+        /// <summary>Admin refill of today's Pain Cage attempts and every construct's stamina, so the week's bosses can be fought again.</summary>
+        public static void ResetAdminAttempts(Session session)
+        {
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            ReconcileLive(session, now, includeOwnershipSnapshot: false);
+            SimulatedBattlefieldState state = session.player.SimulatedBattlefield;
+            state.BossChallengeResetDay = CurrentResetDay(now);
+            state.BossChallengeCount = 0;
+            state.BossCharacterPoints.Clear();
+            session.player.Save();
+            session.SendPush(BuildLoginData(session.player, now));
         }
 
         /// <summary>Rebuilds the persisted weekly boss list after the admin rotation override changes.</summary>
@@ -1775,6 +1798,7 @@ namespace AscNet.GameServer.Handlers
                 state.BossList = bossList.ToList();
             session.player.Save();
             HydrateBossStages(session, sendPushes: true);
+            session.SendPush(BuildLoginData(session.player));
         }
 
         internal static List<(int GroupId, List<int> Sections)> AdminBossGroupsFor(int levelType)
@@ -1798,6 +1822,16 @@ namespace AscNet.GameServer.Handlers
                 .DefaultIfEmpty(0)
                 .Max();
             return (standard, ultimate);
+        }
+
+        /// <summary>The boss name the client shows for a section: the first of its stage rows carrying one.</summary>
+        internal static string AdminSectionBossName(int sectionId)
+        {
+            foreach (int stageId in ResolveSection(sectionId).StageId)
+                if (stageId > 0 && Stages.Value.TryGetValue(stageId, out BossSingleStageTable? stage)
+                    && !string.IsNullOrWhiteSpace(stage.BossName))
+                    return stage.BossName;
+            return string.Empty;
         }
 
         private static bool TryResolveFightStage(

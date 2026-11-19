@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Decode Punishing: Gray Raven/AscNet TCP packets from a tcpdump pcap.
+"""Decode Punishing: Gray Raven/AscNet TCP packets from a tcpdump pcap or pktmon pcapng.
 
-Input: classic pcap with Ethernet/IPv4/TCP frames, e.g.
+Input: classic pcap or pcapng (e.g. `pktmon etl2pcap`) with Ethernet/IPv4/TCP frames, e.g.
   sudo tcpdump -i en0 -s 0 -w .runtime/retail.pcap '(tcp or udp)'
+  pktmon start --capture --pkt-size 0 --file-name .runtime/retail.etl  (admin)
+  pktmon stop && pktmon etl2pcap .runtime/retail.etl --out .runtime/retail.pcapng
 
 Output: JSONL packet summary and optional decoded payload JSON files.
 No third-party Python packages required.
@@ -265,10 +267,58 @@ def payload_summary(value: Any) -> Any:
     return value
 
 
+def parse_pcapng(raw: bytes) -> Iterable[tuple[float, bytes, int]]:
+    offset = 0
+    endian = "<"
+    interfaces: list[tuple[int, float]] = []
+    while offset + 12 <= len(raw):
+        if raw[offset : offset + 4] == b"\x0a\x0d\x0d\x0a":
+            magic = raw[offset + 8 : offset + 12]
+            if magic == b"\x4d\x3c\x2b\x1a":
+                endian = "<"
+            elif magic == b"\x1a\x2b\x3c\x4d":
+                endian = ">"
+            else:
+                raise ValueError("bad pcapng section header magic")
+            interfaces = []
+        (block_type,) = struct.unpack_from(endian + "I", raw, offset)
+        (length,) = struct.unpack_from(endian + "I", raw, offset + 4)
+        if length < 12 or offset + length > len(raw):
+            break
+        body = raw[offset + 8 : offset + length - 4]
+        if block_type == 1 and len(body) >= 8:
+            link_type, _reserved, _snaplen = struct.unpack_from(endian + "HHI", body)
+            resolution = 1e-6
+            pos = 8
+            while pos + 4 <= len(body):
+                code, option_len = struct.unpack_from(endian + "HH", body, pos)
+                if code == 0:
+                    break
+                if code == 9 and option_len >= 1:
+                    exponent = body[pos + 4]
+                    resolution = 10.0 ** -exponent if exponent < 128 else 2.0 ** -(exponent & 0x7F)
+                pos += 4 + ((option_len + 3) & ~3)
+            interfaces.append((link_type, resolution))
+        elif block_type == 6 and len(body) >= 20:
+            iface, ts_high, ts_low, caplen, _origlen = struct.unpack_from(endian + "IIIII", body)
+            if iface < len(interfaces):
+                link_type, resolution = interfaces[iface]
+                yield ((ts_high << 32) | ts_low) * resolution, body[20 : 20 + caplen], link_type
+        elif block_type == 3 and len(body) >= 4 and interfaces:
+            (origlen,) = struct.unpack_from(endian + "I", body)
+            link_type, _resolution = interfaces[0]
+            yield 0.0, body[4 : 4 + origlen], link_type
+        offset += length
+
+
 def parse_pcap(path: Path) -> Iterable[tuple[float, bytes, int]]:
     raw = path.read_bytes()
     if len(raw) < 24:
         raise ValueError("pcap too short")
+
+    if raw[:4] == b"\x0a\x0d\x0d\x0a":
+        yield from parse_pcapng(raw)
+        return
 
     magic = raw[:4]
     if magic in (b"\xd4\xc3\xb2\xa1", b"\x4d\x3c\xb2\xa1"):
@@ -372,14 +422,20 @@ def decode_frames(stream: bytes, key: bytes) -> Iterable[tuple[int, int, bytes, 
     frame_index = 0
     while offset + 4 <= len(stream):
         packet_len = struct.unpack("<I", stream[offset : offset + 4])[0]
-        if packet_len <= 0 or packet_len > 16 * 1024 * 1024:
-            break
-        if offset + 4 + packet_len > len(stream):
-            break
-
+        if packet_len <= 0 or packet_len > 16 * 1024 * 1024 or offset + 4 + packet_len > len(stream):
+            # Captures can start mid-stream or drop packets; resync byte-wise instead of losing the tail.
+            offset += 1
+            continue
         encrypted = stream[offset + 4 : offset + 4 + packet_len]
         decrypted = maybe_decompress_messagepack_lz4(haru_decrypt(encrypted, key))
-        packet = unpack_messagepack(decrypted)
+        if not decrypted or decrypted[0] != 0x93:
+            offset += 1
+            continue
+        try:
+            packet = unpack_messagepack(decrypted)
+        except Exception:
+            offset += 1
+            continue
         yield frame_index, packet_len, decrypted, packet
         offset += 4 + packet_len
         frame_index += 1

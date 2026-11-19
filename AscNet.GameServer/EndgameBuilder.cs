@@ -28,6 +28,16 @@ namespace AscNet.GameServer
                 state.ArenaAreaOverride = new Dictionary<string, int>(request.ArenaAreas);
                 arenaOverrideChanged = true;
             }
+            if (request.ArenaGroups is not null)
+            {
+                state.ArenaGroupOverride = new List<string>(request.ArenaGroups);
+                arenaOverrideChanged = true;
+            }
+            if (request.ArenaSpecial is int arenaSpecial)
+            {
+                state.ArenaSpecialOverride = arenaSpecial;
+                arenaOverrideChanged = true;
+            }
 
             bool bossOverrideChanged = false;
             if (request.BossSections is not null)
@@ -43,7 +53,13 @@ namespace AscNet.GameServer
                 Handlers.BossModule.RefreshAdminBossList(session);
 
             if (arenaOverrideChanged)
+            {
                 session.player.Save();
+                Handlers.ArenaModule.PushAdminBoard(session);
+            }
+
+            if (request.ResetBossAttempts)
+                Handlers.BossModule.ResetAdminAttempts(session);
 
             state = session.player.SimulatedBattlefield;
             return new EndgameApplyReport
@@ -62,44 +78,103 @@ namespace AscNet.GameServer
             Handlers.ArenaModule.EnsureCurrent(session.player);
             SimulatedBattlefieldState state = session.player.SimulatedBattlefield;
             int playerLevel = checked((int)session.player.PlayerData.Level);
+            Dictionary<int, AreaStageTable> areaStages = TableReaderV2.Parse<AreaStageTable>().ToDictionary(row => row.Id);
 
-            List<EndgameZoneGroup> zoneGroups = Handlers.ArenaModule.AdminOfferedZones(session)
-                .Select(group => new EndgameZoneGroup
+            // Zones are tier-specific: the offered element groups and the Hero+ Entropic Distortion zone
+            // both depend on the challenge a tier resolves to, so each tier carries its own board.
+            List<EndgameArenaTier> tiers = TableReaderV2.Parse<ArenaLevelTable>()
+                .OrderBy(row => row.Id)
+                .Select(row => new EndgameArenaTier
                 {
-                    Key = group.Key,
-                    Areas = group.Areas,
-                    Chosen = group.Chosen,
-                    Override = state.ArenaAreaOverride.GetValueOrDefault(group.Key, 0),
+                    Id = row.Id,
+                    Name = row.Name,
+                    Groups = Handlers.ArenaModule.AdminOfferedZones(session, row.Id)
+                        .Select(group => new EndgameZoneGroup
+                        {
+                            Key = group.Key,
+                            Areas = group.Areas,
+                            Chosen = group.Chosen,
+                            Override = state.ArenaAreaOverride.GetValueOrDefault(group.Key, 0),
+                        })
+                        .ToList(),
+                    GroupOptions = Handlers.ArenaModule.AdminGroupOptions(row.Id, playerLevel)
+                        .Select(group => new EndgameZoneGroup { Key = group.Key, Areas = group.Areas })
+                        .ToList(),
+                    SpecialZone = ZoneInfo(Handlers.ArenaModule.AdminSpecialZone(session, row.Id), areaStages),
                 })
                 .ToList();
 
-            Dictionary<int, AreaStageTable> areaStages = TableReaderV2.Parse<AreaStageTable>().ToDictionary(row => row.Id);
+            List<EndgameZoneInfo> specialOptions = Handlers.ArenaModule.SupportedSpecialAreas()
+                .Select(areaId => ZoneInfo(areaId, areaStages))
+                .Where(zone => zone is not null)
+                .Select(zone => zone!)
+                .ToList();
+
+            List<int> areaIds = tiers
+                .SelectMany(tier => tier.Groups.SelectMany(group => group.Areas)
+                    .Concat(tier.GroupOptions.SelectMany(group => group.Areas))
+                    .Concat(tier.SpecialZone is null ? [] : new[] { tier.SpecialZone.AreaId }))
+                .Concat(specialOptions.Select(zone => zone.AreaId))
+                .Distinct()
+                .Where(areaStages.ContainsKey)
+                .ToList();
+
             EndgameArenaCatalog arena = new()
             {
                 Current = state.ArenaLevel,
-                Tiers = TableReaderV2.Parse<ArenaLevelTable>()
-                    .OrderBy(row => row.Id)
-                    .Select(row => new EndgameArenaTier { Id = row.Id, Name = row.Name })
-                    .ToList(),
-                Groups = zoneGroups,
-                AreaNames = zoneGroups
-                    .SelectMany(group => group.Areas)
-                    .Distinct()
-                    .Where(areaStages.ContainsKey)
-                    .ToDictionary(areaId => areaId, areaId => areaStages[areaId].Name),
+                Tiers = tiers,
+                SpecialOptions = specialOptions,
+                GroupOverride = new List<string>(state.ArenaGroupOverride),
+                SpecialOverride = state.ArenaSpecialOverride,
+                AreaNames = areaIds.ToDictionary(areaId => areaId, areaId => areaStages[areaId].Name),
+                AreaDetails = areaIds
+                    .Select(areaId => ZoneInfo(areaId, areaStages))
+                    .Where(zone => zone is not null)
+                    .Select(zone => zone!)
+                    .ToDictionary(zone => zone.AreaId),
             };
 
             (int standard, int ultimate) = Handlers.BossModule.AdminGradeIds(playerLevel);
+            List<EndgameBossGroup> standardGroups = BossGroups(session, standard);
+            List<EndgameBossGroup> ultimateGroups = BossGroups(session, ultimate);
             EndgameBossCatalog boss = new()
             {
                 Standard = standard,
                 Ultimate = ultimate,
                 Current = state.BossLevelType,
-                StandardGroups = BossGroups(session, standard),
-                UltimateGroups = BossGroups(session, ultimate),
+                StandardGroups = standardGroups,
+                UltimateGroups = ultimateGroups,
+                SectionNames = standardGroups.Concat(ultimateGroups)
+                    .SelectMany(group => group.Sections)
+                    .Distinct()
+                    .Select(sectionId => (Id: sectionId, Name: Handlers.BossModule.AdminSectionBossName(sectionId)))
+                    .Where(entry => entry.Name.Length > 0)
+                    .ToDictionary(entry => entry.Id, entry => entry.Name),
             };
 
             return new EndgameCatalog { Arena = arena, Boss = boss };
+        }
+
+        // A zone row names its stage and the buffs it carries. The Entropic Distortion zone carries two
+        // affix buffs and the client picks one per fight via ArenaSelectIndex, so the catalog only names
+        // the options instead of persisting a choice.
+        private static EndgameZoneInfo? ZoneInfo(int areaId, Dictionary<int, AreaStageTable> areaStages)
+        {
+            if (areaId <= 0 || !areaStages.TryGetValue(areaId, out AreaStageTable? area))
+                return null;
+            List<EndgameZoneBuff> buffs = [];
+            for (int index = 0; index < area.BuffName.Count; index++)
+            {
+                if (string.IsNullOrWhiteSpace(area.BuffName[index]))
+                    continue;
+                buffs.Add(new EndgameZoneBuff
+                {
+                    Index = index + 1,
+                    Name = area.BuffName[index],
+                    Desc = index < area.BuffDesc.Count ? area.BuffDesc[index] : string.Empty,
+                });
+            }
+            return new EndgameZoneInfo { AreaId = areaId, Name = area.Name, Desc = area.Desc, Buffs = buffs };
         }
 
         private static List<EndgameBossGroup> BossGroups(Session session, int levelType)
@@ -132,8 +207,14 @@ namespace AscNet.GameServer
         public int? BossLevelType { get; set; }
         /// <summary>Zone pick per element group (group key -> area id). Null keeps, empty clears to rotation.</summary>
         public Dictionary<string, int>? ArenaAreas { get; set; }
+        /// <summary>Element group keys offered this week, in offer order. Null keeps, empty clears to rotation.</summary>
+        public List<string>? ArenaGroups { get; set; }
+        /// <summary>Entropic Distortion area pinned for Hero+ tiers. Null keeps, 0 clears to the tier's ungrouped area.</summary>
+        public int? ArenaSpecial { get; set; }
         /// <summary>Boss pick per group (group id -> section id). Null keeps, empty clears to rotation.</summary>
         public Dictionary<int, int>? BossSections { get; set; }
+        /// <summary>Refills today's Pain Cage attempts and construct stamina without touching score or picks.</summary>
+        public bool ResetBossAttempts { get; set; }
     }
 
     public sealed class EndgameApplyReport
@@ -154,15 +235,45 @@ namespace AscNet.GameServer
     {
         public List<EndgameArenaTier> Tiers { get; set; } = [];
         public int Current { get; set; }
-        public List<EndgameZoneGroup> Groups { get; set; } = [];
-        /// <summary>Area id -> AreaStage.Name for the areas offered this week.</summary>
+        /// <summary>Every supported Entropic Distortion row an affix-zone pin may choose, with its two buffs.</summary>
+        public List<EndgameZoneInfo> SpecialOptions { get; set; } = [];
+        /// <summary>The stored element group pin, in offer order. Empty means the hash rotation.</summary>
+        public List<string> GroupOverride { get; set; } = new();
+        /// <summary>The stored Entropic Distortion pin. 0 means the tier's ungrouped area.</summary>
+        public int SpecialOverride { get; set; }
+        /// <summary>Area id -> AreaStage.Name for every area offered across the tiers.</summary>
         public Dictionary<int, string> AreaNames { get; set; } = new();
+        /// <summary>Area id -> stage description and buffs, so a zone row can explain what it fights.</summary>
+        public Dictionary<int, EndgameZoneInfo> AreaDetails { get; set; } = new();
     }
 
     public sealed class EndgameArenaTier
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
+        /// <summary>The element groups this tier offers this week, in selection order.</summary>
+        public List<EndgameZoneGroup> Groups { get; set; } = [];
+        /// <summary>Every element group this tier could offer, for the group pin pickers.</summary>
+        public List<EndgameZoneGroup> GroupOptions { get; set; } = [];
+        /// <summary>The Hero+ Entropic Distortion zone, null when the tier carries none.</summary>
+        public EndgameZoneInfo? SpecialZone { get; set; }
+    }
+
+    public sealed class EndgameZoneInfo
+    {
+        public int AreaId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        /// <summary>The AreaStage description of the encounter archetype.</summary>
+        public string Desc { get; set; } = string.Empty;
+        /// <summary>The buffs the zone carries; an Entropic Distortion zone carries two and the client picks one per fight.</summary>
+        public List<EndgameZoneBuff> Buffs { get; set; } = [];
+    }
+
+    public sealed class EndgameZoneBuff
+    {
+        public int Index { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Desc { get; set; } = string.Empty;
     }
 
     public sealed class EndgameZoneGroup
@@ -182,6 +293,8 @@ namespace AscNet.GameServer
         public int Current { get; set; }
         public List<EndgameBossGroup> StandardGroups { get; set; } = [];
         public List<EndgameBossGroup> UltimateGroups { get; set; } = [];
+        /// <summary>Section id -> the boss name the client shows, for every section the two grades offer.</summary>
+        public Dictionary<int, string> SectionNames { get; set; } = new();
     }
 
     public sealed class EndgameBossGroup

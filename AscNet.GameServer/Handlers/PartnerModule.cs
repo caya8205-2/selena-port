@@ -1186,8 +1186,11 @@ namespace AscNet.GameServer.Handlers
         /// </summary>
         public static TuneCubBulkReport ApplyCubBulk(Session session, TuneCubBulkRequest request)
         {
-            List<PartnerData> partners = session.character.Partners ?? [];
+            List<PartnerData> partners = (session.character.Partners ?? [])
+                .Where(partner => request.PartnerId is null || partner.TemplateId == request.PartnerId)
+                .ToList();
             TuneCubBulkReport report = new() { Total = partners.Count };
+            List<PartnerData> changed = [];
             List<PartnerBreakThroughTable> breakthroughs = TableReaderV2.Parse<PartnerBreakThroughTable>();
             List<PartnerQualityTable> qualities = TableReaderV2.Parse<PartnerQualityTable>();
             List<PartnerSkillEffectTable> skillEffects = TableReaderV2.Parse<PartnerSkillEffectTable>();
@@ -1199,13 +1202,27 @@ namespace AscNet.GameServer.Handlers
                     int maxBreak = breakthroughs.Where(row => row.PartnerId == partner.TemplateId)
                         .Select(row => row.BreakTimes).DefaultIfEmpty(0).Max();
                     int breakThrough = Math.Clamp(request.BreakThrough ?? partner.BreakThrough, 0, maxBreak);
+                    if (request.Level is int requestedLevel)
+                    {
+                        // Level implies enough breakthrough to reach it: the design surface raises the
+                        // breakthrough stage itself instead of exposing a separate breakthrough control.
+                        int needed = breakthroughs
+                            .Where(row => row.PartnerId == partner.TemplateId && row.LevelLimit >= requestedLevel)
+                            .Select(row => row.BreakTimes).DefaultIfEmpty(maxBreak).Min();
+                        breakThrough = Math.Clamp(Math.Max(breakThrough, needed), 0, maxBreak);
+                    }
                     PartnerBreakThroughTable stage = breakthroughs
                         .Find(row => row.PartnerId == partner.TemplateId && row.BreakTimes == breakThrough)
                         ?? throw new InvalidOperationException($"CUB {partner.TemplateId} has no breakthrough {breakThrough} row.");
 
-                    int maxQuality = qualities.Where(row => row.PartnerId == partner.TemplateId)
-                        .Select(row => row.Quality).DefaultIfEmpty(partner.Quality).Max();
-                    int quality = Math.Clamp(request.Quality ?? partner.Quality, 1, maxQuality);
+                    List<int> ladder = qualities.Where(row => row.PartnerId == partner.TemplateId)
+                        .Select(row => row.Quality).Distinct().OrderBy(value => value).ToList();
+                    int maxQuality = ladder.Count > 0 ? ladder[^1] : partner.Quality;
+                    int quality;
+                    if (request.RankStep is int rankStep && ladder.Count > 0)
+                        quality = ladder[Math.Clamp(rankStep, 1, ladder.Count) - 1];
+                    else
+                        quality = Math.Clamp(request.Quality ?? partner.Quality, ladder.Count > 0 ? ladder[0] : 1, maxQuality);
                     PartnerQualityTable qualityConfig = qualities
                         .Find(row => row.PartnerId == partner.TemplateId && row.Quality == quality)
                         ?? throw new InvalidOperationException($"CUB {partner.TemplateId} has no quality {quality} row.");
@@ -1230,6 +1247,7 @@ namespace AscNet.GameServer.Handlers
                     }
 
                     report.Applied += 1;
+                    changed.Add(partner);
                 }
                 catch (Exception ex)
                 {
@@ -1245,6 +1263,64 @@ namespace AscNet.GameServer.Handlers
             {
                 session.character.Save();
                 SyncArchive(session);
+                session.SendPush(new NotifyPartnerDataList
+                {
+                    PartnerDataList = changed,
+                    OperateTypes = Enumerable.Repeat(2, changed.Count).ToList()
+                });
+            }
+
+            return report;
+        }
+
+        /// <summary>Read-only per-CUB state for the panel's CUB card: what the account holds now plus the
+        /// table caps each slider may reach. No mutation, so the card can paint before any Tune.</summary>
+        public static TuneCubStateReport CubState(Session session)
+        {
+            TuneCubStateReport report = new();
+            List<PartnerBreakThroughTable> breakthroughs = TableReaderV2.Parse<PartnerBreakThroughTable>();
+            List<PartnerQualityTable> qualities = TableReaderV2.Parse<PartnerQualityTable>();
+            List<PartnerSkillEffectTable> skillEffects = TableReaderV2.Parse<PartnerSkillEffectTable>();
+            Dictionary<int, string> names = TableReaderV2.Parse<PartnerTable>().ToDictionary(row => row.Id, row => row.Name);
+
+            foreach (PartnerData partner in session.character.Partners ?? [])
+            {
+                int maxBreak = breakthroughs.Where(row => row.PartnerId == partner.TemplateId)
+                    .Select(row => row.BreakTimes).DefaultIfEmpty(0).Max();
+                int maxLevel = breakthroughs.Where(row => row.PartnerId == partner.TemplateId)
+                    .Select(row => row.LevelLimit).DefaultIfEmpty(1).Max();
+                int maxQuality = qualities.Where(row => row.PartnerId == partner.TemplateId)
+                    .Select(row => row.Quality).DefaultIfEmpty(partner.Quality).Max();
+                List<int> ladder = qualities.Where(row => row.PartnerId == partner.TemplateId)
+                    .Select(row => row.Quality).Distinct().OrderBy(value => value).ToList();
+                PartnerQualityTable? topQuality = qualities
+                    .Find(row => row.PartnerId == partner.TemplateId && row.Quality == maxQuality);
+                int maxSchedule = topQuality is null ? 0 : topQuality.StarCostChipCount.LastOrDefault(value => value > 0);
+                int maxSkill = 0;
+                foreach (PartnerSkillData skill in partner.SkillList)
+                {
+                    int ceiling = skillEffects.Where(effect => effect.SkillId == skill.Id)
+                        .Select(effect => effect.Level).DefaultIfEmpty(0).Max();
+                    maxSkill = Math.Max(maxSkill, ceiling);
+                }
+
+                report.Cubs.Add(new TuneCubStateEntry
+                {
+                    Id = partner.Id,
+                    TemplateId = partner.TemplateId,
+                    Name = names.TryGetValue(partner.TemplateId, out string? name) ? name : String.Empty,
+                    Level = partner.Level,
+                    Quality = partner.Quality,
+                    BreakThrough = partner.BreakThrough,
+                    Star = partner.StarSchedule / 30,
+                    Skills = partner.SkillList.Select(skill => new TuneSkillResult { Id = skill.Id, Level = skill.Level }).ToList(),
+                    Qualities = ladder,
+                    MaxLevel = Math.Max(1, maxLevel),
+                    MaxBreak = maxBreak,
+                    MaxQuality = maxQuality,
+                    MaxStar = maxSchedule / 30,
+                    MaxSkill = maxSkill,
+                });
             }
 
             return report;

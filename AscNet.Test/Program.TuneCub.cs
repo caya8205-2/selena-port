@@ -4,6 +4,7 @@ using AscNet.Common.Util;
 using AscNet.GameServer;
 using AscNet.GameServer.Handlers;
 using AscNet.Table.V2.share.partner;
+using MessagePack;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 
@@ -67,22 +68,89 @@ internal partial class Program
             }
         }
 
+        NotifyPartnerDataList maxedPush = ReadCubPartnerPush("maxed");
+        AssertEqual(2, maxedPush.PartnerDataList.Count, "maxed push carries every tuned copy");
+        AssertEqual(true, maxedPush.OperateTypes.All(t => t == 2), "maxed push marks updates");
+
         int levelBefore = a.Level, qualityBefore = a.Quality, scheduleBefore = a.StarSchedule;
         TuneCubBulkReport asIs = TuneBuilder.ApplyCubBulk(harness.Session, new TuneCubBulkRequest { Uid = playerId });
         AssertEqual(2, asIs.Applied, "as-is pass applies");
         AssertEqual(levelBefore, a.Level, "as-is keeps level");
         AssertEqual(qualityBefore, a.Quality, "as-is keeps quality");
         AssertEqual(scheduleBefore, a.StarSchedule, "as-is keeps star");
+        AssertEqual(2, ReadCubPartnerPush("as-is").PartnerDataList.Count, "as-is push carries both copies");
 
         TuneBuilder.ApplyCubBulk(harness.Session, new TuneCubBulkRequest { Uid = playerId, Level = 1, Star = 0 });
         AssertEqual(1, a.Level, "partial pass sets level");
         AssertEqual(0, a.StarSchedule, "partial pass clears star");
         AssertEqual(qualityBefore, a.Quality, "partial pass keeps quality");
+        AssertEqual(2, ReadCubPartnerPush("partial").PartnerDataList.Count, "partial push carries both copies");
+
+        // A named PartnerId narrows the write to one CUB; the other keeps its state.
+        int bLevelBefore = b.Level, bQualityBefore = b.Quality;
+        TuneCubBulkReport single = TuneBuilder.ApplyCubBulk(harness.Session, new TuneCubBulkRequest
+        {
+            Uid = playerId, PartnerId = a.TemplateId, Level = 5
+        });
+        AssertEqual(1, single.Total, "single tune counts only the named CUB");
+        AssertEqual(1, single.Applied, "single tune applies one");
+        AssertEqual(5, a.Level, "single tune sets the named CUB level");
+        AssertEqual(qualityBefore, a.Quality, "single tune keeps the named CUB quality");
+        AssertEqual(bLevelBefore, b.Level, "single tune leaves the other CUB level");
+        AssertEqual(bQualityBefore, b.Quality, "single tune leaves the other CUB quality");
+        NotifyPartnerDataList singlePush = ReadCubPartnerPush("single");
+        AssertEqual(1, singlePush.PartnerDataList.Count, "single push carries only the named CUB's copies");
+        AssertEqual(a.Id, singlePush.PartnerDataList[0].Id, "single push names the tuned copy");
+
+        // Rank walks the CUB's own quality ladder; a level request implies its breakthrough stage.
+        List<int> bLadder = TableReaderV2.Parse<PartnerQualityTable>()
+            .Where(r => r.PartnerId == b.TemplateId).Select(r => r.Quality).Distinct().OrderBy(v => v).ToList();
+        int bMaxLevel = TableReaderV2.Parse<PartnerBreakThroughTable>()
+            .Where(r => r.PartnerId == b.TemplateId).Max(r => r.LevelLimit);
+        int bMaxBreak = TableReaderV2.Parse<PartnerBreakThroughTable>()
+            .Where(r => r.PartnerId == b.TemplateId).Max(r => r.BreakTimes);
+        TuneBuilder.ApplyCubBulk(harness.Session, new TuneCubBulkRequest
+        {
+            Uid = playerId, PartnerId = b.TemplateId, RankStep = 1, Level = bMaxLevel
+        });
+        AssertEqual(bLadder[0], b.Quality, "rank step 1 lands on the ladder bottom");
+        AssertEqual(bMaxBreak, b.BreakThrough, "level implies the breakthrough that reaches it");
+        AssertEqual(bMaxLevel, b.Level, "level reaches the table cap");
+        AssertEqual(1, ReadCubPartnerPush("rank bottom").PartnerDataList.Count, "rank push carries one copy");
+        TuneBuilder.ApplyCubBulk(harness.Session, new TuneCubBulkRequest
+        {
+            Uid = playerId, PartnerId = b.TemplateId, RankStep = bLadder.Count
+        });
+        AssertEqual(bLadder[^1], b.Quality, "rank step at ladder count lands on top");
+        AssertEqual(1, ReadCubPartnerPush("rank top").PartnerDataList.Count, "rank top push carries one copy");
+
+        TuneCubStateReport state = TuneBuilder.CubState(harness.Session);
+        AssertEqual(2, state.Cubs.Count, "state lists every owned CUB");
+        TuneCubStateEntry entryA = state.Cubs.First(c => c.TemplateId == a.TemplateId);
+        AssertEqual(a.Level, entryA.Level, "state mirrors the current level");
+        AssertEqual(true, entryA.MaxLevel >= entryA.Level, "state level cap bounds the current level");
+        AssertEqual(true, entryA.MaxBreak >= 1, "state exposes a breakthrough cap");
+        AssertEqual(a.SkillList.Count, entryA.Skills.Count, "state lists every skill");
 
         long coinAfter = inventory.Items.FirstOrDefault(i => i.Id == Inventory.Coin)?.Count ?? 0;
         AssertEqual(coinBefore, coinAfter, "design surface spends no coin");
 
         Character reloaded = BsonSerializer.Deserialize<Character>(harness.Session.character.ToBson());
         AssertEqual(a.Level, reloaded.Partners.First(p => p.Id == a.Id).Level, "bulk persists to the roster");
+
+        NotifyPartnerDataList ReadCubPartnerPush(string name)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                Packet packet = harness.ReadPacket($"{name} push {i + 1}");
+                AssertEqual(Packet.ContentType.Push, packet.Type, $"{name} push type");
+                Packet.Push push = MessagePackSerializer.Deserialize<Packet.Push>(packet.Content);
+                if (push.Name is nameof(NotifyArchivePartners) or nameof(NotifyPartnerSettings))
+                    continue;
+                AssertEqual(nameof(NotifyPartnerDataList), push.Name, $"{name} push name");
+                return MessagePackSerializer.Deserialize<NotifyPartnerDataList>(push.Content);
+            }
+            throw new InvalidDataException($"{name}: expected a partner push");
+        }
     }
 }

@@ -135,6 +135,8 @@ window.selena.onLog(append)
 
 // ------------------------------------------------------------------- status
 
+let sdkWasUp = null
+
 function paintStatus(state) {
   const mongo = document.querySelector('#rowMongo')
   const sdk = document.querySelector('#rowSdk')
@@ -151,6 +153,14 @@ function paintStatus(state) {
   document.querySelector('#dotMongo').classList.toggle('is-up', state.mongo)
   document.querySelector('#dotSdk').classList.toggle('is-up', state.sdk)
   document.querySelector('#dotGame').classList.toggle('is-up', state.game)
+
+  // A server restart invalidates every catalog the panel already fetched, so a mounted section
+  // would keep showing pre-rebuild data; reload the frame when the SDK comes back up.
+  if (sdkWasUp === false && state.sdk) {
+    const frame = document.querySelector('#framePlayer')
+    if (frame && frame.src) frame.src = frame.src
+  }
+  sdkWasUp = Boolean(state.sdk)
 }
 
 async function refresh() {

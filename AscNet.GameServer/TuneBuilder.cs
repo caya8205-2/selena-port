@@ -77,6 +77,10 @@ namespace AscNet.GameServer
         public static TuneCubBulkReport ApplyCubBulk(Session session, TuneCubBulkRequest request) =>
             Handlers.PartnerModule.ApplyCubBulk(session, request);
 
+        /// <summary>Read-only per-CUB state for the panel card; the partner tables and helpers live in PartnerModule.</summary>
+        public static TuneCubStateReport CubState(Session session) =>
+            Handlers.PartnerModule.CubState(session);
+
         public static TuneReport Apply(Session session, TuneRequest request)
         {
             CharacterTable row = TableReaderV2.Parse<CharacterTable>()
@@ -633,9 +637,13 @@ namespace AscNet.GameServer
     public sealed class TuneCubBulkRequest
     {
         public long Uid { get; set; }
+        /// <summary>When set, only the CUB with this template id is written; null writes every CUB.</summary>
+        public int? PartnerId { get; set; }
         public int? Level { get; set; }
         public int? BreakThrough { get; set; }
         public int? Quality { get; set; }
+        /// <summary>1-based step on the CUB's own quality ladder (S, SS, SSS, SSS+); wins over Quality.</summary>
+        public int? RankStep { get; set; }
         public int? Star { get; set; }
         public int? SkillLevel { get; set; }
     }
@@ -651,6 +659,30 @@ namespace AscNet.GameServer
     {
         public int PartnerId { get; set; }
         public string Error { get; set; } = string.Empty;
+    }
+
+    public sealed class TuneCubStateReport
+    {
+        public List<TuneCubStateEntry> Cubs { get; set; } = [];
+    }
+
+    public sealed class TuneCubStateEntry
+    {
+        public int Id { get; set; }
+        public int TemplateId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public int Level { get; set; }
+        public int Quality { get; set; }
+        public int BreakThrough { get; set; }
+        public int Star { get; set; }
+        public List<TuneSkillResult> Skills { get; set; } = [];
+        /// <summary>The CUB's own quality ladder, ascending; index+1 is the RankStep the panel sends.</summary>
+        public List<int> Qualities { get; set; } = [];
+        public int MaxLevel { get; set; }
+        public int MaxBreak { get; set; }
+        public int MaxQuality { get; set; }
+        public int MaxStar { get; set; }
+        public int MaxSkill { get; set; }
     }
 
     public sealed class TuneSkillResult

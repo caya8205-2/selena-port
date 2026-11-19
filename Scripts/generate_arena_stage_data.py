@@ -21,14 +21,23 @@ def intern(value: Any, values: list[Any], indexes: dict[str, int]) -> int:
         values.append(value)
     return indexes[key]
 
-def captured(capture_dir: Path, suffix: str, stage_id: int | None) -> Any:
+def captured(capture_dir: Path, suffix: str, stage_id: int | None, optional: bool = False) -> Any:
     matches = sorted(capture_dir.glob(f"*-{suffix}.json"))
     candidates: list[Any] = []
     for match in matches:
         value = json.loads(match.read_text())
         payload = value.get("PreFightData") or value.get("FightData") or value.get("Result") or value.get("Settle")
         if payload is not None and (stage_id is None or payload.get("StageId") == stage_id):
-            candidates.append(value)
+            if value not in candidates:
+                candidates.append(value)
+    if not candidates and optional:
+        return None
+    if len(candidates) > 1 and suffix == "FightSettleResponse":
+        # A capture can hold an early/aborted settle plus the final one; the last settle is the run result.
+        return candidates[-1]
+    if len(candidates) > 1 and suffix == "PreFightResponse":
+        # Restarts reissue the same fight; the first response carries the original wave layout.
+        return candidates[0]
     if len(candidates) != 1:
         raise ValueError(f"{capture_dir}: expected one stage-matching *-{suffix}.json, found {len(candidates)}; pass --stage-id")
     return candidates[0]
@@ -47,35 +56,45 @@ def area_stage_profile(area_id: int, stage_id: int) -> tuple[int, str]:
     return int(rows[0]["MarkId"]), rows[0]["Desc"]
 
 
-def captured_challenge_id(capture_dir: Path) -> int:
-    notifies = sorted(capture_dir.glob("*-NotifyArenaActivity.json"))
-    if not notifies:
-        raise ValueError(f"{capture_dir}: a NotifyArenaActivity dump is required to record the captured ChallengeId")
-    return json.loads(notifies[-1].read_text())["ChallengeId"]
+def captured_challenge_id(capture_dir: Path, challenge_from: Path | None = None) -> int:
+    for directory in (capture_dir, challenge_from):
+        if directory is None:
+            continue
+        notifies = sorted(directory.glob("*-NotifyArenaActivity.json"))
+        if notifies:
+            return json.loads(notifies[-1].read_text())["ChallengeId"]
+    raise ValueError(f"{capture_dir}: a NotifyArenaActivity dump is required to record the captured ChallengeId; pass --challenge-from")
 
 
-def generate(capture_dir: Path, stage_id: int | None = None) -> dict[str, Any]:
+def generate(capture_dir: Path, stage_id: int | None = None, challenge_from: Path | None = None) -> dict[str, Any]:
     prefight_request = captured(capture_dir, "PreFightRequest", stage_id)
     prefight = captured(capture_dir, "PreFightResponse", stage_id)["FightData"]
-    settle_request = captured(capture_dir, "FightSettleRequest", stage_id)["Result"]
+    settle_request_value = captured(capture_dir, "FightSettleRequest", stage_id, optional=True)
+    settle_request = settle_request_value["Result"] if settle_request_value is not None else None
     settle = captured(capture_dir, "FightSettleResponse", stage_id)["Settle"]
     request = prefight_request["PreFightData"]
-    if request["StageId"] != prefight["StageId"] or settle_request["StageId"] != prefight["StageId"] or settle["StageId"] != prefight["StageId"]:
+    if request["StageId"] != prefight["StageId"] or settle["StageId"] != prefight["StageId"]:
         raise ValueError("capture stage IDs disagree")
-    for key in ("FightId", "Uuid"):
-        if key in prefight and key in settle_request and prefight[key] != settle_request[key]:
-            raise ValueError(f"capture {key} values disagree")
+    if settle_request is not None:
+        if settle_request["StageId"] != prefight["StageId"]:
+            raise ValueError("capture stage IDs disagree")
+        for key in ("FightId", "Uuid"):
+            if key in prefight and key in settle_request and prefight[key] != settle_request[key]:
+                raise ValueError(f"capture {key} values disagree")
     captured_groups = prefight.get("NpcGroupList", [])
     if not captured_groups or any(not group.get("NpcList") for group in captured_groups):
         raise ValueError("captured Arena waves must contain NPCs")
-    progress = settle_request.get("StringToIntRecord", {}).get("NpcGroup")
-    wave_times = settle_request.get("StringToListIntRecord", {}).get("WaveCostTimes")
-    if progress is not None and wave_times is not None:
-        if len(wave_times) != progress - 1:
-            raise ValueError("captured wave timing count disagrees with NpcGroup progress")
-        completed_enemy_count = sum(len(group["NpcList"]) for group in captured_groups[:len(wave_times)])
-        if settle_request.get("DeathTotalEnemy") != completed_enemy_count:
-            raise ValueError("captured enemy deaths disagree with completed wave NPC counts")
+    if settle_request is not None:
+        progress = settle_request.get("StringToIntRecord", {}).get("NpcGroup")
+        wave_times = settle_request.get("StringToListIntRecord", {}).get("WaveCostTimes")
+        if progress is not None and wave_times is not None:
+            if len(wave_times) != progress - 1:
+                raise ValueError("captured wave timing count disagrees with NpcGroup progress")
+            completed_enemy_count = sum(len(group["NpcList"]) for group in captured_groups[:len(wave_times)])
+            if settle_request.get("DeathTotalEnemy") != completed_enemy_count:
+                raise ValueError("captured enemy deaths disagree with completed wave NPC counts")
+    else:
+        print(f"{capture_dir}: no FightSettleRequest dump (capture loss); skipping wave-timing validation")
 
 
     npc_definitions: list[Any] = []
@@ -100,7 +119,7 @@ def generate(capture_dir: Path, stage_id: int | None = None) -> dict[str, Any]:
             "MarkId": mark_id,
             "Archetype": archetype,
             "ReusableArchetype": True,
-            "LevelReferenceChallengeId": captured_challenge_id(capture_dir),
+            "LevelReferenceChallengeId": captured_challenge_id(capture_dir, challenge_from),
             "NpcGroupRefs": waves,
             "PassTimeLimit": prefight["PassTimeLimit"],
             "ReviseId": prefight["ReviseId"],
@@ -145,10 +164,18 @@ def main() -> None:
     parser.add_argument("--stage-id", type=int, help="stage to select when a capture directory contains multiple runs")
     parser.add_argument("--additional-capture-dir", action="append", type=Path, default=[],
                         help="additional capture run to merge into the normalized dataset")
+    parser.add_argument("--base", type=Path, default=None,
+                        help="existing dataset to keep while merging new captures; defaults to the output file when present")
+    parser.add_argument("--challenge-from", type=Path, default=None,
+                        help="capture dir holding NotifyArenaActivity (e.g. a login capture) when the fight captures lack it")
     parser.add_argument("output", type=Path, nargs="?", default=Path("Resources/Configs/arena_stage_data.json"))
     args = parser.parse_args()
     paths = [args.capture_dir, *args.additional_capture_dir]
-    dataset = merge([generate(path, args.stage_id if index == 0 else None) for index, path in enumerate(paths)])
+    datasets = [generate(path, args.stage_id if index == 0 else None, args.challenge_from) for index, path in enumerate(paths)]
+    base_path = args.base if args.base is not None else (args.output if args.output.exists() else None)
+    if base_path is not None:
+        datasets.insert(0, json.loads(base_path.read_text()))
+    dataset = merge(datasets)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(dataset, indent=2) + "\n")
 

@@ -250,6 +250,26 @@ namespace AscNet.SDKServer.Controllers
                 return Json(new { ok = true, msg = "OK", data = report, live });
             });
 
+            app.MapGet("/api/admin/tune-cub-state", (HttpContext ctx, long uid) =>
+            {
+                if (!Authorised(ctx)) return Unauthorised(ctx);
+
+                AscNet.GameServer.TuneCubStateReport state;
+                bool live;
+                try
+                {
+                    AscNet.GameServer.AdminSession.Handle handle = AscNet.GameServer.AdminSession.Open(uid);
+                    live = handle.Live;
+                    state = AscNet.GameServer.TuneBuilder.CubState(handle.Session);
+                }
+                catch (Exception ex)
+                {
+                    return Json(new { ok = false, msg = ex.InnerException?.Message ?? ex.Message }, 400);
+                }
+
+                return Json(new { ok = true, msg = "OK", data = state, live });
+            });
+
             app.MapPost("/api/admin/endgame-apply", (HttpContext ctx, [FromBody] AscNet.GameServer.EndgameApplyRequest request) =>
             {
                 if (!Authorised(ctx)) return Unauthorised(ctx);

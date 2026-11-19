@@ -131,8 +131,9 @@ internal partial class Program
                 $"War Zone rotation player {player} offers every element evenly: {string.Join(",", counts)}");
         }
 
-        // Legacy selection for the live week (activity 484), captured before the rotation change.
-        AssertEqual("12,27", string.Join(",", Pick(484, 1)), "War Zone legacy selection player 1 activity 484");
-        AssertEqual("27,11", string.Join(",", Pick(484, 2)), "War Zone legacy selection player 2 activity 484");
+        // Legacy selection for the live week (activity 484), re-captured after the 2026-11-19 archetype curation
+        // widened the supported zone pool with reusable mob/boss profiles; the legacy hash ranges over that pool.
+        AssertEqual("2,26", string.Join(",", Pick(484, 1)), "War Zone legacy selection player 1 activity 484");
+        AssertEqual("27,1", string.Join(",", Pick(484, 2)), "War Zone legacy selection player 2 activity 484");
     }
 }

@@ -1140,6 +1140,18 @@ function startUiServer() {
           : sendJson(res, { ok: false, msg: 'partner tables not found' }, 404)
       }
 
+      if (url.pathname === '/api/panel/tune-cub-state') {
+        const token = readAdminToken()
+        if (!token) return sendJson(res, { ok: false, msg: 'admin token not found - start the server once' }, 404)
+        const uid = url.searchParams.get('uid') || ''
+        fetch('http://127.0.0.1:' + config.sdkPort + '/api/admin/tune-cub-state?uid=' + encodeURIComponent(uid), {
+          headers: { 'X-Admin-Token': token },
+        })
+          .then((response) => response.json().then((payload) => sendJson(res, payload, response.status)))
+          .catch((err) => sendJson(res, { ok: false, msg: err.message }, 502))
+        return
+      }
+
       if (url.pathname === '/api/panel/tune-cub-bulk') {
         const token = readAdminToken()
         if (!token) return sendJson(res, { ok: false, msg: 'admin token not found - start the server once' }, 404)

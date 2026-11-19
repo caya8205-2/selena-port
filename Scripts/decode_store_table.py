@@ -110,6 +110,19 @@ def decode(data):
                     value = strings[string_index]
                 else:
                     value = string()
+            elif kind == 4:
+                count = integer()
+                if count < 0 or count > content_end - pos:
+                    raise DecodeError("BinaryTable string-list count exceeds content")
+                if index in pool_columns:
+                    value = []
+                    for _ in range(count):
+                        string_index = integer()
+                        if string_index < 0 or string_index >= len(strings):
+                            raise DecodeError("BinaryTable string-pool index exceeds pool")
+                        value.append(strings[string_index])
+                else:
+                    value = [string() for _ in range(count)]
             elif kind == 7:
                 count = integer()
                 if count < 0 or count > content_end - pos:
@@ -138,9 +151,9 @@ def decode(data):
     if pos != content + content_size:
         raise DecodeError('Content size mismatch')
     # The C# table generator represents lists as repeated, numbered TSV columns.
-    widths = [max(1, max((len(row[i]) for row in rows), default=0)) if kind in (6, 7) else 1
+    widths = [max(1, max((len(row[i]) for row in rows), default=0)) if kind in (4, 6, 7) else 1
               for i, (kind, _) in enumerate(columns)]
-    headers = [f'{name}[{j + 1}]' if kind in (6, 7) else name
+    headers = [f'{name}[{j + 1}]' if kind in (4, 6, 7) else name
                for (kind, name), width in zip(columns, widths) for j in range(width)]
     expanded = []
     for row in rows:
