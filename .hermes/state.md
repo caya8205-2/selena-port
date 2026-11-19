@@ -13,8 +13,10 @@ files it names. Do not rely on memory for ports, paths or column names.
 Last updated: 20 Nov 2026. The endgame board (Rank & weekly) now carries the War Zone
 tier/zone/stage picks, the PPC Standard/Ultimate boss picks with table-derived element
 weakness notes, and the Intensive Battle boss + stage set with its per-stage affix notes.
-The CUB Tune/Tutti controls and the CUB preset capacity repair ship in `26.11.19`. Section 11
-records the endgame facts and the open bugs; section 8 lists the older open work.
+The CUB Tune/Tutti controls and the CUB preset capacity repair ship in `26.11.19`. The
+shell Accounts tab gained the account detail block: set-to-value currencies, the
+account-wide action shortcuts, and a uid rename in the Edit dialog (section 12). Section
+11 records the endgame facts and the open bugs; section 8 lists the older open work.
 
 ---
 
@@ -378,7 +380,7 @@ against the code.
 - Task 6, testing owed: dorm and guild Perform from the panel against uid 2, a tune with a full six
   memory build and a 6 star weapon followed by a client login, and the shell account list, which
   needs the real Electron window because it reads the preload bridge.
-- Accounts still needs currency, unlock character and max character through the admin channel.
+- (Accounts currency and the character/stage unlock shortcuts shipped 20 Nov, section 12.)
 - Mail stays send-only by design, and one in-game claim of a panel mail has not been clicked.
 
 
@@ -822,6 +824,53 @@ tables and the player's persisted state.
 Open work on this surface:
 - IB boss↔affix pairing is AscNet policy, not retail; replacing it needs the retail distribute
   table, which is not in the repo or the client bundles seen so far.
+
+## 12. Accounts tab: currencies, account-wide actions, uid rename (20 Nov 2026)
+
+The shell Accounts tab (desktop/ui) grew an "Account detail" block below the roster:
+picking a row shows the account's currencies and six account-wide action buttons.
+
+- Currencies: `GET/POST /api/admin/accounts/{uid}/currencies` (AdminController), the
+  surface defined in `AscNet.GameServer/AdminCurrency.cs`: Black Card (the 2+3 pair,
+  reported under id 2), Cogs (1), Rainbow Card (5), Serum (4), Dorm Coin (30), Decor
+  Coin (31) and Simulation Score (105). Names come from Item.tsv except 105, which the
+  client and every player-facing surface call Simulation Score (Item.tsv says Creation
+  Operator; Docs/items.md is the reference). Caps come from `Inventory.GetMaxCount`.
+  A set is an administrative assignment, not a grant: `Inventory.SetExact` writes the
+  value clamped to the cap; `Inventory.SetBlackCard` puts the whole balance in the /bc
+  stack (3) and empties stack 2, so the displayed total is exactly the value.
+- **Validate before mutating**: `AdminCurrency.Apply` validates the whole request before
+  any balance moves. In a live session an earlier entry would otherwise persist on the
+  session's next save even though the request was refused (this bit once in testing: a
+  rejected both-stacks request left the first entry applied).
+- The write goes through `AdminSession.Open`, so a logged-in player gets the
+  `NotifyItemDataList` push and its in-memory inventory cannot clobber the write.
+- Actions reuse existing flows, no new server code: Max all characters
+  (`/api/admin/tune-bulk`), Max all CUBs (`/api/admin/tune-cub-bulk`), Unlock all
+  characters (`character add all`), Unlock all stages (`stage all`), Unlock all scenes
+  (`scene unlock all`), Unlock all coatings (`coating unlock all`). Each opens the
+  shared dialog first; the log line carries the report ("applied 86 of 86").
+- **Command message semantics fixed**: `/api/admin/command/{name}` now answers
+  `CommandMessageCallbackException` with `ok: true` and the command's message. The chat
+  path always showed it verbatim; the endpoint used to 400 it, which turned "Unlocked 5
+  scene background(s)." (a success) into an error in the panel.
+- **UID rename**: the Edit dialog carries a UID field. `POST /api/admin/accounts/{uid}/uid`
+  (`AdminUid.Rename`) rewrites the uid across accounts, players (`player_data._id`),
+  characters, inventory, stages, the three leaderboard collections (`player_id`), guild
+  membership (members key, member_ids, pending_membership_changes, applications, pending
+  operation) and the cross-player PvP defence outbox (`defender_id` in other players'
+  documents). It refuses a taken uid, the same uid, a missing account and a logged-in
+  player (the live session would write the old documents back). The dialog renames first,
+  then saves name/level against the new uid.
+- The admin JSON is PascalCase (`Id/Name/Count/Max` on the currency entries); the panel
+  reads those names.
+- The shell cannot be driven from a plain browser: `window.selena.onLog(append)` runs at
+  app.js top level and kills the script without the preload bridge. Test with a
+  throwaway `desktop/ui/shelltest.html` that installs the `window.selena` stub (real
+  token from admin-token.txt) and `document.write`s `/ui/index.html`; delete it before
+  committing. The nested `uid` ints inside Player documents (SameColorGame buff/weak,
+  Theatre6 live buff/match) are instance ids, not account uids; only `PlayerData.Id` is
+  the account's.
 
 ### A-rank CUB bug: root-caused and fixed (20 Nov 2026, UI only)
 

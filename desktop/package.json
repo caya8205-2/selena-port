@@ -1,7 +1,7 @@
 {
   "name": "selena-port",
   "productName": "Selena-port",
-  "version": "26.11.19",
+  "version": "26.11.20",
   "description": "Desktop console for a local Punishing: Gray Raven server",
   "main": "main.js",
   "author": "Caya8205",

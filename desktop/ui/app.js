@@ -252,6 +252,11 @@ async function loadAccounts() {
 
       actions.append(edit, reset, remove)
       row.append(name, uid, player, level, actions)
+      // The row picks the account for the detail block; the buttons keep their own flows.
+      row.addEventListener('click', (event) => {
+        if (event.target.closest('button')) return
+        selectAccountRow(account, row)
+      })
       body.appendChild(row)
     }
   } catch (err) {
@@ -321,17 +326,25 @@ function openDialog(options) {
 async function editAccount(account) {
   const values = await openDialog({
     title: 'Edit ' + account.username,
-    note: 'UID ' + account.uid,
+    note: 'changing the uid rewrites the account across the database; the player must be logged out',
     confirmLabel: 'Save',
     fields: [
+      { key: 'uid', label: 'UID', type: 'number', value: account.uid },
       { key: 'name', label: 'Commandant name', value: account.playerName || '' },
       { key: 'level', label: 'Level', type: 'number', value: account.level || 1 },
     ],
   })
   if (!values) return
 
+  const newUid = Math.floor(Number(values.uid))
   try {
-    await adminRequest(`/api/admin/accounts/${account.uid}/player`, {
+    let uid = account.uid
+    if (newUid > 0 && newUid !== account.uid) {
+      const renamed = await adminRequest(`/api/admin/accounts/${account.uid}/uid`, { NewUid: newUid })
+      uid = renamed.uid
+      appendTo('accountsLog', `renamed ${account.username} to uid ${uid}`)
+    }
+    await adminRequest(`/api/admin/accounts/${uid}/player`, {
       Name: values.name.trim() || null,
       Level: Number(values.level) > 0 ? Number(values.level) : null,
     })
@@ -362,6 +375,145 @@ async function confirmAccountAction(kind, account) {
   } catch (err) {
     appendTo('accountsLog', `${kind} failed: ` + err.message)
   }
+}
+
+// ------------------------------------------------------------- account detail
+
+// One selected account at a time: the roster row carries the pick, the detail block below it
+// carries the account's currencies and the account-wide actions. A pick without a player
+// document has nothing to show, so it hides the block.
+let detailAccount = null
+let detailCurrencies = []
+
+function selectAccountRow(account, row) {
+  detailAccount = account
+  document.querySelectorAll('#accountsTable tbody tr').forEach((tr) => tr.classList.remove('is-selected'))
+  row.classList.add('is-selected')
+  if (!account.playerPresent) {
+    document.querySelector('#accountDetail').hidden = true
+    return
+  }
+  loadAccountDetail(account)
+}
+
+async function loadAccountDetail(account) {
+  const detail = document.querySelector('#accountDetail')
+  const fields = document.querySelector('#currencyFields')
+  const note = document.querySelector('#currencyNote')
+  detail.hidden = false
+  document.querySelector('#accountDetailMeta').textContent = account.username + ' \u00b7 UID ' + account.uid
+  fields.textContent = ''
+  note.textContent = 'loading\u2026'
+
+  try {
+    const payload = await adminRequest(`/api/admin/accounts/${account.uid}/currencies`)
+    if (!detailAccount || detailAccount.uid !== account.uid) return // a newer pick won
+    detailCurrencies = payload.currencies
+    for (const currency of detailCurrencies) {
+      const wrap = document.createElement('label')
+      wrap.className = 'field'
+      const label = document.createElement('span')
+      label.className = 'field__label'
+      label.textContent = currency.Name
+      const input = document.createElement('input')
+      input.className = 'input input--mono'
+      input.type = 'number'
+      input.min = '0'
+      input.max = String(currency.Max)
+      input.value = String(currency.Count)
+      input.dataset.id = String(currency.Id)
+      wrap.append(label, input)
+      fields.appendChild(wrap)
+    }
+    note.textContent = 'sets the balance to the typed value, it does not add to it'
+  } catch (err) {
+    note.textContent = 'currencies unavailable'
+    appendTo('accountsLog', 'could not read currencies: ' + err.message)
+  }
+}
+
+function currencyValues() {
+  const values = {}
+  for (const input of document.querySelectorAll('#currencyFields input')) {
+    const value = Number(input.value)
+    if (!Number.isFinite(value) || value < 0) return null
+    values[input.dataset.id] = Math.min(Math.floor(value), Number(input.max))
+  }
+  return values
+}
+
+async function applyCurrencies(values, label) {
+  try {
+    const payload = await adminRequest(`/api/admin/accounts/${detailAccount.uid}/currencies`, { Values: values })
+    const parts = payload.currencies.map((c) => c.Name + ' ' + c.Count.toLocaleString())
+    appendTo('accountsLog', `${label} ${detailAccount.username}: ` + parts.join(', '))
+    loadAccountDetail(detailAccount)
+  } catch (err) {
+    appendTo('accountsLog', `${label} failed: ` + err.message)
+  }
+}
+
+document.querySelector('#btnSetCurrencies').addEventListener('click', () => {
+  if (!detailAccount) return
+  const values = currencyValues()
+  if (!values) { appendTo('accountsLog', 'currency values must be zero or more'); return }
+  applyCurrencies(values, 'set currencies')
+})
+
+document.querySelector('#btnMaxCurrencies').addEventListener('click', async () => {
+  if (!detailAccount) return
+  const confirmed = await openDialog({
+    title: 'Max all currencies',
+    note: `UID ${detailAccount.uid}, sets every currency on this account to its table cap`,
+    confirmLabel: 'Perform',
+  })
+  if (!confirmed) return
+  const values = {}
+  for (const currency of detailCurrencies) values[currency.Id] = currency.Max
+  applyCurrencies(values, 'max all currencies')
+})
+
+// Account-wide actions: the same flows the Control room runs, reachable from the roster. Each
+// one asks for a confirmation first, because every one of them writes a lot.
+const ACCOUNT_ACTIONS = [
+  { label: 'Max all characters', note: 'level, rank, promotion and skills to the table cap for every owned character', run: (uid) => adminRequest('/api/admin/tune-bulk', { Uid: uid }) },
+  { label: 'Max all CUBs', note: 'level, rank and skills to the cap for every CUB, clamped to each CUB\'s own ladder', run: (uid) => adminRequest('/api/admin/tune-cub-bulk', { Uid: uid }) },
+  { label: 'Unlock all characters', note: 'grant every ownable character the account does not hold', run: (uid) => adminRequest('/api/admin/command/character', { Uid: uid, Args: ['add', 'all'] }) },
+  { label: 'Unlock all stages', note: 'mark every campaign and story stage as passed', run: (uid) => adminRequest('/api/admin/command/stage', { Uid: uid, Args: ['all'] }) },
+  { label: 'Unlock all scenes', note: 'grant every scene background in the catalog', run: (uid) => adminRequest('/api/admin/command/scene', { Uid: uid, Args: ['unlock', 'all'] }) },
+  { label: 'Unlock all coatings', note: 'unlock every coating of the owned characters plus the catalog weapon coatings', run: (uid) => adminRequest('/api/admin/command/coating', { Uid: uid, Args: ['unlock', 'all'] }) },
+]
+
+const actionsHost = document.querySelector('#accountActions')
+for (const action of ACCOUNT_ACTIONS) {
+  const button = document.createElement('button')
+  button.className = 'btn'
+  button.textContent = action.label
+  button.title = action.note
+  button.addEventListener('click', async () => {
+    if (!detailAccount) return
+    const confirmed = await openDialog({
+      title: action.label,
+      note: `UID ${detailAccount.uid}, ${action.note}`,
+      confirmLabel: 'Perform',
+    })
+    if (!confirmed) return
+    button.disabled = true
+    try {
+      const payload = await action.run(detailAccount.uid)
+      const report = payload && payload.data
+      const applied = report ? (report.Applied !== undefined ? report.Applied : report.applied) : null
+      const total = report ? (report.Total !== undefined ? report.Total : report.total) : null
+      appendTo('accountsLog', `${action.label} ${detailAccount.username} done`
+        + (applied !== null ? ` (applied ${applied} of ${total})` : ''))
+      if (payload && payload.msg && payload.msg !== 'OK') appendTo('accountsLog', payload.msg)
+    } catch (err) {
+      appendTo('accountsLog', `${action.label} failed: ` + err.message)
+    } finally {
+      button.disabled = false
+    }
+  })
+  actionsHost.appendChild(button)
 }
 
 document.querySelector('#btnCreateAccount').addEventListener('click', async () => {

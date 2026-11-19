@@ -1,4 +1,5 @@
 using AscNet.Common.Database;
+using AscNet.Common.MsgPack;
 using AscNet.GameServer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -66,6 +67,79 @@ namespace AscNet.SDKServer.Controllers
                 player.SaveChecked();
 
                 return Json(new { ok = true, account = Describe(account) });
+            });
+
+            // The account tab's currency surface: read the balances the client shows and set them
+            // to exact values. A set is an administrative assignment, not a grant: the balance
+            // becomes the value. AdminSession reuses the live session when the player is in game,
+            // so the push reaches the client and the in-memory inventory cannot overwrite the
+            // write on its next save.
+            app.MapGet("/api/admin/accounts/{uid:long}/currencies", (HttpContext ctx, long uid) =>
+            {
+                if (!Authorised(ctx)) return Unauthorised(ctx);
+                if (Find(uid) is null) return Json(new { ok = false, msg = "no such account" }, 404);
+
+                Inventory? inventory = Inventory.collection.Find(i => i.Uid == uid).FirstOrDefault();
+                if (inventory is null)
+                    return Json(new { ok = false, msg = "this account has no player yet - log in once from the game" }, 409);
+
+                return Json(new { ok = true, uid, currencies = AdminCurrency.Describe(inventory) });
+            });
+
+            app.MapPost("/api/admin/accounts/{uid:long}/currencies", (HttpContext ctx, long uid, [FromBody] SetCurrenciesRequest request) =>
+            {
+                if (!Authorised(ctx)) return Unauthorised(ctx);
+                if (Find(uid) is null) return Json(new { ok = false, msg = "no such account" }, 404);
+                if (request?.Values is null || request.Values.Count == 0)
+                    return Json(new { ok = false, msg = "no currency values given" }, 400);
+
+                try
+                {
+                    AdminSession.Handle handle = AdminSession.Open(uid);
+                    List<Item> changed = AdminCurrency.Apply(handle.Session.inventory, request.Values);
+                    handle.Session.inventory.SaveChecked();
+                    if (handle.Live)
+                        handle.Session.SendPush(new NotifyItemDataList { ItemDataList = changed });
+
+                    return Json(new
+                    {
+                        ok = true,
+                        uid,
+                        live = handle.Live,
+                        currencies = AdminCurrency.Describe(handle.Session.inventory),
+                    });
+                }
+                catch (Exception ex)
+                {
+                    return Json(new { ok = false, msg = ex.InnerException?.Message ?? ex.Message }, 400);
+                }
+            });
+
+            // Renames the account's uid across every document that carries it. A logged-in
+            // player is refused: the live session keeps the old documents in memory and would
+            // write them back on its next save.
+            app.MapPost("/api/admin/accounts/{uid:long}/uid", (HttpContext ctx, long uid, [FromBody] RenameUidRequest request) =>
+            {
+                if (!Authorised(ctx)) return Unauthorised(ctx);
+                long newUid = request?.NewUid ?? 0;
+                if (newUid <= 0) return Json(new { ok = false, msg = "a positive uid is required" }, 400);
+                if (newUid == uid) return Json(new { ok = false, msg = "the uid already is that value" }, 400);
+                if (Find(uid) is null) return Json(new { ok = false, msg = "no such account" }, 404);
+                if (Find(newUid) is not null) return Json(new { ok = false, msg = "that uid is already taken" }, 409);
+                if (Player.collection.Find(player => player.PlayerData.Id == newUid).Any())
+                    return Json(new { ok = false, msg = "that uid is already taken" }, 409);
+                if (Server.Instance.SessionFromUID(uid) is not null)
+                    return Json(new { ok = false, msg = "the player is in game - log them out first" }, 409);
+
+                try
+                {
+                    Dictionary<string, int> renamed = AdminUid.Rename(uid, newUid);
+                    return Json(new { ok = true, uid = newUid, renamed });
+                }
+                catch (Exception ex)
+                {
+                    return Json(new { ok = false, msg = ex.InnerException?.Message ?? ex.Message }, 400);
+                }
             });
 
             app.MapPost("/api/admin/accounts/{uid:long}/delete", (HttpContext ctx, long uid) =>
@@ -178,16 +252,28 @@ namespace AscNet.SDKServer.Controllers
                 if (command is null)
                     return Json(new { ok = false, msg = "Command does not exist!" }, 404);
 
+                object? payload;
+                string msg;
                 try
                 {
                     command.Execute();
+                    payload = command.Payload;
+                    msg = "OK";
+                }
+                catch (AscNet.GameServer.Commands.CommandMessageCallbackException ex)
+                {
+                    // The command's own feedback line, which the chat path shows verbatim: some
+                    // commands throw it for the result as well as the refusal ("Unlocked 5 scene
+                    // background(s)." is a success).
+                    payload = null;
+                    msg = ex.Message;
                 }
                 catch (Exception ex)
                 {
                     return Json(new { ok = false, msg = ex.InnerException?.Message ?? ex.Message }, 400);
                 }
 
-                return Json(new { ok = true, msg = "OK", data = command.Payload, live });
+                return Json(new { ok = true, msg, data = payload, live });
             });
 
             app.MapPost("/api/admin/tune", (HttpContext ctx, [FromBody] AscNet.GameServer.TuneRequest request) =>
@@ -357,6 +443,17 @@ namespace AscNet.SDKServer.Controllers
     {
         public string? Name { get; set; }
         public long? Level { get; set; }
+    }
+
+    public sealed class SetCurrenciesRequest
+    {
+        /// <summary>Item id to exact balance; the Black Card pair takes one value under either id.</summary>
+        public Dictionary<int, long>? Values { get; set; }
+    }
+
+    public sealed class RenameUidRequest
+    {
+        public long NewUid { get; set; }
     }
 
     public sealed class AdminCommandRequest

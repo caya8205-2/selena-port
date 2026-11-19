@@ -43,6 +43,9 @@ namespace AscNet.Common.Database
         public const int PokemonStarUpItem = 57;
         public const int PokemonLowStarUpItem = 58;
         public const int PassportExp = 60;
+        // The Simulated Battlefield clear reward; the client and player-facing surfaces call it
+        // Simulation Score although Item.tsv names the row Creation Operator (see Docs/items.md).
+        public const int SimulationScore = 105;
         #endregion
 
         public static IMongoCollection<Inventory> collection = Common.db.GetCollection<Inventory>("inventory");

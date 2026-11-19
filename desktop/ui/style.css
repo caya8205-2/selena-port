@@ -269,6 +269,11 @@ body {
 .table td { padding: 10px; border-bottom: 1px solid var(--line); color: var(--text-dim); }
 .table tr:hover td { background: var(--surface); }
 .table__actions { display: flex; gap: 6px; justify-content: flex-end; }
+/* The picked account: the row answers for the detail block below it. */
+.table tr.is-selected td { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+
+/* Currency fields run two per row, label above the box, like the mail form. */
+.detail__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
 
 /* ------------------------------------------------------------------ setup wizard
    Shown when a launch finds something missing, and reopenable from Config. Four lines, one control each,

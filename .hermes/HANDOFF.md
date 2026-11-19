@@ -1,6 +1,36 @@
-# Handoff — Selena-port, 19 Nov 2026
+# Handoff — Selena-port, 20 Nov 2026
 
-## Current update: verified endgame and CUB tuning
+## Current update: 26.11.20 (Accounts tab, IB picker, CUB rank fix)
+
+The owner verified the CUB rank fix in game and authorized the `26.11.20` release. This
+update ships three things on top of `26.11.19`:
+
+- **Accounts tab, account detail block** (desktop/ui + new admin endpoints): picking a
+  roster row shows the account's seven currencies (Black Card 2+3 pair, Cogs, Rainbow
+  Card, Serum, Dorm Coin, Decor Coin, Simulation Score 105) with set-to-value inputs,
+  Perform and Max all, plus six account-wide action buttons that reuse the existing
+  flows (tune-bulk, tune-cub-bulk, character add all, stage all, scene unlock all,
+  coating unlock all). New server surface: `AdminCurrency` (Describe/Apply),
+  `Inventory.SetExact`/`SetBlackCard`, `GET/POST /api/admin/accounts/{uid}/currencies`.
+  A set is an assignment, not a grant; the whole request validates before any balance
+  moves (a live session persists in-memory mutations on its next save).
+- **UID rename in the Edit dialog**: `POST /api/admin/accounts/{uid}/uid` via
+  `AdminUid.Rename` rewrites the uid across accounts, players, characters, inventory,
+  stages, the three leaderboard collections, guild membership fields and the PvP
+  defence outbox; refuses taken/same uids, missing accounts and logged-in players.
+- **Command message semantics**: `/api/admin/command/{name}` answers
+  `CommandMessageCallbackException` as `ok` with the command's message (the chat path
+  always showed it verbatim; the endpoint used to 400 successes like "Unlocked 5 scene
+  background(s).").
+- Also in this release: the IB picker (previous session) and the CUB rank-ladder fix.
+  The release notes must say the IB picker shipped and the CUB rank bug is fixed,
+  replacing the `26.11.19` caveats.
+
+Verified on 20 Nov: currency set/clamp/pair split in the database, clean rejections,
+live push, the rename round-trip (uid 3 -> 10 -> 3) across all collections, the dialog
+flows in a browser harness, and the owner's in-game CUB read-back.
+
+## Previous update: verified endgame and CUB tuning
 
 The owner verified the current changes in game on 19 November: all reported score and ice-team preset fixes work.
 The sections below this update describe the previous 18 November investigation; their process IDs, release and

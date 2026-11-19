@@ -405,3 +405,6 @@ Resources/table.pre-4.7.7/
 web-ui/**/*.zh-orig
 web-ui/**/*.bak
 web-ui/**/*.bak-*
+
+# Control centre runtime state (pid files, per-run logs)
+tools/.run/
