@@ -42,6 +42,8 @@ any tuning. Selecting level 30, skill level 5 and rank SSS in Tune produces rank
 The CUB identity and underlying cause are not established. Reproduce the initial display and submitted/applied
 rank mapping against that CUB's authoritative tables and client contract; do not assume it shares the passive
 capacity bug or silently offset all ranks. Leave this for later as requested.
+The owner explicitly requested this known issue and its planned fix in the `26.11.19` release notes,
+alongside the IB picker planned for the next update.
 
 ## Historical handoff: 18 November
 
